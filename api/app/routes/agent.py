@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Response, UploadFile, status
 from loguru import logger
 from sqlalchemy import delete, select
 
+from app.antispoof import detect_capacity_inflation, find_hardware_collisions
 from app.attestation import verify_attestation
 from app.bandwidth import record_bandwidth
 from app.benchmark import validate_benchmark
@@ -263,13 +264,28 @@ async def submit_benchmark(
     """
     mark_seen(provider, _now(), settings.connection_timeout_seconds)
     ok, reason = validate_benchmark(body.metrics, provider.gpu_model)
+
+    # Anti-spoofing (Session 11.6): shared hardware or inflated capacity flag the provider.
+    fingerprint = str(body.metrics.get("hardware_fingerprint") or "") or None
+    collisions = (
+        await find_hardware_collisions(session, fingerprint, provider.id) if fingerprint else []
+    )
+    if collisions:
+        ok, reason = False, f"hardware fingerprint already used by {len(collisions)} provider(s)"
+    elif detect_capacity_inflation(body.metrics, provider):
+        ok, reason = False, "declared capacity exceeds measured benchmark"
+
     report = BenchmarkReport(
-        provider_id=provider.id, metrics=body.metrics, signature=body.signature, validated=ok
+        provider_id=provider.id,
+        metrics=body.metrics,
+        signature=body.signature,
+        validated=ok,
+        hardware_fingerprint=fingerprint,
     )
     session.add(report)
     await session.flush()
     if not ok:
-        # A provider whose benchmark contradicts its claims is down-tiered (disabled).
+        # A provider whose benchmark contradicts its claims / is spoofed is disabled.
         provider.enabled = False
         logger.warning("provider {} benchmark rejected: {}", provider.id, reason)
     return report
