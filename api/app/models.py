@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -112,6 +113,13 @@ class PathType(enum.StrEnum):
 
     direct = "direct"
     relay = "relay"
+
+
+class BandwidthDirection(enum.StrEnum):
+    """Data-transfer direction, from the provider's perspective."""
+
+    ingress = "ingress"  # bytes the provider received (e.g. input/model downloads)
+    egress = "egress"  # bytes the provider sent (e.g. result uploads)
 
 
 def _utcnow() -> datetime:
@@ -390,3 +398,29 @@ class ReputationEvent(Base):
     meta: Mapped[dict | None] = mapped_column(JSONVariant)
 
     created_at: Mapped[datetime] = _created_at()
+
+
+class BandwidthEvent(Base):
+    """An append-only record of bytes moved to/from a provider (Session 7.7).
+
+    Aggregated per provider (and per session via ``created_at`` since ``connected_at``)
+    for observability and future bandwidth-based pricing."""
+
+    __tablename__ = "bandwidth_events"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("providers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    job_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("jobs.id", ondelete="SET NULL"), index=True
+    )
+    direction: Mapped[BandwidthDirection] = mapped_column(
+        Enum(BandwidthDirection, name="bandwidth_direction", native_enum=False, length=10),
+        nullable=False,
+    )
+    num_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    created_at: Mapped[datetime] = _created_at()
+
+    __table_args__ = (CheckConstraint("num_bytes >= 0", name="ck_bandwidth_nonneg"),)

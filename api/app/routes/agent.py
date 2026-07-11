@@ -12,8 +12,17 @@ from fastapi import APIRouter, HTTPException, Response, UploadFile, status
 from loguru import logger
 from sqlalchemy import select
 
+from app.bandwidth import record_bandwidth
 from app.deps import ProviderDep, SessionDep, SettingsDep
-from app.models import AttemptOutcome, Job, JobAttempt, JobStatus, PathType, Provider
+from app.models import (
+    AttemptOutcome,
+    BandwidthDirection,
+    Job,
+    JobAttempt,
+    JobStatus,
+    PathType,
+    Provider,
+)
 from app.paths import NatType, provider_directly_reachable, record_path
 from app.presence import is_connected, mark_seen
 from app.results import record_result
@@ -190,11 +199,17 @@ async def download_input(job_id: uuid.UUID, provider: ProviderDep, session: Sess
     if job.input_ref is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     data = await get_storage().get(job.input_ref)
+    # Downloading input is ingress from the provider's perspective (Session 7.7).
+    await record_bandwidth(
+        session, provider.id, BandwidthDirection.ingress, len(data), job_id=job.id
+    )
     return Response(content=data, media_type="application/octet-stream")
 
 
 @router.post("/blobs", response_model=BlobRef, status_code=status.HTTP_201_CREATED)
-async def upload_result_blob(file: UploadFile, provider: ProviderDep) -> BlobRef:
+async def upload_result_blob(
+    file: UploadFile, provider: ProviderDep, session: SessionDep
+) -> BlobRef:
     """Store a result blob and return its (content-addressed) ref for the result call."""
     data = await file.read()
     if len(data) > _MAX_BLOB_BYTES:
@@ -203,6 +218,8 @@ async def upload_result_blob(file: UploadFile, provider: ProviderDep) -> BlobRef
             detail=f"Blob exceeds {_MAX_BLOB_BYTES} bytes.",
         )
     ref = await get_storage().put(data)
+    # Uploading a result is egress from the provider's perspective (Session 7.7).
+    await record_bandwidth(session, provider.id, BandwidthDirection.egress, len(data))
     return BlobRef(ref=ref, size=len(data))
 
 
