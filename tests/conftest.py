@@ -18,6 +18,10 @@ os.environ["GRIDIX_REDIS_URL"] = "redis://localhost:6379/15"
 os.environ["GRIDIX_SECRET_KEY"] = "test-secret-key-deterministic"
 os.environ["GRIDIX_ENV"] = "dev"
 os.environ["GRIDIX_STORAGE_LOCAL_PATH"] = str(Path(tempfile.gettempdir()) / "gridix_blobs")
+# Keep long-poll holds tiny so the suite stays fast (Session 7.1).
+os.environ["GRIDIX_POLL_HOLD_SECONDS"] = "0.4"
+os.environ["GRIDIX_POLL_TICK_SECONDS"] = "0.05"
+os.environ["GRIDIX_CONNECTION_TIMEOUT_SECONDS"] = "30"
 
 from app.config import get_settings  # noqa: E402
 from app.db import Base, get_engine, get_sessionmaker  # noqa: E402
