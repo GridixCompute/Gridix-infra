@@ -13,18 +13,21 @@ from loguru import logger
 from sqlalchemy import select
 
 from app.deps import ProviderDep, SessionDep, SettingsDep
-from app.models import AttemptOutcome, Job, JobAttempt, JobStatus, Provider
+from app.models import AttemptOutcome, Job, JobAttempt, JobStatus, PathType, Provider
+from app.paths import NatType, provider_directly_reachable, record_path
 from app.presence import is_connected, mark_seen
 from app.results import record_result
 from app.schemas import (
     Ack,
     AgentJob,
+    AgentPathReport,
     AgentPollResponse,
     AgentResultRequest,
     AgentStatusRequest,
     BlobRef,
     HeartbeatRequest,
     HeartbeatResponse,
+    PathResponse,
     PingResponse,
 )
 from app.state_machine import IllegalTransitionError, transition
@@ -98,6 +101,34 @@ async def ping(provider: ProviderDep, session: SessionDep, settings: SettingsDep
         connected_at=provider.connected_at,
         last_seen=provider.last_seen,
     )
+
+
+@router.post("/path", response_model=PathResponse)
+async def report_path(
+    body: AgentPathReport,
+    provider: ProviderDep,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> PathResponse:
+    """Negotiate the reachability path from the agent's NAT report.
+
+    A direct P2P path is chosen when the NAT topology allows it (open / restricted cone);
+    a symmetric NAT can't be punched, so the session uses the relay. The choice is
+    recorded on the provider and logged. Actual hole punching happens out of band; a
+    direct send that fails still falls back to relay transparently (ProviderChannel).
+    """
+    mark_seen(provider, _now(), settings.connection_timeout_seconds)
+    provider_nat = NatType(body.nat_type)
+    path = PathType.direct if provider_directly_reachable(provider_nat) else PathType.relay
+    record_path(provider, path, _now())
+    logger.info(
+        "provider {} path → {} (nat={}, {} candidates)",
+        provider.id,
+        path,
+        provider_nat,
+        len(body.candidates),
+    )
+    return PathResponse(path_type=path.value)
 
 
 @router.post("/heartbeat", response_model=HeartbeatResponse)

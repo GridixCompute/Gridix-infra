@@ -139,6 +139,7 @@ class ProviderResponse(ORMModel):
     enabled: bool
     connected_at: datetime | None
     last_seen: datetime | None
+    path_type: str | None
     created_at: datetime
 
 
@@ -148,6 +149,29 @@ class PingResponse(BaseModel):
     connected: bool
     connected_at: datetime | None
     last_seen: datetime | None
+
+
+# ── Path negotiation (Session 7.4) ──────────────────────────────────────────────
+class IceCandidate(BaseModel):
+    """A single ICE-style connectivity candidate advertised by the agent."""
+
+    address: str = Field(max_length=64)
+    port: int = Field(ge=1, le=65535)
+    kind: Literal["host", "srflx", "relay"] = "host"
+
+
+class AgentPathReport(BaseModel):
+    """Agent reports its NAT classification + candidates so the coordinator can decide
+    whether a direct path is possible or the relay must be used."""
+
+    nat_type: Literal["open", "restricted", "symmetric"]
+    candidates: list[IceCandidate] = Field(default_factory=list, max_length=16)
+
+
+class PathResponse(BaseModel):
+    """The negotiated path for the provider's current session."""
+
+    path_type: Literal["direct", "relay"]
 
 
 # ── Agent protocol (Session 3/4) ────────────────────────────────────────────────

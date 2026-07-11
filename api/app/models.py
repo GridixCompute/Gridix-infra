@@ -107,6 +107,13 @@ class ReputationKind(enum.StrEnum):
     slash = "slash"
 
 
+class PathType(enum.StrEnum):
+    """How the coordinator reaches a provider: a direct P2P path or via the relay."""
+
+    direct = "direct"
+    relay = "relay"
+
+
 def _utcnow() -> datetime:
     """Timezone-aware UTC now — used as a client-side default so ORM objects carry the
     timestamp immediately (no lazy refresh during async response serialization)."""
@@ -163,6 +170,12 @@ class Provider(Base):
     # call; ``connected_at`` marks the start of the current unbroken connection.
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+
+    # Reachability path for the current session (Session 7.4): direct P2P or relay.
+    path_type: Mapped[PathType | None] = mapped_column(
+        Enum(PathType, name="path_type", native_enum=False, length=10)
+    )
+    path_established_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     created_at: Mapped[datetime] = _created_at()
 
