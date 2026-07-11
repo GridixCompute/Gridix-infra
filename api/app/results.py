@@ -16,7 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bandwidth import job_bytes
 from app.config import Settings
-from app.ledger import LedgerAccount, LedgerDirection, Posting, post_transaction, slash_stake
+from app.disputes import open_dispute
+from app.ledger import LedgerAccount, LedgerDirection, Posting, post_transaction
 from app.models import (
     AttemptOutcome,
     Job,
@@ -214,6 +215,17 @@ async def _settle(session: AsyncSession, job: Job, winner_provider_id, settings:
         job.cost_final = Decimal(0)
 
 
+def _slash_evidence(job: Job, attempt: JobAttempt) -> dict:
+    """Reproducible evidence attached to a slash dispute (enriched in Session 10.2)."""
+    return {
+        "job_id": str(job.id),
+        "kind": str(job.kind),
+        "expected_output_hash": job.expected_output_hash,
+        "submitted_output_hash": (attempt.proof or {}).get("output_sha256"),
+        "attempt_number": attempt.attempt_number,
+    }
+
+
 async def _apply_outcome(
     session: AsyncSession,
     job: Job,
@@ -232,13 +244,29 @@ async def _apply_outcome(
         return
 
     # Did not win. A canary miss or a quorum dissent is cheating → slash. An honest
-    # standalone failure is not.
+    # standalone failure is not. Slashes are HELD via a dispute, not burned (Session 10.1).
     if is_canary:
         await record_reputation(session, provider, ReputationKind.canary_fail, job_id=job.id)
-        await slash_stake(session, provider.id, Decimal(settings.slash_amount), job_id=job.id)
+        await open_dispute(
+            session,
+            provider.id,
+            Decimal(settings.slash_amount),
+            reason="canary_fail",
+            settings=settings,
+            job_id=job.id,
+            evidence=_slash_evidence(job, attempt),
+        )
     elif job.redundancy > 1 and attempt.outcome is AttemptOutcome.completed:
         await record_reputation(session, provider, ReputationKind.quorum_disagree, job_id=job.id)
-        await slash_stake(session, provider.id, Decimal(settings.slash_amount), job_id=job.id)
+        await open_dispute(
+            session,
+            provider.id,
+            Decimal(settings.slash_amount),
+            reason="quorum_disagree",
+            settings=settings,
+            job_id=job.id,
+            evidence=_slash_evidence(job, attempt),
+        )
     else:
         await record_reputation(
             session,
