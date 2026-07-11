@@ -14,8 +14,9 @@ from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bandwidth import job_bytes
 from app.config import Settings
-from app.ledger import slash_stake
+from app.ledger import LedgerAccount, LedgerDirection, Posting, post_transaction, slash_stake
 from app.models import (
     AttemptOutcome,
     Job,
@@ -26,7 +27,7 @@ from app.models import (
     ReputationKind,
 )
 from app.payments import get_payment_provider
-from app.pricing import compute_cost, protocol_fee
+from app.pricing import compute_cost, data_cost, protocol_fee
 from app.quorum import AttemptResult, evaluate_quorum
 from app.reputation import record_reputation
 from app.schemas import AgentResultRequest
@@ -193,7 +194,21 @@ async def _settle(session: AsyncSession, job: Job, winner_provider_id, settings:
         remainder = escrow - cost
         if remainder > 0:
             await payment.refund(session, job.id, job.developer_id, remainder)
-        job.cost_final = cost
+        # Data-movement charge (Session 8.6), billed separately from escrowed compute.
+        dcost = data_cost(await job_bytes(session, job.id), settings)
+        if dcost > 0:
+            await post_transaction(
+                session,
+                [
+                    Posting(
+                        LedgerAccount.developer, LedgerDirection.debit, dcost, job.developer_id
+                    ),
+                    Posting(LedgerAccount.protocol, LedgerDirection.credit, dcost),
+                ],
+                reason="data_cost",
+                job_id=job.id,
+            )
+        job.cost_final = cost + dcost
     else:
         await payment.refund(session, job.id, job.developer_id, escrow)
         job.cost_final = Decimal(0)

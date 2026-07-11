@@ -38,3 +38,9 @@ def protocol_fee(cost: Decimal, settings: Settings) -> Decimal:
     """The protocol's cut of a settled job, in the same currency as ``cost``."""
     fee = cost * Decimal(settings.protocol_fee_bps) / Decimal(10_000)
     return fee.quantize(_CENT, rounding=ROUND_HALF_UP)
+
+
+def data_cost(num_bytes: int, settings: Settings) -> Decimal:
+    """The data-movement charge for ``num_bytes`` moved on behalf of a job (Session 8.6)."""
+    gb = Decimal(max(0, num_bytes)) / Decimal(1_000_000_000)
+    return (gb * Decimal(str(settings.data_price_per_gb))).quantize(_CENT, rounding=ROUND_HALF_UP)

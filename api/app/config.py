@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     high_value_min_reputation: float = Field(default=70.0, ge=0.0)
     protocol_fee_bps: int = Field(default=250, ge=0, le=10_000)
     base_job_price: float = Field(default=1.0, ge=0.0)
+    data_price_per_gb: float = Field(default=0.10, ge=0.0)
 
     # Hardening
     rate_limit_per_minute: int = Field(default=120, ge=1)
