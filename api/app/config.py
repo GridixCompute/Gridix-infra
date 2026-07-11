@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     kek: str = ""
     # Trusted verifier secret standing in for the TEE vendor root of trust (9.5).
     attestation_secret: str = ""
+    # Lifetime of job-scoped secrets injected into the container (9.6).
+    secrets_ttl_seconds: int = Field(default=3600, ge=1)
 
     storage_backend: Literal["local", "s3"] = "local"
     storage_local_path: str = "/data/blobs"
