@@ -4,6 +4,7 @@ These are called by the provider agent (Session 4). Assignment itself is done by
 scheduler; ``poll`` only surfaces work already assigned to the calling provider.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -13,6 +14,7 @@ from sqlalchemy import select
 
 from app.deps import ProviderDep, SessionDep, SettingsDep
 from app.models import AttemptOutcome, Job, JobAttempt, JobStatus, Provider
+from app.presence import is_connected, mark_seen
 from app.results import record_result
 from app.schemas import (
     Ack,
@@ -23,6 +25,7 @@ from app.schemas import (
     BlobRef,
     HeartbeatRequest,
     HeartbeatResponse,
+    PingResponse,
 )
 from app.state_machine import IllegalTransitionError, transition
 from app.storage import get_storage
@@ -45,10 +48,9 @@ async def _owned_active_job(session: SessionDep, provider: Provider, job_id: uui
     return job
 
 
-@router.post("/poll", response_model=AgentPollResponse)
-async def poll(provider: ProviderDep, session: SessionDep) -> AgentPollResponse:
-    """Return the oldest job assigned to this provider that it has not yet started."""
-    job = await session.scalar(
+async def _next_assigned_job(session: SessionDep, provider: Provider) -> Job | None:
+    """The oldest job assigned to this provider that it has not yet started."""
+    return await session.scalar(
         select(Job)
         .where(
             Job.assigned_provider_id == provider.id,
@@ -57,9 +59,45 @@ async def poll(provider: ProviderDep, session: SessionDep) -> AgentPollResponse:
         .order_by(Job.assigned_at.asc())
         .limit(1)
     )
-    if job is None:
-        return AgentPollResponse(job=None)
-    return AgentPollResponse(job=AgentJob.model_validate(job))
+
+
+@router.post("/poll", response_model=AgentPollResponse)
+async def poll(
+    provider: ProviderDep, session: SessionDep, settings: SettingsDep
+) -> AgentPollResponse:
+    """Long-poll for work: return immediately if a job is assigned, else hold the
+    connection open up to ``poll_hold_seconds`` before returning empty.
+
+    Holding the request open keeps the control channel warm across idle periods while
+    still surfacing new work within a poll tick of it being assigned.
+    """
+    mark_seen(provider, _now(), settings.connection_timeout_seconds)
+    await session.commit()  # record presence before we begin holding
+
+    deadline = _now() + timedelta(seconds=settings.poll_hold_seconds)
+    while True:
+        job = await _next_assigned_job(session, provider)
+        if job is not None:
+            return AgentPollResponse(job=AgentJob.model_validate(job))
+        remaining = (deadline - _now()).total_seconds()
+        if remaining <= 0:
+            return AgentPollResponse(job=None)
+        await asyncio.sleep(min(settings.poll_tick_seconds, remaining))
+        # End the read transaction so the next query sees newly-assigned work, without
+        # expiring loaded ORM objects (which would trigger a sync lazy-load).
+        await session.commit()
+
+
+@router.post("/ping", response_model=PingResponse)
+async def ping(provider: ProviderDep, session: SessionDep, settings: SettingsDep) -> PingResponse:
+    """Idle keepalive: refresh presence so the coordinator knows the agent is alive."""
+    now = _now()
+    mark_seen(provider, now, settings.connection_timeout_seconds)
+    return PingResponse(
+        connected=is_connected(provider, now, settings.connection_timeout_seconds),
+        connected_at=provider.connected_at,
+        last_seen=provider.last_seen,
+    )
 
 
 @router.post("/heartbeat", response_model=HeartbeatResponse)
@@ -70,6 +108,7 @@ async def heartbeat(
     job = await _owned_active_job(session, provider, body.job_id)
     if job.status not in (JobStatus.assigned, JobStatus.running):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Job is not in flight.")
+    mark_seen(provider, _now(), settings.connection_timeout_seconds)
     lease = _now() + timedelta(seconds=settings.lease_seconds)
     job.lease_expires_at = lease
     # Keep the current attempt's lease in sync.
@@ -86,10 +125,15 @@ async def heartbeat(
 
 @router.post("/jobs/{job_id}/status", response_model=Ack)
 async def report_status(
-    job_id: uuid.UUID, body: AgentStatusRequest, provider: ProviderDep, session: SessionDep
+    job_id: uuid.UUID,
+    body: AgentStatusRequest,
+    provider: ProviderDep,
+    session: SessionDep,
+    settings: SettingsDep,
 ) -> Ack:
     """Agent reports it has begun executing: ``assigned → running``."""
     job = await _owned_active_job(session, provider, job_id)
+    mark_seen(provider, _now(), settings.connection_timeout_seconds)
     try:
         transition(job, JobStatus.running)
     except IllegalTransitionError as exc:

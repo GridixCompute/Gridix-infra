@@ -137,7 +137,17 @@ class ProviderResponse(ORMModel):
     max_concurrent: int
     reputation: float
     enabled: bool
+    connected_at: datetime | None
+    last_seen: datetime | None
     created_at: datetime
+
+
+class PingResponse(BaseModel):
+    """Presence status returned to an agent keepalive (Session 7.1)."""
+
+    connected: bool
+    connected_at: datetime | None
+    last_seen: datetime | None
 
 
 # ── Agent protocol (Session 3/4) ────────────────────────────────────────────────

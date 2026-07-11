@@ -16,6 +16,7 @@ import asyncio
 import contextlib
 import hashlib
 import os
+import random
 import signal
 import time
 from dataclasses import dataclass
@@ -41,6 +42,8 @@ class AgentConfig:
     provider_key: str
     workdir: Path
     poll_interval: float
+    poll_jitter: float
+    poll_backoff_max: float
     heartbeat_interval: float
     enable_gpu: bool
 
@@ -55,7 +58,9 @@ class AgentConfig:
             api_url=api_url,
             provider_key=key,
             workdir=Path(os.environ.get("GRIDIX_AGENT_WORKDIR", "/tmp/gridix-agent")),
-            poll_interval=float(os.environ.get("GRIDIX_POLL_INTERVAL", "3")),
+            poll_interval=float(os.environ.get("GRIDIX_POLL_INTERVAL", "1")),
+            poll_jitter=float(os.environ.get("GRIDIX_POLL_JITTER", "0.3")),
+            poll_backoff_max=float(os.environ.get("GRIDIX_POLL_BACKOFF_MAX", "30")),
             heartbeat_interval=float(os.environ.get("GRIDIX_HEARTBEAT_INTERVAL", "15")),
             enable_gpu=os.environ.get("GRIDIX_ENABLE_GPU", "false").lower() == "true",
         )
@@ -198,14 +203,31 @@ class Agent:
         """Signal the loop to stop; the current job's lease will lapse and reassign."""
         self._stop.set()
 
+    def _jittered(self, base: float) -> float:
+        """Return ``base`` scaled by ±poll_jitter to avoid thundering-herd re-polls."""
+        return base * (1 + random.uniform(-self._cfg.poll_jitter, self._cfg.poll_jitter))
+
     async def run(self) -> None:
-        """Main poll loop until stopped."""
+        """Main poll loop until stopped.
+
+        The server long-polls, so a successful empty poll is followed by a short jittered
+        pause. Connection errors back off exponentially (capped) so a flapping coordinator
+        or network does not hammer the endpoint.
+        """
         logger.info("agent started against {}", self._cfg.api_url)
+        backoff = self._cfg.poll_interval
         try:
             while not self._stop.is_set():
-                job = await self._poll()
+                try:
+                    job = await self._poll()
+                    backoff = self._cfg.poll_interval  # healthy connection; reset
+                except Exception as exc:  # noqa: BLE001 - back off and retry on any error
+                    logger.warning("poll failed, backing off {:.1f}s: {}", backoff, exc)
+                    await asyncio.sleep(self._jittered(backoff))
+                    backoff = min(backoff * 2, self._cfg.poll_backoff_max)
+                    continue
                 if job is None:
-                    await asyncio.sleep(self._cfg.poll_interval)
+                    await asyncio.sleep(self._jittered(self._cfg.poll_interval))
                     continue
                 await self._handle_job(job)
         finally:

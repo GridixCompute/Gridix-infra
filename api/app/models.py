@@ -159,6 +159,11 @@ class Provider(Base):
     reputation: Mapped[float] = mapped_column(Float, default=50.0, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # Control-channel presence (Session 7.1). ``last_seen`` is bumped on every agent
+    # call; ``connected_at`` marks the start of the current unbroken connection.
+    connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+
     created_at: Mapped[datetime] = _created_at()
 
     __table_args__ = (

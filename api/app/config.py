@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     lease_seconds: int = Field(default=60, ge=5)
     max_attempts: int = Field(default=3, ge=1)
 
+    # Control channel / presence (Session 7.1)
+    poll_hold_seconds: float = Field(default=25.0, ge=0.0)
+    poll_tick_seconds: float = Field(default=1.0, gt=0.0)
+    connection_timeout_seconds: int = Field(default=30, ge=1)
+
     # Verification / economics
     canary_rate: float = Field(default=0.05, ge=0.0, le=1.0)
     min_provider_stake: int = Field(default=100, ge=0)
