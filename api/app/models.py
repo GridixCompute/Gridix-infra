@@ -528,6 +528,8 @@ class BenchmarkReport(Base):
     metrics: Mapped[dict] = mapped_column(JSONVariant, nullable=False)
     signature: Mapped[str] = mapped_column(String(64), nullable=False)
     validated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Hardware fingerprint (e.g. GPU UUID) for anti-spoofing collision checks (11.6).
+    hardware_fingerprint: Mapped[str | None] = mapped_column(String(128), index=True)
     created_at: Mapped[datetime] = _created_at()
 
 
