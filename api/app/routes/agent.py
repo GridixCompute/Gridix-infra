@@ -25,6 +25,7 @@ from app.models import (
     ProviderArtifact,
 )
 from app.paths import NatType, provider_directly_reachable, record_path
+from app.peer_distribution import plan_fetch, seeders_for
 from app.presence import is_connected, mark_seen
 from app.results import record_result
 from app.schemas import (
@@ -39,6 +40,7 @@ from app.schemas import (
     HeartbeatRequest,
     HeartbeatResponse,
     PathResponse,
+    PeerFetchPlan,
     PingResponse,
 )
 from app.state_machine import IllegalTransitionError, transition
@@ -161,6 +163,26 @@ async def report_cache(
             seen.add(digest)
             session.add(ProviderArtifact(provider_id=provider.id, digest=digest))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/artifacts/{digest}/peers", response_model=PeerFetchPlan)
+async def artifact_peers(
+    digest: str, provider: ProviderDep, session: SessionDep, settings: SettingsDep
+) -> PeerFetchPlan:
+    """Return where to fetch an artifact from (Session 8.7). Origin unless peer
+    distribution is enabled and another provider already seeds the digest."""
+    plan = await plan_fetch(session, provider.id, digest, settings)
+    seeders = (
+        await seeders_for(session, digest, exclude=provider.id)
+        if settings.peer_distribution_enabled
+        else []
+    )
+    return PeerFetchPlan(
+        enabled=settings.peer_distribution_enabled,
+        kind=plan.kind,
+        provider_id=plan.provider_id,
+        seeders=seeders,
+    )
 
 
 @router.post("/heartbeat", response_model=HeartbeatResponse)

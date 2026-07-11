@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     storage_local_path: str = "/data/blobs"
     s3_bucket: str = "gridix-blobs"
     s3_endpoint_url: str = ""  # blank → real AWS S3; set for MinIO/localstack
+    # Peer-assisted artifact distribution (Session 8.7). Off by default.
+    peer_distribution_enabled: bool = False
 
     # Scheduler / reliability
     lease_seconds: int = Field(default=60, ge=5)

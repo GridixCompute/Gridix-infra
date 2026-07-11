@@ -201,6 +201,15 @@ class CacheReport(BaseModel):
     cached: list[str] = Field(default_factory=list, max_length=10000)
 
 
+class PeerFetchPlan(BaseModel):
+    """Where a provider should fetch an artifact from (Session 8.7)."""
+
+    enabled: bool
+    kind: Literal["origin", "peer"]
+    provider_id: uuid.UUID | None = None
+    seeders: list[uuid.UUID] = Field(default_factory=list)
+
+
 # ── Agent protocol (Session 3/4) ────────────────────────────────────────────────
 class AgentJob(ORMModel):
     """Everything an agent needs to run one assigned job."""
