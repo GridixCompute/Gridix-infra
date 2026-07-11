@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Response, UploadFile, status
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.bandwidth import record_bandwidth
 from app.deps import ProviderDep, SessionDep, SettingsDep
@@ -22,6 +22,7 @@ from app.models import (
     JobStatus,
     PathType,
     Provider,
+    ProviderArtifact,
 )
 from app.paths import NatType, provider_directly_reachable, record_path
 from app.presence import is_connected, mark_seen
@@ -34,6 +35,7 @@ from app.schemas import (
     AgentResultRequest,
     AgentStatusRequest,
     BlobRef,
+    CacheReport,
     HeartbeatRequest,
     HeartbeatResponse,
     PathResponse,
@@ -138,6 +140,27 @@ async def report_path(
         len(body.candidates),
     )
     return PathResponse(path_type=path.value)
+
+
+@router.post("/cache", status_code=status.HTTP_204_NO_CONTENT)
+async def report_cache(
+    body: CacheReport, provider: ProviderDep, session: SessionDep, settings: SettingsDep
+) -> Response:
+    """Sync the provider's cached artifact digests (Session 8.5 locality hint).
+
+    Replaces the recorded set so it tracks the agent's LRU cache; the scheduler then
+    soft-prefers this provider for jobs whose input it already holds.
+    """
+    mark_seen(provider, _now(), settings.connection_timeout_seconds)
+    await session.execute(
+        delete(ProviderArtifact).where(ProviderArtifact.provider_id == provider.id)
+    )
+    seen: set[str] = set()
+    for digest in body.cached:
+        if digest and digest not in seen:
+            seen.add(digest)
+            session.add(ProviderArtifact(provider_id=provider.id, digest=digest))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/heartbeat", response_model=HeartbeatResponse)

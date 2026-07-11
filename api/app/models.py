@@ -400,6 +400,24 @@ class ReputationEvent(Base):
     created_at: Mapped[datetime] = _created_at()
 
 
+class ProviderArtifact(Base):
+    """Which content-addressed artifacts a provider currently has cached (Session 8.5).
+
+    Reported by the agent; the scheduler soft-prefers providers that already hold a job's
+    input digest so warm-cache placement avoids a re-download."""
+
+    __tablename__ = "provider_artifacts"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("providers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    digest: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    created_at: Mapped[datetime] = _created_at()
+
+    __table_args__ = (UniqueConstraint("provider_id", "digest", name="uq_provider_artifact"),)
+
+
 class UploadSession(Base):
     """A resumable chunked-upload session (Session 8.4). Staged bytes live on disk keyed
     by this id; this row tracks ownership and the promoted blob ref on completion."""
