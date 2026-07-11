@@ -28,6 +28,7 @@ from app.models import (
     ReputationKind,
 )
 from app.payments import get_payment_provider
+from app.penalties import count_prior_offenses, graduated_slash
 from app.pricing import compute_cost, data_cost, protocol_fee
 from app.quorum import AttemptResult, evaluate_quorum
 from app.reputation import record_reputation
@@ -256,26 +257,20 @@ async def _apply_outcome(
             await record_reputation(session, provider, ReputationKind.quorum_agree, job_id=job.id)
         return
 
-    # Did not win. A canary miss or a quorum dissent is cheating → slash. An honest
-    # standalone failure is not. Slashes are HELD via a dispute, not burned (Session 10.1).
-    if is_canary:
-        await record_reputation(session, provider, ReputationKind.canary_fail, job_id=job.id)
+    # Did not win. A canary miss or a quorum dissent is cheating → slash, escalating with
+    # the provider's history (Session 10.6). An honest standalone failure is not slashed.
+    # Slashes are HELD via a dispute, not burned (Session 10.1).
+    if is_canary or (job.redundancy > 1 and attempt.outcome is AttemptOutcome.completed):
+        reason = "canary_fail" if is_canary else "quorum_disagree"
+        kind = ReputationKind.canary_fail if is_canary else ReputationKind.quorum_disagree
+        await record_reputation(session, provider, kind, job_id=job.id)
+        prior = await count_prior_offenses(session, provider.id)
+        amount = graduated_slash(Decimal(settings.slash_amount), prior)
         await open_dispute(
             session,
             provider.id,
-            Decimal(settings.slash_amount),
-            reason="canary_fail",
-            settings=settings,
-            job_id=job.id,
-            evidence=_slash_evidence(job, attempt, all_results),
-        )
-    elif job.redundancy > 1 and attempt.outcome is AttemptOutcome.completed:
-        await record_reputation(session, provider, ReputationKind.quorum_disagree, job_id=job.id)
-        await open_dispute(
-            session,
-            provider.id,
-            Decimal(settings.slash_amount),
-            reason="quorum_disagree",
+            amount,
+            reason=reason,
             settings=settings,
             job_id=job.id,
             evidence=_slash_evidence(job, attempt, all_results),
