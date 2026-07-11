@@ -60,3 +60,8 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["api", "tests", "agent"]
 addopts = "-q"
+filterwarnings = [
+    # Starlette's TestClient warns about httpx; not actionable in our code.
+    "ignore:Using `httpx` with `starlette.testclient`:UserWarning",
+    "ignore::DeprecationWarning:starlette.*",
+]
