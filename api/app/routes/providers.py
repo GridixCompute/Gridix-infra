@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from sqlalchemy import select
 
 from app.bandwidth import provider_bandwidth
+from app.benchmark import trust_source
 from app.deps import ProviderDep, SessionDep
 from app.models import BenchmarkReport
 from app.schemas import (
@@ -55,3 +56,21 @@ async def my_benchmark(provider: ProviderDep, session: SessionDep) -> BenchmarkR
         .order_by(BenchmarkReport.created_at.desc())
         .limit(1)
     )
+
+
+@router.get("/providers/me/trust")
+async def my_trust(provider: ProviderDep, session: SessionDep) -> dict:
+    """Report the provider's trust source (Session 11.3): attested / benchmark / self_report."""
+    has_valid = await session.scalar(
+        select(BenchmarkReport)
+        .where(
+            BenchmarkReport.provider_id == provider.id,
+            BenchmarkReport.validated.is_(True),
+        )
+        .limit(1)
+    )
+    return {
+        "attested": provider.tee_attested,
+        "benchmarked": has_valid is not None,
+        "trust_source": trust_source(provider.tee_attested, has_valid is not None),
+    }

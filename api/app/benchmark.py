@@ -49,6 +49,19 @@ def validate_benchmark(metrics: dict, declared_gpu_model: str | None) -> tuple[b
     return True, "ok"
 
 
+def trust_source(tee_attested: bool, has_validated_benchmark: bool) -> str:
+    """How much to trust a provider's declared hardware (Session 11.3).
+
+    Cryptographic TEE attestation is strongest; a validated benchmark is next; bare
+    self-report is weakest. Unattested providers fall back to benchmark-only trust.
+    """
+    if tee_attested:
+        return "attested"
+    if has_validated_benchmark:
+        return "benchmark"
+    return "self_report"
+
+
 def performance_tier(metrics: dict) -> str:
     """Derive a coarse performance tier from measured throughput (Session 11.5)."""
     tflops = float(metrics.get("gpu_tflops") or 0)
