@@ -6,6 +6,8 @@ on:
   pull_request:
 
 jobs:
+  # Lint, type-safety gates, migrations, and the full test suite (incl. the Session 6
+  # integration happy path). A PR that breaks the happy path fails here (12.2).
   test:
     runs-on: ubuntu-latest
     steps:
@@ -32,5 +34,18 @@ jobs:
           alembic upgrade head
           alembic downgrade base
 
-      - name: Tests
-        run: pytest
+      - name: Tests (unit + integration)
+        run: pytest -q
+
+      - name: Packaging build
+        run: pip install -e .
+
+  # Build the control-plane and agent images so a broken Dockerfile fails CI (12.2).
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build control-plane image
+        run: docker build -t gridix-api:ci .
+      - name: Build agent image
+        run: docker build -t gridix-agent:ci ./agent
