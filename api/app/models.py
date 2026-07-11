@@ -182,6 +182,10 @@ class Provider(Base):
     reputation: Mapped[float] = mapped_column(Float, default=50.0, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # Confidential compute (Session 9.4-9.5): whether the provider has a currently-valid
+    # TEE attestation. Set by the attestation flow; only these run confidential-tee jobs.
+    tee_attested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # Control-channel presence (Session 7.1). ``last_seen`` is bumped on every agent
     # call; ``connected_at`` marks the start of the current unbroken connection.
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

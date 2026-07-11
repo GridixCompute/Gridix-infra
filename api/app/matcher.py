@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.ledger import provider_stake
-from app.models import Job, JobStatus, Provider, ProviderArtifact
+from app.models import DataTier, Job, JobStatus, Provider, ProviderArtifact
 
 # Job states that occupy a provider's concurrency slot.
 _ACTIVE_STATES = (JobStatus.assigned, JobStatus.running)
@@ -78,6 +78,11 @@ def _capability_query(job: Job) -> tuple[Select, object, object]:
     )
     if need_gpu:
         query = query.where(Provider.gpu_model.is_not(None), Provider.gpu_vram_mb >= need_vram)
+
+    # Confidential-TEE jobs run ONLY on attested-TEE providers (Session 9.4) — a hard
+    # constraint, never relaxed.
+    if job.data_tier is DataTier.confidential_tee:
+        query = query.where(Provider.tee_attested.is_(True))
 
     # Warm-cache locality: 1 if the provider already holds the job's input digest.
     if job.input_ref:
