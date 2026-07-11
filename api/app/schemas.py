@@ -221,6 +221,19 @@ class DataKeyResponse(BaseModel):
     data_key: str
 
 
+class AttestationQuote(BaseModel):
+    """A TEE attestation quote submitted by the agent (Session 9.5)."""
+
+    measurement: str = Field(max_length=256)
+    signature: str = Field(max_length=256)
+
+
+class AttestationResult(BaseModel):
+    """Whether the submitted attestation was accepted."""
+
+    attested: bool
+
+
 # ── Agent protocol (Session 3/4) ────────────────────────────────────────────────
 class AgentJob(ORMModel):
     """Everything an agent needs to run one assigned job."""

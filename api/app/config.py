@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     secret_key: str = "dev-insecure-secret-change-me"
     # Coordinator key-encryption key (Fernet) for brokering per-job data keys (9.3).
     kek: str = ""
+    # Trusted verifier secret standing in for the TEE vendor root of trust (9.5).
+    attestation_secret: str = ""
 
     storage_backend: Literal["local", "s3"] = "local"
     storage_local_path: str = "/data/blobs"
