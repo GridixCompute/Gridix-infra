@@ -26,6 +26,21 @@ def _content_ref(data: bytes, suffix: str) -> str:
     return f"{content_digest(data)}{suffix}"
 
 
+class IntegrityError(Exception):
+    """Raised when stored bytes don't match their content-addressed ref."""
+
+
+def verify_integrity(ref: str, data: bytes) -> None:
+    """Raise :class:`IntegrityError` if ``data`` doesn't hash to ``ref``'s digest.
+
+    The ref is ``<sha256-hex><optional-suffix>``; the leading 64 hex chars are the digest.
+    """
+    expected = ref[:64]
+    actual = content_digest(data)
+    if actual != expected:
+        raise IntegrityError(f"blob integrity check failed: ref={ref} actual_sha256={actual}")
+
+
 class Storage(ABC):
     """A content-addressed blob store. ``ref`` values are opaque storage keys."""
 
@@ -33,9 +48,15 @@ class Storage(ABC):
     async def put(self, data: bytes, *, suffix: str = "") -> str:
         """Store ``data`` and return its content-addressed ref."""
 
-    @abstractmethod
     async def get(self, ref: str) -> bytes:
-        """Return the bytes stored under ``ref`` (raises if absent)."""
+        """Return the bytes stored under ``ref``, verifying sha256 integrity (8.2)."""
+        data = await self._read(ref)
+        verify_integrity(ref, data)
+        return data
+
+    @abstractmethod
+    async def _read(self, ref: str) -> bytes:
+        """Return the raw bytes stored under ``ref`` (raises if absent)."""
 
     @abstractmethod
     async def exists(self, ref: str) -> bool:
@@ -62,7 +83,7 @@ class LocalStorage(Storage):
             path.write_bytes(data)
         return ref
 
-    async def get(self, ref: str) -> bytes:
+    async def _read(self, ref: str) -> bytes:
         return self._path(ref).read_bytes()
 
     async def exists(self, ref: str) -> bool:
@@ -144,7 +165,7 @@ class S3Storage(Storage):
             await self._store.put_object(self._key(ref), data)
         return ref
 
-    async def get(self, ref: str) -> bytes:
+    async def _read(self, ref: str) -> bytes:
         return await self._store.get_object(self._key(ref))
 
     async def exists(self, ref: str) -> bool:
