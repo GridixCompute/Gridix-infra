@@ -92,6 +92,16 @@ class LedgerAccount(enum.StrEnum):
     protocol = "protocol"
     escrow = "escrow"
     stake = "stake"
+    disputed = "disputed"  # slashed stake held pending dispute resolution (Session 10)
+
+
+class DisputeState(enum.StrEnum):
+    """Lifecycle of a slash dispute (Session 10.1)."""
+
+    open = "open"  # slash held; provider may contest within the window
+    under_review = "under_review"  # contested; awaiting adjudication
+    upheld = "upheld"  # slash confirmed → held stake burned to protocol
+    overturned = "overturned"  # slash reversed → held stake returned to provider
 
 
 class ReputationKind(enum.StrEnum):
@@ -452,6 +462,34 @@ class UploadSession(Base):
     declared_digest: Mapped[str | None] = mapped_column(String(64))
     blob_ref: Mapped[str | None] = mapped_column(String(512))
     created_at: Mapped[datetime] = _created_at()
+
+
+class Dispute(Base):
+    """A contested slash (Session 10). While open/under_review the slashed stake is HELD
+    in the ``disputed`` ledger account, not burned; resolution burns or returns it."""
+
+    __tablename__ = "disputes"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("providers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    job_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("jobs.id", ondelete="SET NULL"), index=True
+    )
+    amount: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
+    state: Mapped[DisputeState] = mapped_column(
+        Enum(DisputeState, name="dispute_state", native_enum=False, length=16),
+        default=DisputeState.open,
+        nullable=False,
+        index=True,
+    )
+    reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence: Mapped[dict | None] = mapped_column(JSONVariant)
+    ruling_reason: Mapped[str | None] = mapped_column(String(256))
+    window_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = _created_at()
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class BandwidthEvent(Base):
