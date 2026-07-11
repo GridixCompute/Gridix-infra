@@ -86,6 +86,8 @@ class SubmitJobRequest(BaseModel):
     redundancy: int = Field(default=1, ge=1, le=9)
     # Endpoint-style job: the HTTP port the container listens on (Session 7.5).
     exposed_port: int | None = Field(default=None, ge=1, le=65535)
+    # Data-handling policy tier (Session 9). Invalid values are rejected here.
+    data_tier: Literal["public", "encrypted_at_rest", "confidential_tee"] = "public"
 
 
 class JobResponse(ORMModel):
@@ -104,6 +106,7 @@ class JobResponse(ORMModel):
     is_high_value: bool
     redundancy: int
     exposed_port: int | None
+    data_tier: str
     assigned_provider_id: uuid.UUID | None
     attempt_count: int
     lease_expires_at: datetime | None
