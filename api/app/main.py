@@ -11,7 +11,16 @@ from app.errors import install_error_handlers
 from app.logging import configure_logging
 from app.ratelimit import RateLimitMiddleware, RequestSizeLimitMiddleware
 from app.redis_client import close_redis
-from app.routes import agent, blobs, health, jobs, metrics, providers, registration
+from app.routes import (
+    agent,
+    blobs,
+    endpoints,
+    health,
+    jobs,
+    metrics,
+    providers,
+    registration,
+)
 
 
 @asynccontextmanager
@@ -39,6 +48,7 @@ def create_app() -> FastAPI:
     app.include_router(jobs.router)
     app.include_router(providers.router)
     app.include_router(agent.router)
+    app.include_router(endpoints.router)
     app.include_router(metrics.router)
     return app
 

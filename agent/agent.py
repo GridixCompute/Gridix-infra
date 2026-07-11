@@ -80,6 +80,7 @@ def build_run_argv(
     resource_spec: dict,
     allow_egress: bool,
     enable_gpu: bool,
+    exposed_port: int | None = None,
 ) -> list[str]:
     """Assemble the hardened ``docker run`` argv for one job.
 
@@ -88,9 +89,14 @@ def build_run_argv(
     with a small writable tmpfs for scratch, a non-root user, and memory / cpu / pid
     limits derived from the resource spec. The output directory is the one writable
     bind mount; input is mounted read-only. The caller enforces the wall-clock timeout.
+
+    Endpoint-style jobs (``exposed_port`` set) must be reachable, so they get a bridge
+    network with the port published to loopback only — the agent proxies tunnel requests
+    to it; the outside world still can't reach the container directly.
     """
     cpu = int(resource_spec.get("cpu_cores", 1))
     mem_mb = int(resource_spec.get("memory_mb", 512))
+    is_endpoint = exposed_port is not None
     argv: list[str] = [
         "docker",
         "run",
@@ -98,7 +104,7 @@ def build_run_argv(
         "--name",
         container_name,
         "--network",
-        "bridge" if allow_egress else "none",
+        "bridge" if (allow_egress or is_endpoint) else "none",
         "--cap-drop",
         "ALL",
         "--security-opt",
@@ -128,6 +134,9 @@ def build_run_argv(
             "-v",
             f"{input_path}:{CONTAINER_INPUT}:ro",
         ]
+    if is_endpoint:
+        # Publish to loopback only; the agent reaches it, the public internet cannot.
+        argv += ["-p", f"127.0.0.1:{exposed_port}:{exposed_port}"]
     if resource_spec.get("gpu") and enable_gpu:
         argv += ["--gpus", "all"]
     argv.append(image_ref)
@@ -243,16 +252,45 @@ class RelayTunnel:
                 await ping
 
     async def _handle_request(self, msg: dict) -> dict:
-        """Handle an inbound coordinator request delivered over the tunnel.
-
-        Session 7.5 forwards this to the job's exposed container port; for now it echoes,
-        which is enough to prove the coordinator↔NAT'd-provider round trip.
-        """
+        """Handle an inbound coordinator request delivered over the tunnel."""
+        payload = msg.get("payload") or {}
+        if payload.get("kind") == "endpoint":
+            return await self._proxy_endpoint(msg, payload)
+        # Non-endpoint control request: echo (round-trip probe).
         return {
             "type": "response",
             "request_id": msg.get("request_id"),
             "status": 200,
-            "payload": {"echo": msg.get("payload"), "job_id": msg.get("job_id")},
+            "payload": {"echo": payload, "job_id": msg.get("job_id")},
+        }
+
+    async def _proxy_endpoint(self, msg: dict, payload: dict) -> dict:
+        """Proxy an endpoint request to the job's container port on loopback."""
+        port = payload["port"]
+        path = payload.get("path", "/")
+        url = f"http://127.0.0.1:{port}{path}"
+        if payload.get("query"):
+            url = f"{url}?{payload['query']}"
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as proxy:
+                resp = await proxy.request(
+                    payload.get("method", "GET"),
+                    url,
+                    content=payload.get("body", "").encode(),
+                )
+            inner = {
+                "body": resp.text,
+                "content_type": resp.headers.get("content-type", "application/octet-stream"),
+            }
+            status_code = resp.status_code
+        except Exception as exc:  # noqa: BLE001 - report proxy failure as 502 to the caller
+            inner = {"body": f"proxy error: {exc}"}
+            status_code = 502
+        return {
+            "type": "response",
+            "request_id": msg.get("request_id"),
+            "status": status_code,
+            "payload": inner,
         }
 
     async def _ping_loop(self, ws) -> None:
@@ -364,6 +402,7 @@ class Agent:
             resource_spec=job.get("resource_spec") or {},
             allow_egress=job.get("allow_egress", False),
             enable_gpu=self._cfg.enable_gpu,
+            exposed_port=job.get("exposed_port"),
         )
         started = time.monotonic()
         exit_code, timed_out = await run_container(

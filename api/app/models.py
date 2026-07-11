@@ -250,6 +250,9 @@ class Job(Base):
     allow_egress: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     timeout_seconds: Mapped[int] = mapped_column(Integer, default=300, nullable=False)
 
+    # Endpoint-style jobs (Session 7.5): the container port the coordinator routes to.
+    exposed_port: Mapped[int | None] = mapped_column(Integer)
+
     # Verification / redundancy (Session 5).
     is_high_value: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     redundancy: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

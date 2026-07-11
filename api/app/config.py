@@ -42,6 +42,10 @@ class Settings(BaseSettings):
 
     # Relay / tunnel (Session 7.2-7.3)
     relay_request_timeout: float = Field(default=30.0, gt=0.0)
+    # Internal URL the API uses to reach the relay's bridge endpoint (Session 7.5).
+    relay_internal_url: str = "http://localhost:8100"
+    # Public base the coordinator advertises for endpoint URLs.
+    public_base_url: str = "http://localhost:8000"
 
     # Verification / economics
     canary_rate: float = Field(default=0.05, ge=0.0, le=1.0)
