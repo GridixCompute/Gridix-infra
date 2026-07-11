@@ -14,6 +14,7 @@ from app.redis_client import close_redis
 from app.routes import (
     agent,
     blobs,
+    disputes,
     endpoints,
     health,
     jobs,
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(jobs.router)
     app.include_router(providers.router)
     app.include_router(agent.router)
+    app.include_router(disputes.router)
     app.include_router(endpoints.router)
     app.include_router(metrics.router)
     return app

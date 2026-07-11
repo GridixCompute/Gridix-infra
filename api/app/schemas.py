@@ -241,6 +241,22 @@ class JobSecretsResponse(BaseModel):
     expires_at: int
 
 
+# ── Disputes (Session 10) ───────────────────────────────────────────────────────
+class DisputeResponse(ORMModel):
+    """A slash dispute with its reproducible evidence."""
+
+    id: uuid.UUID
+    provider_id: uuid.UUID
+    job_id: uuid.UUID | None
+    amount: float
+    state: str
+    reason: str
+    evidence: dict[str, Any] | None
+    ruling_reason: str | None
+    created_at: datetime
+    resolved_at: datetime | None
+
+
 # ── Agent protocol (Session 3/4) ────────────────────────────────────────────────
 class AgentJob(ORMModel):
     """Everything an agent needs to run one assigned job."""
