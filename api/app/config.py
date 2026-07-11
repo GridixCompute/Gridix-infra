@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     secret_key: str = "dev-insecure-secret-change-me"
+    # Coordinator key-encryption key (Fernet) for brokering per-job data keys (9.3).
+    kek: str = ""
 
     storage_backend: Literal["local", "s3"] = "local"
     storage_local_path: str = "/data/blobs"
