@@ -16,11 +16,13 @@ from app.attestation import verify_attestation
 from app.bandwidth import record_bandwidth
 from app.benchmark import validate_benchmark
 from app.deps import ProviderDep, SessionDep, SettingsDep
+from app.health import evaluate_degraded
 from app.key_broker import KeyReleaseError, release_data_key
 from app.models import (
     AttemptOutcome,
     BandwidthDirection,
     BenchmarkReport,
+    HealthSample,
     Job,
     JobAttempt,
     JobStatus,
@@ -46,6 +48,8 @@ from app.schemas import (
     BlobRef,
     CacheReport,
     DataKeyResponse,
+    HealthReport,
+    HealthResult,
     HeartbeatRequest,
     HeartbeatResponse,
     JobSecretsResponse,
@@ -269,6 +273,29 @@ async def submit_benchmark(
         provider.enabled = False
         logger.warning("provider {} benchmark rejected: {}", provider.id, reason)
     return report
+
+
+@router.post("/health", response_model=HealthResult)
+async def report_health(
+    body: HealthReport, provider: ProviderDep, session: SessionDep, settings: SettingsDep
+) -> HealthResult:
+    """Ingest a telemetry sample and flag the provider degraded if a signal crosses a
+    threshold (Session 11.4). Recovery telemetry clears the flag."""
+    mark_seen(provider, _now(), settings.connection_timeout_seconds)
+    session.add(
+        HealthSample(
+            provider_id=provider.id,
+            gpu_temp_c=body.gpu_temp_c,
+            throttling=body.throttling,
+            error_rate=body.error_rate,
+            latency_ms=body.latency_ms,
+        )
+    )
+    degraded, reason = evaluate_degraded(body.model_dump(), settings)
+    provider.degraded = degraded
+    if degraded:
+        logger.warning("provider {} degraded: {}", provider.id, reason)
+    return HealthResult(degraded=degraded, reason=reason)
 
 
 @router.post("/attest", response_model=AttestationResult)

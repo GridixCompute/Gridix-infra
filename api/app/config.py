@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     secrets_ttl_seconds: int = Field(default=3600, ge=1)
     # How long a slashed provider has to contest before the slash auto-confirms (10.1).
     dispute_window_seconds: int = Field(default=86_400, ge=1)
+    # Health thresholds above which a provider is marked degraded (11.4).
+    health_max_gpu_temp_c: float = Field(default=90.0)
+    health_max_error_rate: float = Field(default=0.1, ge=0.0, le=1.0)
 
     storage_backend: Literal["local", "s3"] = "local"
     storage_local_path: str = "/data/blobs"
