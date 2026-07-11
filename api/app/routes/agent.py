@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Response, UploadFile, status
 from loguru import logger
 from sqlalchemy import delete, select
 
+from app.attestation import verify_attestation
 from app.bandwidth import record_bandwidth
 from app.deps import ProviderDep, SessionDep, SettingsDep
 from app.key_broker import KeyReleaseError, release_data_key
@@ -36,6 +37,8 @@ from app.schemas import (
     AgentPollResponse,
     AgentResultRequest,
     AgentStatusRequest,
+    AttestationQuote,
+    AttestationResult,
     BlobRef,
     CacheReport,
     DataKeyResponse,
@@ -239,6 +242,26 @@ async def report_status(
     return Ack(job_id=job.id, status=job.status)
 
 
+@router.post("/attest", response_model=AttestationResult)
+async def submit_attestation(
+    body: AttestationQuote, provider: ProviderDep, session: SessionDep, settings: SettingsDep
+) -> AttestationResult:
+    """Verify a TEE attestation quote and set the provider's attested flag (Session 9.5).
+
+    A valid quote grants ``tee_attested`` (enabling confidential-tee assignment and key
+    release); a tampered or absent quote clears it and is rejected (400).
+    """
+    mark_seen(provider, _now(), settings.connection_timeout_seconds)
+    attested = verify_attestation(body.model_dump(), settings)
+    provider.tee_attested = attested
+    if not attested:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Attestation verification failed."
+        )
+    logger.info("provider {} attested (measurement={})", provider.id, body.measurement)
+    return AttestationResult(attested=True)
+
+
 @router.get("/jobs/{job_id}/key", response_model=DataKeyResponse)
 async def get_job_key(
     job_id: uuid.UUID, provider: ProviderDep, session: SessionDep, settings: SettingsDep
@@ -250,7 +273,7 @@ async def get_job_key(
     """
     job = await _owned_active_job(session, provider, job_id)
     try:
-        dek = release_data_key(job, settings)
+        dek = release_data_key(job, provider, settings)
     except KeyReleaseError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return DataKeyResponse(data_key=dek)
