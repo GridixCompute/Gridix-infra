@@ -58,3 +58,13 @@ async def provider_bandwidth(
     ingress = totals[BandwidthDirection.ingress]
     egress = totals[BandwidthDirection.egress]
     return {"ingress": ingress, "egress": egress, "total": ingress + egress}
+
+
+async def job_bytes(session: AsyncSession, job_id: uuid.UUID) -> int:
+    """Total bytes moved on behalf of a job (both directions) — for data-cost billing."""
+    total = await session.scalar(
+        select(func.coalesce(func.sum(BandwidthEvent.num_bytes), 0)).where(
+            BandwidthEvent.job_id == job_id
+        )
+    )
+    return int(total or 0)
