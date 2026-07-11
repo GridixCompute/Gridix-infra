@@ -30,6 +30,8 @@ class Settings(BaseSettings):
 
     storage_backend: Literal["local", "s3"] = "local"
     storage_local_path: str = "/data/blobs"
+    s3_bucket: str = "gridix-blobs"
+    s3_endpoint_url: str = ""  # blank → real AWS S3; set for MinIO/localstack
 
     # Scheduler / reliability
     lease_seconds: int = Field(default=60, ge=5)
