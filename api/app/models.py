@@ -494,6 +494,24 @@ class Dispute(Base):
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class BenchmarkReport(Base):
+    """A signed hardware benchmark a provider submits at onboarding (Session 11.1).
+
+    Metrics are validated against declared capabilities (11.2) and drive performance tiers
+    (11.5). The signature binds the report to the provider key that produced it."""
+
+    __tablename__ = "benchmark_reports"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("providers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    metrics: Mapped[dict] = mapped_column(JSONVariant, nullable=False)
+    signature: Mapped[str] = mapped_column(String(64), nullable=False)
+    validated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = _created_at()
+
+
 class BandwidthEvent(Base):
     """An append-only record of bytes moved to/from a provider (Session 7.7).
 

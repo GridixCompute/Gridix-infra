@@ -14,11 +14,13 @@ from sqlalchemy import delete, select
 
 from app.attestation import verify_attestation
 from app.bandwidth import record_bandwidth
+from app.benchmark import validate_benchmark
 from app.deps import ProviderDep, SessionDep, SettingsDep
 from app.key_broker import KeyReleaseError, release_data_key
 from app.models import (
     AttemptOutcome,
     BandwidthDirection,
+    BenchmarkReport,
     Job,
     JobAttempt,
     JobStatus,
@@ -39,6 +41,8 @@ from app.schemas import (
     AgentStatusRequest,
     AttestationQuote,
     AttestationResult,
+    BenchmarkResponse,
+    BenchmarkSubmit,
     BlobRef,
     CacheReport,
     DataKeyResponse,
@@ -242,6 +246,29 @@ async def report_status(
         attempt.started_at = _now()
     logger.info("job {} reported running by provider {}", job.id, provider.id)
     return Ack(job_id=job.id, status=job.status)
+
+
+@router.post("/benchmark", response_model=BenchmarkResponse, status_code=201)
+async def submit_benchmark(
+    body: BenchmarkSubmit, provider: ProviderDep, session: SessionDep, settings: SettingsDep
+) -> BenchmarkReport:
+    """Store a signed onboarding benchmark and validate it against declared hardware.
+
+    The report is attributed to the authenticated provider; validation (Session 11.2)
+    catches a machine claiming hardware it can't benchmark to.
+    """
+    mark_seen(provider, _now(), settings.connection_timeout_seconds)
+    ok, reason = validate_benchmark(body.metrics, provider.gpu_model)
+    report = BenchmarkReport(
+        provider_id=provider.id, metrics=body.metrics, signature=body.signature, validated=ok
+    )
+    session.add(report)
+    await session.flush()
+    if not ok:
+        # A provider whose benchmark contradicts its claims is down-tiered (disabled).
+        provider.enabled = False
+        logger.warning("provider {} benchmark rejected: {}", provider.id, reason)
+    return report
 
 
 @router.post("/attest", response_model=AttestationResult)
