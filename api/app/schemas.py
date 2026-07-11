@@ -234,6 +234,13 @@ class AttestationResult(BaseModel):
     attested: bool
 
 
+class JobSecretsResponse(BaseModel):
+    """Short-lived, job-scoped secrets injected into the container (Session 9.6)."""
+
+    secrets: dict[str, str]
+    expires_at: int
+
+
 # ── Agent protocol (Session 3/4) ────────────────────────────────────────────────
 class AgentJob(ORMModel):
     """Everything an agent needs to run one assigned job."""

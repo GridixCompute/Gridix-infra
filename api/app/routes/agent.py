@@ -44,10 +44,12 @@ from app.schemas import (
     DataKeyResponse,
     HeartbeatRequest,
     HeartbeatResponse,
+    JobSecretsResponse,
     PathResponse,
     PeerFetchPlan,
     PingResponse,
 )
+from app.secrets_broker import SecretReleaseError, mint_job_secrets
 from app.state_machine import IllegalTransitionError, transition
 from app.storage import get_storage
 
@@ -277,6 +279,24 @@ async def get_job_key(
     except KeyReleaseError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return DataKeyResponse(data_key=dek)
+
+
+@router.get("/jobs/{job_id}/secrets", response_model=JobSecretsResponse)
+async def get_job_secrets(
+    job_id: uuid.UUID, provider: ProviderDep, session: SessionDep, settings: SettingsDep
+) -> JobSecretsResponse:
+    """Mint short-lived, job-scoped secrets for the assigned agent (Session 9.6).
+
+    Values are never persisted and never logged (only their names); they expire on their
+    own and are unavailable once the job ends.
+    """
+    job = await _owned_active_job(session, provider, job_id)
+    try:
+        secrets, expires_at = mint_job_secrets(job, settings)
+    except SecretReleaseError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    logger.info("released {} secrets for job {} to provider {}", len(secrets), job.id, provider.id)
+    return JobSecretsResponse(secrets=secrets, expires_at=expires_at)
 
 
 @router.get("/jobs/{job_id}/input")
