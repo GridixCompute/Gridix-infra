@@ -16,7 +16,12 @@ import signal
 
 from loguru import logger
 
-from app.assignment import assign_job, drain_unreachable_providers, reap_expired_leases
+from app.assignment import (
+    assign_job,
+    drain_unreachable_providers,
+    reap_expired_leases,
+    recover_queued_jobs,
+)
 from app.canary import create_canary_job
 from app.config import get_settings
 from app.db import get_sessionmaker
@@ -63,6 +68,10 @@ async def _reaper_loop(stop: asyncio.Event) -> None:
                 requeued = await reap_expired_leases(session, settings)
             async with factory() as session:
                 requeued += await drain_unreachable_providers(session, settings)
+            # Recover any queued job that missed the Redis queue (e.g. a Redis outage at
+            # submit time). Re-enqueue is idempotent — assignment only acts on queued jobs.
+            async with factory() as session:
+                requeued += await recover_queued_jobs(session)
             for job_id in requeued:
                 await enqueue_job(job_id)
         except Exception:

@@ -92,8 +92,14 @@ async def submit_job(
     await get_payment_provider().hold_escrow(session, job.id, developer.id, escrow)
 
     # Commit before enqueue so the scheduler never dequeues an id it can't yet read.
+    # The DB is the source of truth: if Redis is down, the job is still persisted as
+    # `queued` and the scheduler's recovery sweep re-enqueues it (Session 12.5). Escrow was
+    # held exactly once above, so a missed enqueue never double-charges.
     await session.commit()
-    await enqueue_job(str(job.id))
+    try:
+        await enqueue_job(str(job.id))
+    except Exception as exc:  # noqa: BLE001 - degrade gracefully; recovery re-enqueues
+        logger.warning("enqueue failed for job {} (will be recovered): {}", job.id, exc)
     logger.info("job {} submitted by developer {} (escrow {})", job.id, developer.id, escrow)
     return job
 
