@@ -19,6 +19,7 @@ import os
 import random
 import signal
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,6 +33,54 @@ CONTAINER_OUTPUT_FILE = f"{CONTAINER_OUTPUT_DIR}/result"
 
 # Unprivileged uid:gid the container process runs as (nobody:nogroup).
 _NONROOT = "65534:65534"
+
+
+class ArtifactCache:
+    """Digest-keyed, size-capped LRU cache of pulled artifacts (Session 8.3).
+
+    Inputs/models are content-addressed, so a cache hit means the exact bytes are already
+    on disk and the download is skipped. When the total size exceeds ``max_bytes`` the
+    least-recently-used entries are evicted until it fits.
+    """
+
+    def __init__(self, root: Path, max_bytes: int) -> None:
+        self._root = Path(root)
+        self._root.mkdir(parents=True, exist_ok=True)
+        self._max = max_bytes
+        self._sizes: OrderedDict[str, int] = OrderedDict()
+
+    def path(self, digest: str) -> Path:
+        return self._root / digest
+
+    def has(self, digest: str) -> bool:
+        return digest in self._sizes and self.path(digest).exists()
+
+    def get(self, digest: str) -> bytes | None:
+        """Return cached bytes and mark them most-recently-used, or None on miss."""
+        if not self.has(digest):
+            self._sizes.pop(digest, None)
+            return None
+        self._sizes.move_to_end(digest)
+        return self.path(digest).read_bytes()
+
+    def put(self, digest: str, data: bytes) -> None:
+        """Cache ``data`` under ``digest`` (idempotent), then evict LRU over the cap."""
+        if digest in self._sizes:
+            self._sizes.move_to_end(digest)
+            return
+        self.path(digest).write_bytes(data)
+        self._sizes[digest] = len(data)
+        self._evict()
+
+    def total_bytes(self) -> int:
+        return sum(self._sizes.values())
+
+    def _evict(self) -> None:
+        while self.total_bytes() > self._max and self._sizes:
+            digest, _size = self._sizes.popitem(last=False)  # least-recently-used
+            with contextlib.suppress(FileNotFoundError):
+                self.path(digest).unlink()
+            logger.info("cache evicted {}", digest)
 
 
 @dataclass(frozen=True)
@@ -48,6 +97,8 @@ class AgentConfig:
     enable_gpu: bool
     relay_url: str
     relay_ping_interval: float
+    cache_dir: str
+    cache_max_bytes: int
 
     @classmethod
     def from_env(cls) -> AgentConfig:
@@ -68,6 +119,8 @@ class AgentConfig:
             # Optional NAT-traversal tunnel. Empty → agent runs poll-only (batch).
             relay_url=os.environ.get("GRIDIX_RELAY_URL", ""),
             relay_ping_interval=float(os.environ.get("GRIDIX_RELAY_PING_INTERVAL", "20")),
+            cache_dir=os.environ.get("GRIDIX_CACHE_DIR", "/tmp/gridix-cache"),
+            cache_max_bytes=int(os.environ.get("GRIDIX_CACHE_MAX_BYTES", str(20 * 1024**3))),
         )
 
 
@@ -313,6 +366,11 @@ class Agent:
             timeout=30.0,
         )
         config.workdir.mkdir(parents=True, exist_ok=True)
+        self._cache: ArtifactCache | None = (
+            ArtifactCache(Path(config.cache_dir), config.cache_max_bytes)
+            if config.cache_max_bytes > 0
+            else None
+        )
 
     def request_stop(self) -> None:
         """Signal the loop to stop; the current job's lease will lapse and reassign."""
@@ -393,7 +451,7 @@ class Agent:
         out_dir = job_dir / "output"
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        input_path = await self._fetch_input(job_id, job_dir)
+        input_path = await self._fetch_input(job_id, job_dir, job.get("input_ref"))
         argv = build_run_argv(
             image_ref=job["image_ref"],
             container_name=f"gridix-{job_id}",
@@ -414,13 +472,23 @@ class Agent:
         output = output_file.read_bytes() if output_file.exists() else b""
         return RunResult(exit_code=exit_code, timed_out=timed_out, output=output)
 
-    async def _fetch_input(self, job_id: str, job_dir: Path) -> Path | None:
+    async def _fetch_input(self, job_id: str, job_dir: Path, input_ref: str | None) -> Path | None:
+        path = job_dir / "input"
+        # Cache hit: the input is content-addressed, so cached bytes are exactly right.
+        if input_ref and self._cache is not None:
+            cached = self._cache.get(input_ref)
+            if cached is not None:
+                logger.info("input {} served from cache (no download)", input_ref)
+                path.write_bytes(cached)
+                return path
+
         resp = await self._client.get(f"/agent/jobs/{job_id}/input")
         if resp.status_code == 204:
             return None
         resp.raise_for_status()
-        path = job_dir / "input"
         path.write_bytes(resp.content)
+        if input_ref and self._cache is not None:
+            self._cache.put(input_ref, resp.content)
         return path
 
     async def _upload_result(self, output: bytes) -> str:
