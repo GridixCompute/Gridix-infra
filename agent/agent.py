@@ -233,13 +233,27 @@ class RelayTunnel:
         try:
             async for raw in ws:
                 msg = json.loads(raw)
-                if msg.get("type") == "pong":
-                    continue
-                # Session 7.3 dispatches inbound request frames here.
+                if msg.get("type") == "request":
+                    reply = await self._handle_request(msg)
+                    await ws.send(json.dumps(reply))
+                # pong and unknown frames are ignored.
         finally:
             ping.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await ping
+
+    async def _handle_request(self, msg: dict) -> dict:
+        """Handle an inbound coordinator request delivered over the tunnel.
+
+        Session 7.5 forwards this to the job's exposed container port; for now it echoes,
+        which is enough to prove the coordinator↔NAT'd-provider round trip.
+        """
+        return {
+            "type": "response",
+            "request_id": msg.get("request_id"),
+            "status": 200,
+            "payload": {"echo": msg.get("payload"), "job_id": msg.get("job_id")},
+        }
 
     async def _ping_loop(self, ws) -> None:
         import json

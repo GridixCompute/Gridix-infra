@@ -1,11 +1,20 @@
-"""Session 7.2 — relay server: connection registry, DB auth, and WS tunnel lifecycle."""
+"""Session 7.2-7.3 — relay: registry, DB auth, WS tunnel lifecycle, and request routing."""
 
+import asyncio
 import uuid
 
 import pytest
-from app.relay import ConnectionRegistry, create_relay_app, registry, resolve_provider
+from app.config import get_settings
+from app.relay import (
+    ConnectionRegistry,
+    Tunnel,
+    TunnelClosedError,
+    create_relay_app,
+    registry,
+    resolve_provider,
+)
 from conftest import register
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from starlette.testclient import TestClient
 
 
@@ -46,7 +55,7 @@ async def test_resolve_provider_validates_keys(client: AsyncClient) -> None:
 @pytest.fixture(autouse=True)
 def _clean_registry():
     yield
-    registry._conns.clear()
+    registry._tunnels.clear()
 
 
 def _relay_with_fake_auth(provider_id: uuid.UUID) -> TestClient:
@@ -78,3 +87,127 @@ def test_tunnel_rejects_bad_key() -> None:
         ws.send_json({"type": "auth", "key": "wrong"})
         assert ws.receive_json()["type"] == "auth_error"
     assert tc.get("/relay/health").json()["tunnels"] == 0
+
+
+# ── Tunnel request/response correlation (7.3) ────────────────────────────────────
+class _FakeWS:
+    """Records frames the tunnel sends; used to drive Tunnel unit tests."""
+
+    def __init__(self) -> None:
+        self.sent: list[dict] = []
+
+    async def send_json(self, obj: dict) -> None:
+        self.sent.append(obj)
+
+    async def close(self, code: int = 1000) -> None:
+        pass
+
+
+async def _await_first_frame(ws: _FakeWS) -> dict:
+    for _ in range(200):
+        if ws.sent:
+            return ws.sent[-1]
+        await asyncio.sleep(0.005)
+    raise AssertionError("no frame sent")
+
+
+async def test_tunnel_call_correlates_response() -> None:
+    ws = _FakeWS()
+    tunnel = Tunnel(ws)
+
+    async def respond() -> None:
+        req = await _await_first_frame(ws)
+        assert req["type"] == "request" and req["job_id"] == "j1"
+        await tunnel.handle_incoming(
+            {
+                "type": "response",
+                "request_id": req["request_id"],
+                "status": 200,
+                "payload": {"ok": True},
+            }
+        )
+
+    task = asyncio.create_task(respond())
+    resp = await tunnel.call(job_id="j1", method="GET", payload={"a": 1}, timeout=2)
+    await task
+    assert resp["status"] == 200 and resp["payload"] == {"ok": True}
+
+
+async def test_tunnel_call_times_out() -> None:
+    tunnel = Tunnel(_FakeWS())
+    with pytest.raises(asyncio.TimeoutError):
+        await tunnel.call(job_id=None, method="GET", payload={}, timeout=0.1)
+
+
+async def test_tunnel_drop_fails_pending_calls() -> None:
+    ws = _FakeWS()
+    tunnel = Tunnel(ws)
+
+    async def drop() -> None:
+        await _await_first_frame(ws)
+        tunnel.fail_all(TunnelClosedError("gone"))
+
+    task = asyncio.create_task(drop())
+    with pytest.raises(TunnelClosedError):
+        await tunnel.call(job_id=None, method="GET", payload={}, timeout=2)
+    await task
+
+
+# ── End-to-end: coordinator → relay → NAT'd provider → relay → coordinator ───────
+def _relay_client() -> AsyncClient:
+    return AsyncClient(transport=ASGITransport(app=create_relay_app()), base_url="http://relay")
+
+
+async def test_coordinator_reaches_provider_through_tunnel() -> None:
+    """A coordinator HTTP call is bridged onto a registered provider tunnel and the
+    provider's reply is returned — proving the full round trip through the relay."""
+    pid = uuid.uuid4()
+    fake_ws = _FakeWS()
+    tunnel = Tunnel(fake_ws)
+    await registry.register(pid, tunnel)
+    secret = get_settings().secret_key
+
+    async with _relay_client() as ac:
+        post = asyncio.create_task(
+            ac.post(
+                f"/relay/providers/{pid}/request",
+                headers={"Authorization": f"Bearer {secret}"},
+                json={"job_id": "job-1", "method": "POST", "payload": {"x": 1}},
+            )
+        )
+        # The provider receives the bridged request and replies over the tunnel.
+        req = await _await_first_frame(fake_ws)
+        assert req["type"] == "request" and req["job_id"] == "job-1"
+        await tunnel.handle_incoming(
+            {
+                "type": "response",
+                "request_id": req["request_id"],
+                "status": 200,
+                "payload": {"pong": req["payload"]},
+            }
+        )
+        resp = await post
+
+    assert resp.status_code == 200
+    assert resp.json() == {"status": 200, "payload": {"pong": {"x": 1}}}
+
+
+async def test_request_to_disconnected_provider_is_503() -> None:
+    secret = get_settings().secret_key
+    async with _relay_client() as ac:
+        resp = await ac.post(
+            f"/relay/providers/{uuid.uuid4()}/request",
+            headers={"Authorization": f"Bearer {secret}"},
+            json={"method": "GET", "payload": {}},
+        )
+    assert resp.status_code == 503
+
+
+async def test_request_requires_internal_secret() -> None:
+    async with _relay_client() as ac:
+        resp = await ac.post(
+            f"/relay/providers/{uuid.uuid4()}/request",
+            headers={"Authorization": "Bearer wrong"},
+            json={"method": "GET", "payload": {}},
+        )
+    assert resp.status_code == 401
