@@ -46,6 +46,8 @@ class AgentConfig:
     poll_backoff_max: float
     heartbeat_interval: float
     enable_gpu: bool
+    relay_url: str
+    relay_ping_interval: float
 
     @classmethod
     def from_env(cls) -> AgentConfig:
@@ -63,6 +65,9 @@ class AgentConfig:
             poll_backoff_max=float(os.environ.get("GRIDIX_POLL_BACKOFF_MAX", "30")),
             heartbeat_interval=float(os.environ.get("GRIDIX_HEARTBEAT_INTERVAL", "15")),
             enable_gpu=os.environ.get("GRIDIX_ENABLE_GPU", "false").lower() == "true",
+            # Optional NAT-traversal tunnel. Empty → agent runs poll-only (batch).
+            relay_url=os.environ.get("GRIDIX_RELAY_URL", ""),
+            relay_ping_interval=float(os.environ.get("GRIDIX_RELAY_PING_INTERVAL", "20")),
         )
 
 
@@ -186,12 +191,70 @@ async def _force_remove(container_name: str) -> None:
         logger.warning("failed to remove container {}: {}", container_name, exc)
 
 
+class RelayTunnel:
+    """Persistent outbound WebSocket tunnel to the relay (Session 7.2).
+
+    Opens ONE connection to the relay, authenticates with the provider key, and holds it
+    open with periodic pings so a NAT'd provider stays reachable. Reconnects with
+    exponential backoff. Inbound request framing is handled in Session 7.3.
+    """
+
+    def __init__(self, config: AgentConfig, stop: asyncio.Event) -> None:
+        self._cfg = config
+        self._stop = stop
+
+    async def run(self) -> None:
+        import json
+
+        import websockets  # lazy: only needed when a relay is configured
+
+        backoff = 1.0
+        while not self._stop.is_set():
+            try:
+                async with websockets.connect(self._cfg.relay_url) as ws:
+                    await ws.send(json.dumps({"type": "auth", "key": self._cfg.provider_key}))
+                    resp = json.loads(await ws.recv())
+                    if resp.get("type") != "auth_ok":
+                        raise RuntimeError(f"relay auth failed: {resp}")
+                    logger.info("relay tunnel established ({})", resp.get("provider_id"))
+                    backoff = 1.0
+                    await self._serve(ws)
+            except Exception as exc:  # noqa: BLE001 - reconnect on any tunnel failure
+                if self._stop.is_set():
+                    break
+                logger.warning("relay tunnel down, reconnecting in {:.1f}s: {}", backoff, exc)
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, self._cfg.poll_backoff_max)
+
+    async def _serve(self, ws) -> None:
+        import json
+
+        ping = asyncio.create_task(self._ping_loop(ws))
+        try:
+            async for raw in ws:
+                msg = json.loads(raw)
+                if msg.get("type") == "pong":
+                    continue
+                # Session 7.3 dispatches inbound request frames here.
+        finally:
+            ping.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await ping
+
+    async def _ping_loop(self, ws) -> None:
+        import json
+
+        while not self._stop.is_set():
+            await asyncio.sleep(self._cfg.relay_ping_interval)
+            await ws.send(json.dumps({"type": "ping"}))
+
+
 class Agent:
     """Polls the coordinator and executes assigned jobs in a sandbox."""
 
-    def __init__(self, config: AgentConfig) -> None:
+    def __init__(self, config: AgentConfig, stop: asyncio.Event | None = None) -> None:
         self._cfg = config
-        self._stop = asyncio.Event()
+        self._stop = stop or asyncio.Event()
         self._client = httpx.AsyncClient(
             base_url=config.api_url,
             headers={"Authorization": f"Bearer {config.provider_key}"},
@@ -324,15 +387,19 @@ class Agent:
 
 
 async def main() -> None:
-    """Entrypoint: build the agent and run until SIGTERM/SIGINT."""
+    """Entrypoint: build the agent (and relay tunnel, if configured) until a signal."""
     config = AgentConfig.from_env()
-    agent = Agent(config)
+    stop = asyncio.Event()
+    agent = Agent(config, stop)
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, agent.request_stop)
+        loop.add_signal_handler(sig, stop.set)
 
-    await agent.run()
+    tasks = [agent.run()]
+    if config.relay_url:
+        tasks.append(RelayTunnel(config, stop).run())
+    await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":
