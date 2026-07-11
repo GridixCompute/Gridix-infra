@@ -115,6 +115,14 @@ class PathType(enum.StrEnum):
     relay = "relay"
 
 
+class DataTier(enum.StrEnum):
+    """Per-job data-handling policy (Session 9). Guarantees rise with the tier."""
+
+    public = "public"  # no confidentiality guarantee (default)
+    encrypted_at_rest = "encrypted_at_rest"  # coordinator stores ciphertext only
+    confidential_tee = "confidential_tee"  # runs only on attested TEE hardware
+
+
 class BandwidthDirection(enum.StrEnum):
     """Data-transfer direction, from the provider's perspective."""
 
@@ -260,6 +268,13 @@ class Job(Base):
 
     # Endpoint-style jobs (Session 7.5): the container port the coordinator routes to.
     exposed_port: Mapped[int | None] = mapped_column(Integer)
+
+    # Data-handling policy tier (Session 9).
+    data_tier: Mapped[DataTier] = mapped_column(
+        Enum(DataTier, name="data_tier", native_enum=False, length=24),
+        default=DataTier.public,
+        nullable=False,
+    )
 
     # Verification / redundancy (Session 5).
     is_high_value: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

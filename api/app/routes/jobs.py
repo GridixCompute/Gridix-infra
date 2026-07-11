@@ -81,6 +81,7 @@ async def submit_job(
         is_high_value=body.is_high_value,
         redundancy=body.redundancy,
         exposed_port=body.exposed_port,
+        data_tier=body.data_tier,
         idempotency_key=idempotency_key,
         escrow_amount=escrow,
     )
