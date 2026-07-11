@@ -70,6 +70,9 @@ def _capability_query(job: Job) -> tuple[Select, object, object]:
         .outerjoin(load_sq, Provider.id == load_sq.c.pid)
         .where(
             Provider.enabled.is_(True),
+            # Down-tier degraded providers: measured health (Session 11.5), not just
+            # self-declared specs, gates assignment.
+            Provider.degraded.is_(False),
             Provider.cpu_cores >= need_cpu,
             Provider.memory_mb >= need_mem,
             load < Provider.max_concurrent,
