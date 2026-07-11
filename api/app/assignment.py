@@ -142,6 +142,17 @@ async def reap_expired_leases(session: AsyncSession, settings: Settings) -> list
     return requeued
 
 
+async def recover_queued_jobs(session: AsyncSession, limit: int = 1000) -> list[str]:
+    """Return ids of jobs sitting in ``queued`` so they can be (re)enqueued (Session 12.5).
+
+    The DB is the source of truth for the queue. If Redis was down when a job was submitted
+    (or lost its contents), this sweep finds every queued job and the caller re-pushes it —
+    idempotently, since assignment only acts on a still-``queued`` job. No job is lost.
+    """
+    rows = await session.scalars(select(Job.id).where(Job.status == JobStatus.queued).limit(limit))
+    return [str(job_id) for job_id in rows]
+
+
 async def drain_unreachable_providers(session: AsyncSession, settings: Settings) -> list[str]:
     """Drain in-flight jobs of providers whose control channel went silent (Session 7.6).
 
