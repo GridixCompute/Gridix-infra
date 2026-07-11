@@ -513,6 +513,23 @@ class HealthSample(Base):
     created_at: Mapped[datetime] = _created_at()
 
 
+class AuditLogEntry(Base):
+    """A tamper-evident, hash-chained audit record (Session 12.6).
+
+    Each entry commits to the previous entry's hash, so any alteration or deletion breaks
+    the chain and is detectable."""
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    seq: Mapped[int] = mapped_column(Integer, nullable=False, unique=True, index=True)
+    event: Mapped[str] = mapped_column(String(64), nullable=False)
+    data: Mapped[dict] = mapped_column(JSONVariant, nullable=False, default=dict)
+    prev_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    entry_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = _created_at()
+
+
 class BenchmarkReport(Base):
     """A signed hardware benchmark a provider submits at onboarding (Session 11.1).
 
