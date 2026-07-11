@@ -88,6 +88,8 @@ class SubmitJobRequest(BaseModel):
     exposed_port: int | None = Field(default=None, ge=1, le=65535)
     # Data-handling policy tier (Session 9). Invalid values are rejected here.
     data_tier: Literal["public", "encrypted_at_rest", "confidential_tee"] = "public"
+    # Per-job data key wrapped under the coordinator KEK, for brokering (Session 9.3).
+    wrapped_key: str | None = Field(default=None, max_length=512)
 
 
 class JobResponse(ORMModel):
@@ -211,6 +213,12 @@ class PeerFetchPlan(BaseModel):
     kind: Literal["origin", "peer"]
     provider_id: uuid.UUID | None = None
     seeders: list[uuid.UUID] = Field(default_factory=list)
+
+
+class DataKeyResponse(BaseModel):
+    """The brokered per-job data key released to the assigned agent (Session 9.3)."""
+
+    data_key: str
 
 
 # ── Agent protocol (Session 3/4) ────────────────────────────────────────────────

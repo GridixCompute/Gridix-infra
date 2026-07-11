@@ -14,6 +14,7 @@ from sqlalchemy import delete, select
 
 from app.bandwidth import record_bandwidth
 from app.deps import ProviderDep, SessionDep, SettingsDep
+from app.key_broker import KeyReleaseError, release_data_key
 from app.models import (
     AttemptOutcome,
     BandwidthDirection,
@@ -37,6 +38,7 @@ from app.schemas import (
     AgentStatusRequest,
     BlobRef,
     CacheReport,
+    DataKeyResponse,
     HeartbeatRequest,
     HeartbeatResponse,
     PathResponse,
@@ -235,6 +237,23 @@ async def report_status(
         attempt.started_at = _now()
     logger.info("job {} reported running by provider {}", job.id, provider.id)
     return Ack(job_id=job.id, status=job.status)
+
+
+@router.get("/jobs/{job_id}/key", response_model=DataKeyResponse)
+async def get_job_key(
+    job_id: uuid.UUID, provider: ProviderDep, session: SessionDep, settings: SettingsDep
+) -> DataKeyResponse:
+    """Release the job's data key to its assigned agent (Session 9.3).
+
+    Only the provider the job is assigned to receives it, and only while the job is in
+    flight — the key is job-scoped and expires with the job.
+    """
+    job = await _owned_active_job(session, provider, job_id)
+    try:
+        dek = release_data_key(job, settings)
+    except KeyReleaseError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return DataKeyResponse(data_key=dek)
 
 
 @router.get("/jobs/{job_id}/input")

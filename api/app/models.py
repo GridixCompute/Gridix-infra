@@ -275,6 +275,8 @@ class Job(Base):
         default=DataTier.public,
         nullable=False,
     )
+    # The per-job data key (DEK), wrapped under the coordinator KEK (Session 9.3).
+    wrapped_key: Mapped[str | None] = mapped_column(String(512))
 
     # Verification / redundancy (Session 5).
     is_high_value: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

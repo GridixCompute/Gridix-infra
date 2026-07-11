@@ -22,6 +22,8 @@ os.environ["GRIDIX_STORAGE_LOCAL_PATH"] = str(Path(tempfile.gettempdir()) / "gri
 os.environ["GRIDIX_POLL_HOLD_SECONDS"] = "0.4"
 os.environ["GRIDIX_POLL_TICK_SECONDS"] = "0.05"
 os.environ["GRIDIX_CONNECTION_TIMEOUT_SECONDS"] = "30"
+# A valid Fernet key for the coordinator KEK (Session 9.3 key brokering).
+os.environ["GRIDIX_KEK"] = "Z77HII5wps5_n_jx74p0-x0XYXk8PzX04xtf987_4Ik="
 
 from app.config import get_settings  # noqa: E402
 from app.db import Base, get_engine, get_sessionmaker  # noqa: E402
