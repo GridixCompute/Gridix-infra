@@ -16,7 +16,7 @@ import signal
 
 from loguru import logger
 
-from app.assignment import assign_job, reap_expired_leases
+from app.assignment import assign_job, drain_unreachable_providers, reap_expired_leases
 from app.canary import create_canary_job
 from app.config import get_settings
 from app.db import get_sessionmaker
@@ -49,14 +49,20 @@ async def _assignment_loop(stop: asyncio.Event) -> None:
 
 
 async def _reaper_loop(stop: asyncio.Event) -> None:
-    """Periodically reclaim expired leases and requeue reclaimable jobs."""
+    """Reclaim expired leases and drain jobs of unreachable providers.
+
+    Ticks on the shorter of a lease-quarter and the connection timeout so a dropped
+    agent's jobs are drained within seconds, not a full lease.
+    """
     settings = get_settings()
     factory = get_sessionmaker()
-    interval = max(1.0, settings.lease_seconds / 4)
+    interval = max(1.0, min(settings.lease_seconds / 4, settings.connection_timeout_seconds / 2))
     while not stop.is_set():
         try:
             async with factory() as session:
                 requeued = await reap_expired_leases(session, settings)
+            async with factory() as session:
+                requeued += await drain_unreachable_providers(session, settings)
             for job_id in requeued:
                 await enqueue_job(job_id)
         except Exception:
