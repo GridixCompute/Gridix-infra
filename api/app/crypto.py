@@ -10,11 +10,25 @@ Uses Fernet (AES-128-CBC + HMAC-SHA256) — authenticated, so tampering is detec
 decrypt. Keys are urlsafe-base64 strings.
 """
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 
 
 class DecryptionError(Exception):
     """Raised when ciphertext can't be decrypted (wrong key or tampered)."""
+
+
+def decrypt_rotating(ciphertext: bytes, keys: list[str]) -> bytes:
+    """Decrypt with any of ``keys`` (primary first) — enables zero-downtime rotation.
+
+    During a rotation the new key is primary and the retired key(s) still decrypt existing
+    ciphertext, so nothing breaks while re-wrapping catches up.
+    """
+    if not keys:
+        raise DecryptionError("no decryption keys configured")
+    try:
+        return MultiFernet([Fernet(k.encode()) for k in keys]).decrypt(ciphertext)
+    except (InvalidToken, ValueError, TypeError) as exc:
+        raise DecryptionError("decryption failed (wrong key or tampered ciphertext)") from exc
 
 
 def generate_data_key() -> str:

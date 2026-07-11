@@ -8,7 +8,7 @@ attestation; that check lives here so there is one release path.
 """
 
 from app.config import Settings
-from app.crypto import DecryptionError, unwrap_key
+from app.crypto import DecryptionError, decrypt_rotating
 from app.models import DataTier, Job, JobStatus, Provider
 
 _IN_FLIGHT = (JobStatus.assigned, JobStatus.running)
@@ -35,6 +35,7 @@ def release_data_key(job: Job, provider: Provider, settings: Settings) -> str:
     if job.data_tier is DataTier.confidential_tee and not provider.tee_attested:
         raise KeyReleaseError("provider has no valid TEE attestation")
     try:
-        return unwrap_key(job.wrapped_key.encode(), settings.kek)
+        # Accept any active/retired KEK so a rotation doesn't strand in-flight jobs (12.1).
+        return decrypt_rotating(job.wrapped_key.encode(), settings.all_keks).decode()
     except DecryptionError as exc:
         raise KeyReleaseError("could not unwrap job key") from exc
