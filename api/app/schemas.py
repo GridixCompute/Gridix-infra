@@ -252,6 +252,7 @@ class DisputeResponse(ORMModel):
     state: str
     reason: str
     evidence: dict[str, Any] | None
+    evidence_hash: str | None
     ruling_reason: str | None
     created_at: datetime
     resolved_at: datetime | None

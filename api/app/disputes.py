@@ -18,6 +18,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
+from app.fraud_proof import evidence_commitment
 from app.ledger import LedgerAccount, LedgerDirection, Posting, post_transaction, provider_stake
 from app.models import Dispute, DisputeState
 
@@ -60,6 +61,7 @@ async def open_dispute(
         state=DisputeState.open,
         reason=reason,
         evidence=evidence,
+        evidence_hash=evidence_commitment(evidence) if evidence is not None else None,
         window_expires_at=_now() + timedelta(seconds=settings.dispute_window_seconds),
     )
     session.add(dispute)
