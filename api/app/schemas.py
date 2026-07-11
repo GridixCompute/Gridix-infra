@@ -259,6 +259,21 @@ class BlobRef(BaseModel):
     size: int
 
 
+# ── Resumable uploads (Session 8.4) ─────────────────────────────────────────────
+class UploadCreateRequest(BaseModel):
+    """Start a resumable upload, optionally declaring the final sha256 for verification."""
+
+    digest: str | None = Field(default=None, min_length=64, max_length=64)
+
+
+class UploadSessionResponse(BaseModel):
+    """An upload session's state, including bytes received (the resume offset)."""
+
+    upload_id: uuid.UUID
+    received: int
+    blob_ref: str | None = None
+
+
 # ── Audit (Session 6) ───────────────────────────────────────────────────────────
 class AttemptRecord(ORMModel):
     """One execution attempt in a job's audit trail."""
