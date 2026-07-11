@@ -18,7 +18,7 @@ import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import LedgerAccount, LedgerDirection, LedgerEntry
@@ -96,6 +96,29 @@ async def account_balance(
 async def provider_stake(session: AsyncSession, provider_id: uuid.UUID) -> Decimal:
     """Return a provider's current stake balance."""
     return await account_balance(session, LedgerAccount.stake, provider_id)
+
+
+async def verify_ledger_integrity(session: AsyncSession) -> list[tuple[uuid.UUID, Decimal]]:
+    """Return every unbalanced transaction group (Session 12.4 DR check).
+
+    Each ``entry_group`` must have equal debits and credits. An empty result means the
+    ledger has zero discrepancy — the invariant to confirm after a backup restore.
+    """
+    debit = func.sum(
+        case((LedgerEntry.direction == LedgerDirection.debit, LedgerEntry.amount), else_=0)
+    )
+    credit = func.sum(
+        case((LedgerEntry.direction == LedgerDirection.credit, LedgerEntry.amount), else_=0)
+    )
+    rows = await session.execute(
+        select(LedgerEntry.entry_group, debit, credit).group_by(LedgerEntry.entry_group)
+    )
+    discrepancies: list[tuple[uuid.UUID, Decimal]] = []
+    for group, d, c in rows:
+        delta = Decimal(str(d or 0)) - Decimal(str(c or 0))
+        if delta != 0:
+            discrepancies.append((group, delta))
+    return discrepancies
 
 
 async def deposit_stake(
