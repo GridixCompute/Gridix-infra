@@ -1,9 +1,10 @@
-"""Provider self-service endpoints: declare and read back capabilities."""
+"""Provider self-service endpoints: declare capabilities, read back state, bandwidth."""
 
 from fastapi import APIRouter
 
+from app.bandwidth import provider_bandwidth
 from app.deps import ProviderDep, SessionDep
-from app.schemas import ProviderCapabilities, ProviderResponse
+from app.schemas import BandwidthResponse, ProviderCapabilities, ProviderResponse
 
 router = APIRouter(tags=["providers"])
 
@@ -22,3 +23,17 @@ async def update_me(body: ProviderCapabilities, provider: ProviderDep, session: 
         setattr(provider, field, value)
     session.add(provider)
     return provider
+
+
+@router.get("/providers/me/bandwidth", response_model=BandwidthResponse)
+async def my_bandwidth(provider: ProviderDep, session: SessionDep) -> BandwidthResponse:
+    """Return this provider's byte counters — lifetime and for the current session."""
+    lifetime = await provider_bandwidth(session, provider.id)
+    session_bw = await provider_bandwidth(session, provider.id, since=provider.connected_at)
+    return BandwidthResponse(
+        ingress_bytes=lifetime["ingress"],
+        egress_bytes=lifetime["egress"],
+        total_bytes=lifetime["total"],
+        session_ingress_bytes=session_bw["ingress"],
+        session_egress_bytes=session_bw["egress"],
+    )

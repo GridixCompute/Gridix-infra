@@ -162,6 +162,16 @@ class PingResponse(BaseModel):
     last_seen: datetime | None
 
 
+class BandwidthResponse(BaseModel):
+    """Per-provider byte counters, lifetime and for the current session (Session 7.7)."""
+
+    ingress_bytes: int
+    egress_bytes: int
+    total_bytes: int
+    session_ingress_bytes: int
+    session_egress_bytes: int
+
+
 # ── Path negotiation (Session 7.4) ──────────────────────────────────────────────
 class IceCandidate(BaseModel):
     """A single ICE-style connectivity candidate advertised by the agent."""
