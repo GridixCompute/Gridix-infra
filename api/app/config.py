@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     secret_key: str = "dev-insecure-secret-change-me"
     # Coordinator key-encryption key (Fernet) for brokering per-job data keys (9.3).
     kek: str = ""
+    # Retired KEKs (comma-separated) still accepted during rotation (12.1, zero-downtime).
+    kek_previous: str = ""
+
+    @property
+    def all_keks(self) -> list[str]:
+        """Active KEK first, then any retired ones still valid during rotation."""
+        retired = [k.strip() for k in self.kek_previous.split(",") if k.strip()]
+        return [self.kek, *retired] if self.kek else retired
+
     # Trusted verifier secret standing in for the TEE vendor root of trust (9.5).
     attestation_secret: str = ""
     # Lifetime of job-scoped secrets injected into the container (9.6).
