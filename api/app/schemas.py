@@ -84,6 +84,8 @@ class SubmitJobRequest(BaseModel):
     timeout_seconds: int = Field(default=300, gt=0, le=86_400)
     is_high_value: bool = False
     redundancy: int = Field(default=1, ge=1, le=9)
+    # Endpoint-style job: the HTTP port the container listens on (Session 7.5).
+    exposed_port: int | None = Field(default=None, ge=1, le=65535)
 
 
 class JobResponse(ORMModel):
@@ -101,6 +103,7 @@ class JobResponse(ORMModel):
     timeout_seconds: int
     is_high_value: bool
     redundancy: int
+    exposed_port: int | None
     assigned_provider_id: uuid.UUID | None
     attempt_count: int
     lease_expires_at: datetime | None
@@ -108,6 +111,14 @@ class JobResponse(ORMModel):
     cost_final: float | None
     created_at: datetime
     updated_at: datetime
+
+
+class EndpointInfo(BaseModel):
+    """The coordinator-issued routed URL + capability token for an endpoint job."""
+
+    url: str
+    token: str
+    port: int
 
 
 # ── Providers (Session 2) ───────────────────────────────────────────────────────
@@ -185,6 +196,7 @@ class AgentJob(ORMModel):
     args: dict[str, Any] | None
     allow_egress: bool
     timeout_seconds: int
+    exposed_port: int | None
     lease_expires_at: datetime | None
 
 

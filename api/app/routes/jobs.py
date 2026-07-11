@@ -80,6 +80,7 @@ async def submit_job(
         timeout_seconds=body.timeout_seconds,
         is_high_value=body.is_high_value,
         redundancy=body.redundancy,
+        exposed_port=body.exposed_port,
         idempotency_key=idempotency_key,
         escrow_amount=escrow,
     )
