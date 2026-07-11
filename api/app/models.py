@@ -486,6 +486,8 @@ class Dispute(Base):
     )
     reason: Mapped[str] = mapped_column(String(64), nullable=False)
     evidence: Mapped[dict | None] = mapped_column(JSONVariant)
+    # sha256 commitment over the canonical evidence — on-chain-ready (Session 10.7).
+    evidence_hash: Mapped[str | None] = mapped_column(String(64))
     ruling_reason: Mapped[str | None] = mapped_column(String(256))
     window_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created_at()
