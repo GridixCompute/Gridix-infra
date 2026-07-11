@@ -1,10 +1,17 @@
 """Provider self-service endpoints: declare capabilities, read back state, bandwidth."""
 
 from fastapi import APIRouter
+from sqlalchemy import select
 
 from app.bandwidth import provider_bandwidth
 from app.deps import ProviderDep, SessionDep
-from app.schemas import BandwidthResponse, ProviderCapabilities, ProviderResponse
+from app.models import BenchmarkReport
+from app.schemas import (
+    BandwidthResponse,
+    BenchmarkResponse,
+    ProviderCapabilities,
+    ProviderResponse,
+)
 
 router = APIRouter(tags=["providers"])
 
@@ -36,4 +43,15 @@ async def my_bandwidth(provider: ProviderDep, session: SessionDep) -> BandwidthR
         total_bytes=lifetime["total"],
         session_ingress_bytes=session_bw["ingress"],
         session_egress_bytes=session_bw["egress"],
+    )
+
+
+@router.get("/providers/me/benchmark", response_model=BenchmarkResponse | None)
+async def my_benchmark(provider: ProviderDep, session: SessionDep) -> BenchmarkReport | None:
+    """Return the provider's latest benchmark report, or null if none submitted."""
+    return await session.scalar(
+        select(BenchmarkReport)
+        .where(BenchmarkReport.provider_id == provider.id)
+        .order_by(BenchmarkReport.created_at.desc())
+        .limit(1)
     )

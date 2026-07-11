@@ -221,6 +221,24 @@ class DataKeyResponse(BaseModel):
     data_key: str
 
 
+class BenchmarkSubmit(BaseModel):
+    """A signed benchmark report submitted at onboarding (Session 11.1)."""
+
+    metrics: dict[str, Any]
+    signature: str = Field(min_length=1, max_length=64)
+
+
+class BenchmarkResponse(ORMModel):
+    """A stored benchmark report."""
+
+    id: uuid.UUID
+    provider_id: uuid.UUID
+    metrics: dict[str, Any]
+    signature: str
+    validated: bool
+    created_at: datetime
+
+
 class AttestationQuote(BaseModel):
     """A TEE attestation quote submitted by the agent (Session 9.5)."""
 
