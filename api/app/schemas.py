@@ -195,6 +195,12 @@ class PathResponse(BaseModel):
     path_type: Literal["direct", "relay"]
 
 
+class CacheReport(BaseModel):
+    """Agent reports the digests it currently has cached (Session 8.5)."""
+
+    cached: list[str] = Field(default_factory=list, max_length=10000)
+
+
 # ── Agent protocol (Session 3/4) ────────────────────────────────────────────────
 class AgentJob(ORMModel):
     """Everything an agent needs to run one assigned job."""

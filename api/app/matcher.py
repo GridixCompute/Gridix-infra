@@ -17,12 +17,12 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Protocol
 
-from sqlalchemy import Select, func, literal, or_, select
+from sqlalchemy import Select, case, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.ledger import provider_stake
-from app.models import Job, JobStatus, Provider
+from app.models import Job, JobStatus, Provider, ProviderArtifact
 
 # Job states that occupy a provider's concurrency slot.
 _ACTIVE_STATES = (JobStatus.assigned, JobStatus.running)
@@ -40,8 +40,12 @@ class Matcher(Protocol):
         ...
 
 
-def _capability_query(job: Job) -> tuple[Select, object]:
-    """Build the base query plus its load expression for capability-satisfying providers."""
+def _capability_query(job: Job) -> tuple[Select, object, object]:
+    """Build the base query, its load expression, and a warm-cache locality flag.
+
+    ``has_artifact`` is 1 when the provider already caches the job's input digest
+    (Session 8.5) — a soft preference the matchers order on first, never a hard filter.
+    """
     spec = job.resource_spec or {}
     need_cpu = int(spec.get("cpu_cores", 1))
     need_mem = int(spec.get("memory_mb", 0))
@@ -74,15 +78,28 @@ def _capability_query(job: Job) -> tuple[Select, object]:
     )
     if need_gpu:
         query = query.where(Provider.gpu_model.is_not(None), Provider.gpu_vram_mb >= need_vram)
-    return query, load
+
+    # Warm-cache locality: 1 if the provider already holds the job's input digest.
+    if job.input_ref:
+        art = (
+            select(ProviderArtifact.provider_id)
+            .where(ProviderArtifact.digest == job.input_ref)
+            .subquery()
+        )
+        query = query.outerjoin(art, Provider.id == art.c.provider_id)
+        has_artifact = case((art.c.provider_id.is_not(None), 1), else_=0)
+    else:
+        has_artifact = literal(0)
+    return query, load, has_artifact
 
 
 class CapabilityMatcher:
     """Capability filter + least-loaded selection (reputation as tie-break)."""
 
     async def candidates(self, session: AsyncSession, job: Job) -> list[Provider]:
-        query, load = _capability_query(job)
-        query = query.order_by(load.asc(), Provider.reputation.desc())
+        query, load, has_artifact = _capability_query(job)
+        # Warm cache first, then least-loaded, then best reputation.
+        query = query.order_by(has_artifact.desc(), load.asc(), Provider.reputation.desc())
         rows = await session.execute(query)
         return [row[0] for row in rows]
 
@@ -100,11 +117,11 @@ class ReputationMatcher:
 
     async def candidates(self, session: AsyncSession, job: Job) -> list[Provider]:
         settings = get_settings()
-        query, load = _capability_query(job)
+        query, load, has_artifact = _capability_query(job)
         if job.is_high_value:
             query = query.where(Provider.reputation >= settings.high_value_min_reputation)
-        # Prefer high reputation, then spare capacity.
-        query = query.order_by(Provider.reputation.desc(), load.asc())
+        # Warm cache first, then high reputation, then spare capacity.
+        query = query.order_by(has_artifact.desc(), Provider.reputation.desc(), load.asc())
         rows = await session.execute(query)
 
         min_stake = Decimal(settings.min_provider_stake)
