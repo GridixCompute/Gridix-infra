@@ -257,6 +257,13 @@ class DisputeResponse(ORMModel):
     resolved_at: datetime | None
 
 
+class DisputeRuling(BaseModel):
+    """An operator's manual decision on a dispute (Session 10.4)."""
+
+    upheld: bool
+    reason: str = Field(min_length=1, max_length=256)
+
+
 # ── Agent protocol (Session 3/4) ────────────────────────────────────────────────
 class AgentJob(ORMModel):
     """Everything an agent needs to run one assigned job."""

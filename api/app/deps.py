@@ -83,3 +83,17 @@ async def require_provider(
 
 DeveloperDep = Annotated[Developer, Depends(require_developer)]
 ProviderDep = Annotated[Provider, Depends(require_provider)]
+
+
+async def require_internal(
+    settings: SettingsDep,
+    authorization: Annotated[str | None, Header()] = None,
+) -> None:
+    """Gate operator-only endpoints (dispute rulings) with the shared internal secret."""
+    if authorization != f"Bearer {settings.secret_key}":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Operator credentials required."
+        )
+
+
+InternalDep = Annotated[None, Depends(require_internal)]

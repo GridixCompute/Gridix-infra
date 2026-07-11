@@ -9,10 +9,10 @@ import uuid
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
-from app.deps import ProviderDep, SessionDep
-from app.disputes import contest_dispute
+from app.deps import InternalDep, ProviderDep, SessionDep
+from app.disputes import contest_dispute, resolve_dispute
 from app.models import Dispute, DisputeState
-from app.schemas import DisputeResponse
+from app.schemas import DisputeResponse, DisputeRuling
 
 router = APIRouter(tags=["disputes"])
 
@@ -35,6 +35,20 @@ async def my_disputes(provider: ProviderDep, session: SessionDep) -> list[Disput
     return list(rows)
 
 
+@router.get("/disputes/review-queue", response_model=list[DisputeResponse])
+async def review_queue(_: InternalDep, session: SessionDep) -> list[Dispute]:
+    """Operator view: disputes awaiting manual adjudication, oldest first (10.4).
+
+    Declared before ``/disputes/{dispute_id}`` so the literal path isn't captured as an id.
+    """
+    rows = await session.scalars(
+        select(Dispute)
+        .where(Dispute.state == DisputeState.under_review)
+        .order_by(Dispute.created_at.asc())
+    )
+    return list(rows)
+
+
 @router.get("/disputes/{dispute_id}", response_model=DisputeResponse)
 async def get_dispute(dispute_id: uuid.UUID, provider: ProviderDep, session: SessionDep) -> Dispute:
     """Return one of the provider's disputes with the full evidence that triggered it."""
@@ -50,4 +64,20 @@ async def contest(dispute_id: uuid.UUID, provider: ProviderDep, session: Session
             status_code=status.HTTP_409_CONFLICT, detail="Dispute is no longer open."
         )
     await contest_dispute(session, dispute)
+    return dispute
+
+
+@router.post("/disputes/{dispute_id}/rule", response_model=DisputeResponse)
+async def rule_on_dispute(
+    dispute_id: uuid.UUID, body: DisputeRuling, _: InternalDep, session: SessionDep
+) -> Dispute:
+    """Operator records a ruling on an under-review dispute, with an audit-logged reason."""
+    dispute = await session.get(Dispute, dispute_id)
+    if dispute is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dispute not found.")
+    if dispute.state in (DisputeState.upheld, DisputeState.overturned):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Dispute already resolved."
+        )
+    await resolve_dispute(session, dispute, upheld=body.upheld, ruling_reason=body.reason)
     return dispute
