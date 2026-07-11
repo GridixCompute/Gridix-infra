@@ -159,7 +159,7 @@ async def _finalize(session: AsyncSession, job: Job, settings: Settings) -> None
         if provider is None:
             continue
         won = str(attempt.provider_id) in agreers and outcome.reached
-        await _apply_outcome(session, job, provider, attempt, won, is_canary, settings)
+        await _apply_outcome(session, job, provider, attempt, won, is_canary, settings, results)
 
     await _settle(session, job, winner_provider_id, settings)
 
@@ -215,14 +215,26 @@ async def _settle(session: AsyncSession, job: Job, winner_provider_id, settings:
         job.cost_final = Decimal(0)
 
 
-def _slash_evidence(job: Job, attempt: JobAttempt) -> dict:
-    """Reproducible evidence attached to a slash dispute (enriched in Session 10.2)."""
+def _slash_evidence(job: Job, attempt: JobAttempt, all_results: list[AttemptResult]) -> dict:
+    """Reproducible evidence attached to a slash dispute (Session 10.2).
+
+    Captures everything needed to re-adjudicate: the job identity, the input, the expected
+    vs submitted output hashes, the full proof, and — for redundant jobs — every provider's
+    quorum vote.
+    """
     return {
         "job_id": str(job.id),
         "kind": str(job.kind),
+        "input_ref": job.input_ref,
         "expected_output_hash": job.expected_output_hash,
         "submitted_output_hash": (attempt.proof or {}).get("output_sha256"),
+        "submitted_result_ref": attempt.result_ref,
+        "proof": attempt.proof,
         "attempt_number": attempt.attempt_number,
+        "quorum_votes": [
+            {"provider_id": r.provider_id, "output_hash": r.output_hash, "succeeded": r.succeeded}
+            for r in all_results
+        ],
     }
 
 
@@ -234,6 +246,7 @@ async def _apply_outcome(
     won: bool,
     is_canary: bool,
     settings: Settings,
+    all_results: list[AttemptResult],
 ) -> None:
     """Move reputation (and stake, when cheating) for one provider's attempt."""
     if won:
@@ -254,7 +267,7 @@ async def _apply_outcome(
             reason="canary_fail",
             settings=settings,
             job_id=job.id,
-            evidence=_slash_evidence(job, attempt),
+            evidence=_slash_evidence(job, attempt, all_results),
         )
     elif job.redundancy > 1 and attempt.outcome is AttemptOutcome.completed:
         await record_reputation(session, provider, ReputationKind.quorum_disagree, job_id=job.id)
@@ -265,7 +278,7 @@ async def _apply_outcome(
             reason="quorum_disagree",
             settings=settings,
             job_id=job.id,
-            evidence=_slash_evidence(job, attempt),
+            evidence=_slash_evidence(job, attempt, all_results),
         )
     else:
         await record_reputation(
