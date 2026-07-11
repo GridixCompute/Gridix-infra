@@ -9,11 +9,13 @@ review (10.4) rather than guessing.
 
 from collections import Counter
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.disputes import resolve_dispute
-from app.models import Dispute, DisputeState
+from app.models import AttemptOutcome, Dispute, DisputeState, Job, JobAttempt
+from app.quorum import AttemptResult, evaluate_quorum
 
 
 def _known_good(evidence: dict) -> str | None:
@@ -52,3 +54,51 @@ async def auto_adjudicate(
         session, dispute, upheld=True, ruling_reason="auto: differs from known-good output"
     )
     return DisputeState.upheld
+
+
+async def quorum_revote(
+    session: AsyncSession, dispute: Dispute, settings: Settings
+) -> DisputeState | None:
+    """Re-collect a redundant job's K results from the DB and settle the dispute by
+    majority (Session 10.5).
+
+    The disputing provider's output is compared to the freshly-recomputed quorum winner:
+    matching the majority overturns the slash, disagreeing upholds it. A job with no clear
+    majority escalates to human review.
+    """
+    if dispute.job_id is None:
+        dispute.state = DisputeState.under_review
+        return None
+    job = await session.get(Job, dispute.job_id)
+    attempts = list(
+        await session.scalars(select(JobAttempt).where(JobAttempt.job_id == dispute.job_id))
+    )
+    results = [
+        AttemptResult(
+            provider_id=str(a.provider_id),
+            output_hash=(a.proof or {}).get("output_sha256"),
+            succeeded=a.outcome is AttemptOutcome.completed,
+        )
+        for a in attempts
+    ]
+    outcome = evaluate_quorum(results, job.redundancy if job else len(results))
+    if not outcome.reached:
+        dispute.state = DisputeState.under_review
+        return None
+
+    submitted = next(
+        (
+            (a.proof or {}).get("output_sha256")
+            for a in attempts
+            if a.provider_id == dispute.provider_id
+        ),
+        None,
+    )
+    upheld = submitted != outcome.winning_hash
+    await resolve_dispute(
+        session,
+        dispute,
+        upheld=upheld,
+        ruling_reason=f"revote: majority={outcome.winning_hash[:12]}",
+    )
+    return DisputeState.upheld if upheld else DisputeState.overturned
