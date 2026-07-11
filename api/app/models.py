@@ -400,6 +400,21 @@ class ReputationEvent(Base):
     created_at: Mapped[datetime] = _created_at()
 
 
+class UploadSession(Base):
+    """A resumable chunked-upload session (Session 8.4). Staged bytes live on disk keyed
+    by this id; this row tracks ownership and the promoted blob ref on completion."""
+
+    __tablename__ = "upload_sessions"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    developer_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("developers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    declared_digest: Mapped[str | None] = mapped_column(String(64))
+    blob_ref: Mapped[str | None] = mapped_column(String(512))
+    created_at: Mapped[datetime] = _created_at()
+
+
 class BandwidthEvent(Base):
     """An append-only record of bytes moved to/from a provider (Session 7.7).
 

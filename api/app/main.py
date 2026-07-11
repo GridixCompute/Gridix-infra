@@ -20,6 +20,7 @@ from app.routes import (
     metrics,
     providers,
     registration,
+    uploads,
 )
 
 
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(registration.router)
     app.include_router(blobs.router)
+    app.include_router(uploads.router)
     app.include_router(jobs.router)
     app.include_router(providers.router)
     app.include_router(agent.router)
