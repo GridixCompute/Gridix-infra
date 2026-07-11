@@ -86,6 +86,36 @@ async def assign_providers(
     return providers
 
 
+async def _reclaim_job(
+    session: AsyncSession, job: Job, now: datetime, settings: Settings, reason: str
+) -> str | None:
+    """Reclaim one in-flight job: requeue it, or fail it once attempts are exhausted.
+
+    Returns the job id (as a string) if it was requeued, else None.
+    """
+    attempt = await session.scalar(
+        select(JobAttempt)
+        .where(JobAttempt.job_id == job.id)
+        .order_by(JobAttempt.attempt_number.desc())
+        .limit(1)
+    )
+    if attempt is not None and attempt.finished_at is None:
+        attempt.finished_at = now
+
+    if job.attempt_count >= settings.max_attempts:
+        if attempt is not None:
+            attempt.outcome = AttemptOutcome.failed
+        transition(job, JobStatus.failed)
+        logger.warning("job {} failed after {} attempts ({})", job.id, job.attempt_count, reason)
+        return None
+
+    if attempt is not None:
+        attempt.outcome = AttemptOutcome.reassigned
+    transition(job, JobStatus.queued)
+    logger.info("job {} reclaimed → requeued ({}, attempt {})", job.id, reason, job.attempt_count)
+    return str(job.id)
+
+
 async def reap_expired_leases(session: AsyncSession, settings: Settings) -> list[str]:
     """Reclaim jobs whose lease expired without progress.
 
@@ -103,30 +133,42 @@ async def reap_expired_leases(session: AsyncSession, settings: Settings) -> list
         )
         .with_for_update(skip_locked=True)
     )
+    requeued = [
+        rid
+        for job in stale
+        if (rid := await _reclaim_job(session, job, now, settings, "lease expired"))
+    ]
+    await session.commit()
+    return requeued
 
-    requeued: list[str] = []
-    for job in stale:
-        # Close the in-flight attempt as reassigned/timed-out.
-        attempt = await session.scalar(
-            select(JobAttempt)
-            .where(JobAttempt.job_id == job.id)
-            .order_by(JobAttempt.attempt_number.desc())
-            .limit(1)
+
+async def drain_unreachable_providers(session: AsyncSession, settings: Settings) -> list[str]:
+    """Drain in-flight jobs of providers whose control channel went silent (Session 7.6).
+
+    A provider that was seen and then stopped being seen within
+    ``connection_timeout_seconds`` is unreachable; its assigned/running jobs are reclaimed
+    immediately (faster than waiting for lease expiry) so nothing is silently stuck. The
+    matcher already refuses new work to such providers until they reconnect.
+    """
+    now = _now()
+    cutoff = now - timedelta(seconds=settings.connection_timeout_seconds)
+    unreachable = (
+        select(Provider.id)
+        .where(Provider.last_seen.is_not(None), Provider.last_seen < cutoff)
+        .scalar_subquery()
+    )
+    stranded = await session.scalars(
+        select(Job)
+        .where(
+            Job.status.in_((JobStatus.assigned, JobStatus.running)),
+            Job.assigned_provider_id.in_(unreachable),
         )
-        if attempt is not None and attempt.finished_at is None:
-            attempt.finished_at = now
-
-        if job.attempt_count >= settings.max_attempts:
-            if attempt is not None:
-                attempt.outcome = AttemptOutcome.failed
-            transition(job, JobStatus.failed)
-            logger.warning("job {} failed after {} attempts", job.id, job.attempt_count)
-        else:
-            if attempt is not None:
-                attempt.outcome = AttemptOutcome.reassigned
-            transition(job, JobStatus.queued)
-            requeued.append(str(job.id))
-            logger.info("job {} lease expired → requeued (attempt {})", job.id, job.attempt_count)
-
+        .with_for_update(skip_locked=True)
+    )
+    requeued = [
+        rid
+        for job in stranded
+        if (rid := await _reclaim_job(session, job, now, settings, "provider unreachable"))
+    ]
     await session.commit()
     return requeued

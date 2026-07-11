@@ -13,10 +13,11 @@ Both expose ``candidates()`` (ordered, eligible providers) so the scheduler can 
 ``set_matcher`` — the scheduler installs :class:`ReputationMatcher` at startup.
 """
 
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Protocol
 
-from sqlalchemy import Select, func, literal, select
+from sqlalchemy import Select, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -55,6 +56,11 @@ def _capability_query(job: Job) -> tuple[Select, object]:
     )
     load = func.coalesce(load_sq.c.load, literal(0))
 
+    # Presence gate (Session 7.6): a provider that was seen and then went silent is
+    # unreachable and gets no new work until it reconnects. Providers never tracked
+    # (last_seen IS NULL) are not gated, so presence is opt-in per deployment.
+    cutoff = datetime.now(UTC) - timedelta(seconds=get_settings().connection_timeout_seconds)
+
     query = (
         select(Provider, load.label("load"))
         .outerjoin(load_sq, Provider.id == load_sq.c.pid)
@@ -63,6 +69,7 @@ def _capability_query(job: Job) -> tuple[Select, object]:
             Provider.cpu_cores >= need_cpu,
             Provider.memory_mb >= need_mem,
             load < Provider.max_concurrent,
+            or_(Provider.last_seen.is_(None), Provider.last_seen >= cutoff),
         )
     )
     if need_gpu:
