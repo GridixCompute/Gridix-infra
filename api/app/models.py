@@ -196,6 +196,9 @@ class Provider(Base):
     # TEE attestation. Set by the attestation flow; only these run confidential-tee jobs.
     tee_attested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Continuous health (Session 11.4): set when telemetry shows throttling/errors.
+    degraded: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # Control-channel presence (Session 7.1). ``last_seen`` is bumped on every agent
     # call; ``connected_at`` marks the start of the current unbroken connection.
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -492,6 +495,22 @@ class Dispute(Base):
     window_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created_at()
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class HealthSample(Base):
+    """A periodic health/telemetry sample from a provider agent (Session 11.4)."""
+
+    __tablename__ = "health_samples"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("providers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    gpu_temp_c: Mapped[float | None] = mapped_column(Float)
+    throttling: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    error_rate: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    latency_ms: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[datetime] = _created_at()
 
 
 class BenchmarkReport(Base):

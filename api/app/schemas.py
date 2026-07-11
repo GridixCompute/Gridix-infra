@@ -153,6 +153,7 @@ class ProviderResponse(ORMModel):
     max_concurrent: int
     reputation: float
     enabled: bool
+    degraded: bool
     connected_at: datetime | None
     last_seen: datetime | None
     path_type: str | None
@@ -226,6 +227,22 @@ class BenchmarkSubmit(BaseModel):
 
     metrics: dict[str, Any]
     signature: str = Field(min_length=1, max_length=64)
+
+
+class HealthReport(BaseModel):
+    """Telemetry an agent reports periodically (Session 11.4)."""
+
+    gpu_temp_c: float | None = None
+    throttling: bool = False
+    error_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    latency_ms: float | None = None
+
+
+class HealthResult(BaseModel):
+    """The evaluated health verdict for a reported sample."""
+
+    degraded: bool
+    reason: str
 
 
 class BenchmarkResponse(ORMModel):
