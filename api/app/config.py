@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     # Health thresholds above which a provider is marked degraded (11.4).
     health_max_gpu_temp_c: float = Field(default=90.0)
     health_max_error_rate: float = Field(default=0.1, ge=0.0, le=1.0)
+    # Alerting thresholds (12.7).
+    alert_queue_backlog: int = Field(default=100, ge=0)
+    alert_min_connected_providers: int = Field(default=1, ge=0)
 
     storage_backend: Literal["local", "s3"] = "local"
     storage_local_path: str = "/data/blobs"
