@@ -9,7 +9,6 @@ Run with the app importable, e.g.:  PYTHONPATH=api python smoke/s3_integration.p
 """
 
 import asyncio
-import os
 import sys
 
 from app.config import Settings
