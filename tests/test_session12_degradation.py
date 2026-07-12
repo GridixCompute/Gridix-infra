@@ -4,6 +4,7 @@ import uuid
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from app.assignment import recover_queued_jobs
 from app.ledger import LedgerAccount, account_balance
 from app.models import Job, JobStatus
@@ -77,3 +78,21 @@ async def test_assignment_loop_survives_redis_outage() -> None:
         # Returns (does not raise) despite dequeue failing every time.
         await asyncio.wait_for(_assignment_loop(stop), timeout=10)
     assert calls >= 3
+
+
+def test_boot_rejected_when_timeout_not_above_twice_heartbeat() -> None:
+    """The liveness invariant is enforced at config load, not just documented: a
+    connection_timeout that doesn't clear 2x the heartbeat refuses to boot. This is the
+    config interaction that spuriously reassigned a long-running job (double-run + container
+    collision) — the kind of bug two individually-reasonable settings create, so the code has
+    to forbid it."""
+    from app.config import Settings
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):  # 12 <= 2*10
+        Settings(connection_timeout_seconds=12, agent_heartbeat_interval_seconds=10)
+    with pytest.raises(ValidationError):  # boundary: 20 <= 2*10
+        Settings(connection_timeout_seconds=20, agent_heartbeat_interval_seconds=10)
+    # A config with headroom constructs fine (30 > 2*10).
+    ok = Settings(connection_timeout_seconds=30, agent_heartbeat_interval_seconds=10)
+    assert ok.connection_timeout_seconds == 30

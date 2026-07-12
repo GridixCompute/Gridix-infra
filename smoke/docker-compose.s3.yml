@@ -62,7 +62,6 @@ services:
       AWS_SECRET_ACCESS_KEY: gridixsecret123
       AWS_DEFAULT_REGION: us-east-1
       GRIDIX_LEASE_SECONDS: "20"
-      GRIDIX_CONNECTION_TIMEOUT_SECONDS: "12"
     ports:
       - "127.0.0.1:8080:8000"
     depends_on:
@@ -88,7 +87,6 @@ services:
       GRIDIX_SECRET_KEY: dev-insecure-secret-change-me
       GRIDIX_CANARY_RATE: "0"
       GRIDIX_LEASE_SECONDS: "20"
-      GRIDIX_CONNECTION_TIMEOUT_SECONDS: "12"
     depends_on:
       api:
         condition: service_started

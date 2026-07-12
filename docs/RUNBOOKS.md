@@ -60,5 +60,7 @@ normal operation (every posting is a balanced group).
 unreachable, and the reaper reassigns the in-flight K=1 job to another provider — two agents
 then run it and collide on the container name (`gridix-<id> already in use`), failing one
 attempt. No job is lost (it stays terminal) and nothing leaks, but it is wasted, spurious
-work. Defaults are safe (timeout 30s > heartbeat 15s). Found via a live smoke test with an
-aggressive chaos-tuned timeout (12s) and the default 15s heartbeat.
+work. Defaults are safe. **Enforced in code**: `Settings` refuses to boot when
+`connection_timeout_seconds <= 2 * agent_heartbeat_interval_seconds` (config.py model
+validator; agent default heartbeat 10s, coordinator timeout 30s). Found via a live smoke test
+where an aggressive chaos-tuned timeout (12s) interacted with the default heartbeat.
