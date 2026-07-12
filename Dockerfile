@@ -16,7 +16,10 @@ COPY alembic ./alembic
 COPY api ./api
 # Optional extras (e.g. EXTRAS="[s3]" to bundle the aioboto3 S3 backend). Default: none.
 ARG EXTRAS=""
-RUN pip install --no-cache-dir ".${EXTRAS}"
+# Install the app, then upgrade the bundled build tooling to non-vulnerable versions so the
+# image passes the Trivy HIGH/CRITICAL gate (wheel / jaraco.context ship with fixable CVEs).
+RUN pip install --no-cache-dir ".${EXTRAS}" \
+    && pip install --no-cache-dir --upgrade pip setuptools "wheel>=0.46.2" "jaraco.context>=6.1.0"
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

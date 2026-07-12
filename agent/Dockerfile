@@ -19,7 +19,9 @@ ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /agent
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Install deps, then upgrade bundled build tooling past its fixable CVEs (Trivy gate).
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir --upgrade pip setuptools "wheel>=0.46.2" "jaraco.context>=6.1.0"
 COPY agent.py ./
 
 ENTRYPOINT ["python", "agent.py"]

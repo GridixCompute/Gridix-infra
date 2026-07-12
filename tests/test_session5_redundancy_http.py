@@ -177,9 +177,7 @@ async def _setup_kn_job(client, session, settings, names, redundancy):
 
 async def _expire_attempt(session, job_id, provider_id) -> None:
     attempt = await session.scalar(
-        select(JobAttempt).where(
-            JobAttempt.job_id == job_id, JobAttempt.provider_id == provider_id
-        )
+        select(JobAttempt).where(JobAttempt.job_id == job_id, JobAttempt.provider_id == provider_id)
     )
     attempt.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
 

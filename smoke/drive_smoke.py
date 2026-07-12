@@ -49,10 +49,14 @@ def _seed_stake(provider_id: str, amount: str = "200") -> None:
     """Fund provider stake by piping seed_stake.py into the api container."""
     cmd = [
         *shlex.split(COMPOSE),
-        "exec", "-T",
-        "-e", f"SEED_PROVIDER_ID={provider_id}",
-        "-e", f"SEED_AMOUNT={amount}",
-        "api", "python",
+        "exec",
+        "-T",
+        "-e",
+        f"SEED_PROVIDER_ID={provider_id}",
+        "-e",
+        f"SEED_AMOUNT={amount}",
+        "api",
+        "python",
     ]
     with SEED_SCRIPT.open("rb") as stdin:
         result = subprocess.run(cmd, stdin=stdin, capture_output=True, text=True)
@@ -69,8 +73,9 @@ async def _register(client: httpx.AsyncClient, role: str, name: str) -> tuple[st
     return body["id"], body["api_key"]
 
 
-async def _wait_for_terminal(client: httpx.AsyncClient, dev_key: str, job_id: str,
-                             budget_s: float) -> dict:
+async def _wait_for_terminal(
+    client: httpx.AsyncClient, dev_key: str, job_id: str, budget_s: float
+) -> dict:
     headers = {"Authorization": f"Bearer {dev_key}"}
     deadline = time.monotonic() + budget_s
     last = ""
@@ -186,8 +191,8 @@ async def main() -> int:
         audit.raise_for_status()
         a = audit.json()
         print(f"  attempts: {len(a['attempts'])}, ledger entries: {len(a['ledger'])}")
-        debit = sum(float(e['amount']) for e in a['ledger'] if e['direction'] == 'debit')
-        credit = sum(float(e['amount']) for e in a['ledger'] if e['direction'] == 'credit')
+        debit = sum(float(e["amount"]) for e in a["ledger"] if e["direction"] == "debit")
+        credit = sum(float(e["amount"]) for e in a["ledger"] if e["direction"] == "credit")
         balanced = abs(debit - credit) < 1e-6
         state = "BALANCED" if balanced else "IMBALANCED"
         print(f"  double-entry: debit={debit} credit={credit} — {state}")
