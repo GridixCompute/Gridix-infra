@@ -14,7 +14,9 @@ WORKDIR /app
 COPY pyproject.toml alembic.ini ./
 COPY alembic ./alembic
 COPY api ./api
-RUN pip install --no-cache-dir .
+# Optional extras (e.g. EXTRAS="[s3]" to bundle the aioboto3 S3 backend). Default: none.
+ARG EXTRAS=""
+RUN pip install --no-cache-dir ".${EXTRAS}"
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
