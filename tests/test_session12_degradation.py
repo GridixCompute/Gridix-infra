@@ -53,3 +53,27 @@ async def test_recovery_is_idempotent_over_queued_jobs(client: AsyncClient, sess
         }
     recovered = set(await recover_queued_jobs(session))
     assert ids <= recovered  # every queued job is recoverable
+
+
+async def test_assignment_loop_survives_redis_outage() -> None:
+    """A Redis error from dequeue must NOT crash the scheduler's assignment loop — it backs
+    off and keeps running, so the reaper's recovery sweep can re-enqueue once Redis is back.
+    (Regression: an unguarded dequeue previously took the whole scheduler down under churn.)"""
+    import asyncio
+
+    from app.scheduler import _assignment_loop
+
+    stop = asyncio.Event()
+    calls = 0
+
+    async def boom(*_a, **_k):
+        nonlocal calls
+        calls += 1
+        if calls >= 3:
+            stop.set()
+        raise ConnectionError("redis down")
+
+    with patch("app.scheduler.dequeue_job", new=boom):
+        # Returns (does not raise) despite dequeue failing every time.
+        await asyncio.wait_for(_assignment_loop(stop), timeout=10)
+    assert calls >= 3
