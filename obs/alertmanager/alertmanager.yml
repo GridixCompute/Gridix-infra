@@ -1,0 +1,15 @@
+# One sink, on purpose: every alert routes to the webhook receiver (the alert-sink container),
+# which logs each notification so delivery is provable. Swap the webhook url for Discord/Slack/
+# a real endpoint in production — the routing stays the same.
+route:
+  receiver: gridix-sink
+  group_by: ["alertname"]
+  group_wait: 5s
+  group_interval: 10s
+  repeat_interval: 1h
+
+receivers:
+  - name: gridix-sink
+    webhook_configs:
+      - url: http://alert-sink:8080/
+        send_resolved: true

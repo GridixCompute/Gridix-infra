@@ -15,6 +15,7 @@ import random
 import signal
 
 from loguru import logger
+from prometheus_client import Counter, Gauge, start_http_server
 
 from app.assignment import (
     assign_job,
@@ -34,6 +35,15 @@ from app.secret_manager import init_secrets
 # How long to wait before retrying a job that currently has no eligible provider.
 _REQUEUE_DELAY_SECONDS = 2.0
 
+# Scheduler-worker metrics (its own scrape target — the API can't see the worker's liveness).
+# The assignment loop increments _LOOPS every iteration (a heartbeat) and _ASSIGNMENTS +
+# _LAST_ASSIGN on each successful assignment; "queue not empty but no assignments" = stuck.
+_LOOPS = Counter("gridix_scheduler_loop_iterations_total", "Assignment loop iterations")
+_ASSIGNMENTS = Counter("gridix_scheduler_assignments_total", "Jobs assigned by the scheduler")
+_LAST_ASSIGN = Gauge(
+    "gridix_scheduler_last_assignment_timestamp", "Unix time of the last successful assignment"
+)
+
 
 async def _assignment_loop(stop: asyncio.Event) -> None:
     """Continuously assign queued jobs to providers.
@@ -46,6 +56,7 @@ async def _assignment_loop(stop: asyncio.Event) -> None:
     settings = get_settings()
     factory = get_sessionmaker()
     while not stop.is_set():
+        _LOOPS.inc()  # heartbeat: this loop is alive even when idle
         try:
             job_id = await dequeue_job(timeout=2)
             if job_id is None:
@@ -56,6 +67,9 @@ async def _assignment_loop(stop: asyncio.Event) -> None:
                 # No provider fit (or already claimed elsewhere) — retry later.
                 await asyncio.sleep(_REQUEUE_DELAY_SECONDS)
                 await enqueue_job(job_id)
+            else:
+                _ASSIGNMENTS.inc()
+                _LAST_ASSIGN.set_to_current_time()
         except Exception:
             # Includes Redis connection errors during an outage. Back off; do not re-enqueue
             # here (Redis may be down) — recovery re-enqueues from the DB.
@@ -118,9 +132,12 @@ async def _canary_loop(stop: asyncio.Event) -> None:
 async def main() -> None:
     """Run the scheduler until SIGINT/SIGTERM."""
     configure_logging()
+    settings = get_settings()
     # Fail fast if secrets are misconfigured — before doing any work.
-    init_secrets(get_settings())
-    logger.info("GRIDIX scheduler starting")
+    init_secrets(settings)
+    # Serve worker metrics (its own Prometheus scrape target).
+    start_http_server(settings.scheduler_metrics_port)
+    logger.info("GRIDIX scheduler starting (metrics on :{})", settings.scheduler_metrics_port)
     # Production uses reputation-weighted, stake-gated matching.
     set_matcher(ReputationMatcher())
     stop = asyncio.Event()

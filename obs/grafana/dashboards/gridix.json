@@ -1,0 +1,93 @@
+{
+  "uid": "gridix-overview",
+  "title": "GRIDIX Overview",
+  "tags": ["gridix"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "annotations": { "list": [] },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Jobs by status",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "gridix_jobs", "legendFormat": "{{status}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Queue depth",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 20 } }, "overrides": [] },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "gridix_queue_depth", "legendFormat": "queued", "refId": "A" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Providers (total / connected / unreachable)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "gridix_providers_total", "legendFormat": "total", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "gridix_providers_connected", "legendFormat": "connected", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "gridix_providers_total - gridix_providers_connected", "legendFormat": "unreachable", "refId": "C" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Job duration p50 / p95",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "gridix_job_duration_seconds{quantile=\"0.5\"}", "legendFormat": "p50", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "gridix_job_duration_seconds{quantile=\"0.95\"}", "legendFormat": "p95", "refId": "B" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Failed + timeout jobs",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 20 } }, "overrides": [] },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "gridix_jobs{status=\"failed\"}", "legendFormat": "failed", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "gridix_jobs{status=\"timeout\"}", "legendFormat": "timeout", "refId": "B" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Ledger balance (debit vs credit) + discrepancies",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "gridix_ledger_debit_total", "legendFormat": "debit", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "gridix_ledger_credit_total", "legendFormat": "credit", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "gridix_ledger_discrepancies", "legendFormat": "discrepancies", "refId": "C" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Scheduler liveness (up + assignments/5m + Redis/Storage up)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "up{job=\"gridix-scheduler\"}", "legendFormat": "scheduler up", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "increase(gridix_scheduler_assignments_total[5m])", "legendFormat": "assignments/5m", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "gridix_redis_up", "legendFormat": "redis up", "refId": "C" },
+        { "datasource": { "type": "prometheus", "uid": "gridix-prom" }, "expr": "gridix_storage_up", "legendFormat": "storage up", "refId": "D" }
+      ]
+    }
+  ]
+}

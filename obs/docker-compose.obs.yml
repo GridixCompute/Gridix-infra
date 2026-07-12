@@ -1,0 +1,66 @@
+# Observability stack for GRIDIX: Prometheus + Grafana + Alertmanager (+ a webhook sink to
+# prove alerts actually arrive). Joins the LIVE gridixs3 network to scrape the running api and
+# scheduler by service name; nothing is rebuilt. All host ports bind to loopback only — this
+# VPS runs other services and must not expose these publicly.
+#   docker compose -p gridixobs -f obs/docker-compose.obs.yml up -d
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=2GB
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - promdata:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks: [gridix]
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "127.0.0.1:9093:9093"
+    networks: [gridix]
+    restart: unless-stopped
+
+  # Webhook receiver: logs every alert notification it gets, so delivery is provable via
+  # `docker logs`. Alertmanager's single sink points here.
+  alert-sink:
+    image: python:3.11-slim
+    command: ["python", "/sink.py"]
+    volumes:
+      - ./alert_sink.py:/sink.py:ro
+    networks: [gridix]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: gridix
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_DEFAULT_THEME: dark
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [gridix]
+    restart: unless-stopped
+
+volumes:
+  promdata:
+  grafanadata:
+
+networks:
+  gridix:
+    name: gridixs3_default
+    external: true
