@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://gridix:gridix@localhost:5432/gridix"
     redis_url: str = "redis://localhost:6379/0"
 
+    # Where secrets come from (Session 12.1): env vars, mounted files (Docker/K8s secrets),
+    # or a Vault/KMS seam. See app.secret_manager.
+    secret_backend: Literal["env", "file", "vault"] = "env"
+    secret_dir: str = "/run/secrets"
+
     secret_key: str = "dev-insecure-secret-change-me"
     # Coordinator key-encryption key (Fernet) for brokering per-job data keys (9.3).
     kek: str = ""

@@ -23,6 +23,7 @@ from app.routes import (
     registration,
     uploads,
 )
+from app.secret_manager import init_secrets
 
 
 @asynccontextmanager
@@ -30,6 +31,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Configure logging on startup; release Redis on shutdown."""
     configure_logging()
     settings = get_settings()
+    # Fail fast if secrets are misconfigured — before serving a single request.
+    init_secrets(settings)
     logger.info("GRIDIX API starting (env={})", settings.env)
     yield
     await close_redis()
