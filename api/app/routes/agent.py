@@ -72,21 +72,52 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+async def _provider_attempt(
+    session: SessionDep, provider: Provider, job_id: uuid.UUID
+) -> JobAttempt | None:
+    """This provider's latest in-flight (unfinished) attempt for a job, or None."""
+    return await session.scalar(
+        select(JobAttempt)
+        .where(
+            JobAttempt.job_id == job_id,
+            JobAttempt.provider_id == provider.id,
+            JobAttempt.finished_at.is_(None),
+        )
+        .order_by(JobAttempt.attempt_number.desc())
+        .limit(1)
+    )
+
+
 async def _owned_active_job(session: SessionDep, provider: Provider, job_id: uuid.UUID) -> Job:
-    """Load a job that is currently assigned to this provider, or 404."""
+    """Load a job this provider has an active attempt for, or 404.
+
+    Ownership is per-attempt, not the job's single ``assigned_provider_id``: a redundant
+    high-value job (K>1) has K providers each running their own attempt concurrently, and
+    only one of them is the job's nominal ``assigned_provider_id``. Keying on the attempt
+    lets every participating provider hold its lease, report status, and submit a result.
+    """
     job = await session.get(Job, job_id)
-    if job is None or job.assigned_provider_id != provider.id:
+    if job is None or await _provider_attempt(session, provider, job_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.")
     return job
 
 
 async def _next_assigned_job(session: SessionDep, provider: Provider) -> Job | None:
-    """The oldest job assigned to this provider that it has not yet started."""
+    """The oldest job with an attempt assigned to this provider that it has not started.
+
+    Matches on the provider's own ``JobAttempt`` rather than the job's single
+    ``assigned_provider_id`` so each of a redundant job's K providers is surfaced its work,
+    not just the primary. The job may already be ``running`` (moved there by another
+    provider's attempt); this provider's attempt is still ``assigned`` until it reports in.
+    """
     return await session.scalar(
         select(Job)
+        .join(JobAttempt, JobAttempt.job_id == Job.id)
         .where(
-            Job.assigned_provider_id == provider.id,
-            Job.status == JobStatus.assigned,
+            JobAttempt.provider_id == provider.id,
+            JobAttempt.outcome == AttemptOutcome.assigned,
+            JobAttempt.finished_at.is_(None),
+            Job.status.in_((JobStatus.assigned, JobStatus.running)),
         )
         .order_by(Job.assigned_at.asc())
         .limit(1)
@@ -212,13 +243,8 @@ async def heartbeat(
     mark_seen(provider, _now(), settings.connection_timeout_seconds)
     lease = _now() + timedelta(seconds=settings.lease_seconds)
     job.lease_expires_at = lease
-    # Keep the current attempt's lease in sync.
-    attempt = await session.scalar(
-        select(JobAttempt)
-        .where(JobAttempt.job_id == job.id)
-        .order_by(JobAttempt.attempt_number.desc())
-        .limit(1)
-    )
+    # Keep this provider's own attempt lease in sync (each redundant attempt is independent).
+    attempt = await _provider_attempt(session, provider, job.id)
     if attempt is not None:
         attempt.lease_expires_at = lease
     return HeartbeatResponse(job_id=job.id, lease_expires_at=lease)
@@ -232,20 +258,23 @@ async def report_status(
     session: SessionDep,
     settings: SettingsDep,
 ) -> Ack:
-    """Agent reports it has begun executing: ``assigned → running``."""
-    job = await _owned_active_job(session, provider, job_id)
-    mark_seen(provider, _now(), settings.connection_timeout_seconds)
-    try:
-        transition(job, JobStatus.running)
-    except IllegalTransitionError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    """Agent reports it has begun executing: ``assigned → running``.
 
-    attempt = await session.scalar(
-        select(JobAttempt)
-        .where(JobAttempt.job_id == job.id)
-        .order_by(JobAttempt.attempt_number.desc())
-        .limit(1)
-    )
+    For a redundant job the first provider to report moves the job to ``running``; the
+    others find it already there and only advance their own attempt — the per-attempt state
+    is what matters, the job status is shared.
+    """
+    job = await _owned_active_job(session, provider, job_id)
+    if job.status not in (JobStatus.assigned, JobStatus.running):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Job is not in flight.")
+    mark_seen(provider, _now(), settings.connection_timeout_seconds)
+    if job.status is JobStatus.assigned:
+        try:
+            transition(job, JobStatus.running)
+        except IllegalTransitionError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    attempt = await _provider_attempt(session, provider, job_id)
     if attempt is not None:
         attempt.outcome = AttemptOutcome.running
         attempt.started_at = _now()
