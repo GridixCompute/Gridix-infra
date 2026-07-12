@@ -36,12 +36,16 @@ Equivalent to what `install.sh` does, if you prefer to run it yourself:
 docker run -d --restart=always --name gridix-agent \
   -e GRIDIX_API_URL=https://coordinator.example.com \
   -e GRIDIX_PROVIDER_KEY=grdx_your_key \
+  -e GRIDIX_AGENT_WORKDIR=/var/lib/gridix-agent \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  ghcr.io/gridixcompute/gridix-agent:v0.1.0
+  -v /var/lib/gridix-agent:/var/lib/gridix-agent \
+  ghcr.io/gridixcompute/gridix-agent:v0.1.1
 ```
 
 Mounting the Docker socket grants host-level control — run the agent only on machines you
-own.
+own. The job workdir is bind-mounted at the same path inside the container so the input/
+output mounts the agent hands the host Docker daemon resolve to real host paths. (If the
+coordinator runs on the *same* host, add `--network host` so the agent can reach it.)
 
 ## Configuration (env)
 

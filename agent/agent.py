@@ -26,7 +26,7 @@ from pathlib import Path
 import httpx
 from loguru import logger
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # Mount points inside the container (stable contract with job images).
 CONTAINER_INPUT = "/gridix/input"

@@ -11,8 +11,11 @@
 # the provider owns, and keep job containers hardened (that is build_run_argv's job).
 FROM python:3.11-slim
 
+# docker.io's CLI client (/usr/bin/docker) is a *recommended* package, so it is dropped by
+# --no-install-recommends — and the agent shells out to `docker`. Install with recommends so
+# the client is present (the agent uses the host daemon via the mounted socket, not dockerd).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends docker.io \
+    && apt-get install -y docker.io \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
