@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the GRIDIX Postgres backup hourly
+
+[Timer]
+# Hourly => RPO is at most one hour (max data loss between dumps). Tighten the cadence, or
+# add WAL archiving/PITR, for a smaller RPO. Persistent catches up a missed run after downtime.
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target
