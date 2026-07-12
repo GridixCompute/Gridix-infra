@@ -36,14 +36,20 @@ _REQUEUE_DELAY_SECONDS = 2.0
 
 
 async def _assignment_loop(stop: asyncio.Event) -> None:
-    """Continuously assign queued jobs to providers."""
+    """Continuously assign queued jobs to providers.
+
+    The whole body (including the Redis dequeue) is guarded: a Redis outage must not crash
+    the scheduler. On any error we back off and continue — the DB is the source of truth, so
+    the reaper's ``recover_queued_jobs`` sweep re-enqueues anything dropped once Redis is back
+    (Session 12.5). No job is lost.
+    """
     settings = get_settings()
     factory = get_sessionmaker()
     while not stop.is_set():
-        job_id = await dequeue_job(timeout=2)
-        if job_id is None:
-            continue
         try:
+            job_id = await dequeue_job(timeout=2)
+            if job_id is None:
+                continue
             async with factory() as session:
                 provider = await assign_job(session, job_id, settings)
             if provider is None:
@@ -51,8 +57,10 @@ async def _assignment_loop(stop: asyncio.Event) -> None:
                 await asyncio.sleep(_REQUEUE_DELAY_SECONDS)
                 await enqueue_job(job_id)
         except Exception:
-            logger.exception("assignment failed for job {}", job_id)
-            await enqueue_job(job_id)
+            # Includes Redis connection errors during an outage. Back off; do not re-enqueue
+            # here (Redis may be down) — recovery re-enqueues from the DB.
+            logger.exception("assignment loop error; backing off")
+            await asyncio.sleep(1.0)
 
 
 async def _reaper_loop(stop: asyncio.Event) -> None:
