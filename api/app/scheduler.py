@@ -29,6 +29,7 @@ from app.db import get_sessionmaker
 from app.logging import configure_logging
 from app.matcher import ReputationMatcher, set_matcher
 from app.redis_client import close_redis, dequeue_job, enqueue_job
+from app.secret_manager import init_secrets
 
 # How long to wait before retrying a job that currently has no eligible provider.
 _REQUEUE_DELAY_SECONDS = 2.0
@@ -109,6 +110,8 @@ async def _canary_loop(stop: asyncio.Event) -> None:
 async def main() -> None:
     """Run the scheduler until SIGINT/SIGTERM."""
     configure_logging()
+    # Fail fast if secrets are misconfigured — before doing any work.
+    init_secrets(get_settings())
     logger.info("GRIDIX scheduler starting")
     # Production uses reputation-weighted, stake-gated matching.
     set_matcher(ReputationMatcher())
