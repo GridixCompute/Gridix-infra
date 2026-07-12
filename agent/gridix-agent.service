@@ -1,0 +1,20 @@
+[Unit]
+Description=GRIDIX provider agent
+# The agent shells out to the local Docker daemon to run job containers.
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=@ENV_FILE@
+ExecStart=@PREFIX@/venv/bin/python @PREFIX@/agent.py
+Restart=always
+RestartSec=5
+# On stop, let the agent shut down gracefully so the current job's lease lapses and the
+# coordinator reassigns it (no job is lost — see build_run_argv / the reaper).
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -26,6 +26,8 @@ from pathlib import Path
 import httpx
 from loguru import logger
 
+__version__ = "0.1.0"
+
 # Mount points inside the container (stable contract with job images).
 CONTAINER_INPUT = "/gridix/input"
 CONTAINER_OUTPUT_DIR = "/gridix/output"
@@ -362,7 +364,10 @@ class Agent:
         self._stop = stop or asyncio.Event()
         self._client = httpx.AsyncClient(
             base_url=config.api_url,
-            headers={"Authorization": f"Bearer {config.provider_key}"},
+            headers={
+                "Authorization": f"Bearer {config.provider_key}",
+                "User-Agent": f"gridix-agent/{__version__}",
+            },
             timeout=30.0,
         )
         config.workdir.mkdir(parents=True, exist_ok=True)
@@ -387,7 +392,7 @@ class Agent:
         pause. Connection errors back off exponentially (capped) so a flapping coordinator
         or network does not hammer the endpoint.
         """
-        logger.info("agent started against {}", self._cfg.api_url)
+        logger.info("agent v{} started against {}", __version__, self._cfg.api_url)
         backoff = self._cfg.poll_interval
         try:
             while not self._stop.is_set():
