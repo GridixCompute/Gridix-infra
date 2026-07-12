@@ -73,5 +73,10 @@ set (not 0), `PidsLimit` set, `User="65534:65534"`.
 
 ## Not covered here
 
-K>1 redundant execution is **broken through the HTTP path** (see the P1 audit) and is not
-exercised by these assets — they use K=1. Close P1 before trusting quorum in production.
+These assets use K=1. The K>1 happy path is now fixed and covered by
+`tests/test_session5_redundancy_http.py` (all K providers polled → quorum settles →
+dissenter slashed). One P1 follow-up remains: **partial failure** of a redundant job (a
+provider dies mid-run) is not finalized early on the surviving majority — it relies on the
+job-level lease reaper, which requeues then fails+refunds after `max_attempts`. No hang and
+no wrong payment, but an honest 2-of-3 agreement isn't harvested. Early-quorum finalize +
+per-attempt reaping is the next increment.
