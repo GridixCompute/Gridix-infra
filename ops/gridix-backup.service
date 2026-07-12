@@ -1,0 +1,10 @@
+[Unit]
+Description=GRIDIX Postgres backup (encrypted -> S3/MinIO)
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/gridix-backup.env
+ExecStart=/opt/gridix/ops/backup.sh
