@@ -450,6 +450,9 @@ class Agent:
         job_dir = self._cfg.workdir / job_id
         out_dir = job_dir / "output"
         out_dir.mkdir(parents=True, exist_ok=True)
+        # The container runs as a non-root user (uid 65534); make the bind-mounted output
+        # directory writable by it regardless of the agent's own uid.
+        out_dir.chmod(0o777)
 
         input_path = await self._fetch_input(job_id, job_dir, job.get("input_ref"))
         argv = build_run_argv(
