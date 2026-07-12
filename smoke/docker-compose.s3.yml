@@ -1,0 +1,96 @@
+# Full-stack S3 test: control plane with GRIDIX_STORAGE_BACKEND=s3 against an in-network
+# MinIO. Proves the coordinator stores/serves job blobs from S3 end-to-end.
+#   docker compose -p gridixs3 -f smoke/docker-compose.s3.yml up -d --build
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gridix
+      POSTGRES_PASSWORD: gridix
+      POSTGRES_DB: gridix
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gridix"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: gridixadmin
+      MINIO_ROOT_PASSWORD: gridixsecret123
+    volumes:
+      - miniodata:/data
+
+  createbucket:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "until mc alias set m http://minio:9000 gridixadmin gridixsecret123; do echo waiting-minio; sleep 2; done; mc mb -p m/gridix-blobs; echo bucket-ready"
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        EXTRAS: "[s3]"
+    command: ["api"]
+    environment:
+      GRIDIX_ENV: dev
+      GRIDIX_DATABASE_URL: postgresql+asyncpg://gridix:gridix@postgres:5432/gridix
+      GRIDIX_REDIS_URL: redis://redis:6379/0
+      GRIDIX_SECRET_KEY: dev-insecure-secret-change-me
+      GRIDIX_STORAGE_BACKEND: s3
+      GRIDIX_S3_BUCKET: gridix-blobs
+      GRIDIX_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: gridixadmin
+      AWS_SECRET_ACCESS_KEY: gridixsecret123
+      AWS_DEFAULT_REGION: us-east-1
+    ports:
+      - "127.0.0.1:8080:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      createbucket:
+        condition: service_completed_successfully
+
+  scheduler:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        EXTRAS: "[s3]"
+    command: ["scheduler"]
+    environment:
+      GRIDIX_ENV: dev
+      GRIDIX_DATABASE_URL: postgresql+asyncpg://gridix:gridix@postgres:5432/gridix
+      GRIDIX_REDIS_URL: redis://redis:6379/0
+      GRIDIX_SECRET_KEY: dev-insecure-secret-change-me
+      GRIDIX_CANARY_RATE: "0"
+    depends_on:
+      api:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  miniodata:
