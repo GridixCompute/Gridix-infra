@@ -8,21 +8,22 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Install dependencies first for layer caching.
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir \
-    "fastapi>=0.110" "uvicorn[standard]>=0.29" "sqlalchemy[asyncio]>=2.0" "asyncpg>=0.29" \
-    "alembic>=1.13" "pydantic>=2.6" "pydantic-settings>=2.2" "redis>=5.0" "loguru>=0.7" \
-    "python-multipart>=0.0.9" "prometheus-client>=0.20"
-
-COPY alembic.ini ./
+# Install the control-plane package and its dependencies straight from pyproject — the
+# single source of truth, so the image can never drift from the declared dependency set
+# (a hand-maintained pip list previously omitted cryptography and httpx).
+COPY pyproject.toml alembic.ini ./
 COPY alembic ./alembic
 COPY api ./api
+RUN pip install --no-cache-dir .
+
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Run as an unprivileged user.
-RUN useradd --create-home --uid 10001 gridix
+# Run as an unprivileged user; pre-create the blob dir it owns so the mounted volume
+# initializes with writable ownership (the process is non-root by design).
+RUN useradd --create-home --uid 10001 gridix \
+    && mkdir -p /data/blobs \
+    && chown -R gridix:gridix /data/blobs
 USER gridix
 
 EXPOSE 8000
