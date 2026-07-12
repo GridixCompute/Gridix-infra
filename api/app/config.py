@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     lease_seconds: int = Field(default=60, ge=5)
     max_attempts: int = Field(default=3, ge=1)
 
+    # Port the scheduler worker serves its Prometheus metrics on (12.7 observability).
+    scheduler_metrics_port: int = Field(default=9100, ge=1, le=65535)
+
     # Control channel / presence (Session 7.1)
     poll_hold_seconds: float = Field(default=25.0, ge=0.0)
     poll_tick_seconds: float = Field(default=1.0, gt=0.0)

@@ -1,0 +1,55 @@
+groups:
+  - name: gridix
+    rules:
+      # Directly relevant to the chaos-drill bug: a Redis outage degrades the queue path.
+      - alert: RedisUnreachable
+        expr: gridix_redis_up == 0
+        for: 15s
+        labels: {severity: critical}
+        annotations:
+          summary: "Redis unreachable"
+          description: "gridix_redis_up == 0 — the job queue path is degraded."
+
+      - alert: StorageUnreachable
+        expr: gridix_storage_up == 0
+        for: 15s
+        labels: {severity: critical}
+        annotations:
+          summary: "Blob storage unreachable"
+          description: "gridix_storage_up == 0 — job input/result I/O will fail."
+
+      # Money invariant. Any unbalanced ledger group is a stop-the-world event.
+      - alert: LedgerDiscrepancy
+        expr: gridix_ledger_discrepancies > 0
+        for: 0s
+        labels: {severity: critical}
+        annotations:
+          summary: "Ledger discrepancy"
+          description: "{{ $value }} unbalanced ledger group(s) — freeze settlement (RUNBOOKS.md)."
+
+      # Every provider gone though some are registered — jobs will stall.
+      - alert: MassProviderDropout
+        expr: gridix_providers_total > 0 and gridix_providers_connected == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "Mass provider dropout"
+          description: "0 of {{ $value }} providers connected — jobs will stall."
+
+      # Queue not draining though it has work and the scheduler isn't assigning.
+      - alert: SchedulerStuck
+        expr: gridix_queue_depth > 0 and increase(gridix_scheduler_assignments_total[5m]) == 0
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "Scheduler stuck"
+          description: "Queue depth {{ $value }} but no assignments in 5m — scheduler may be wedged."
+
+      # The scheduler worker's metrics target is down (crashed / unreachable).
+      - alert: SchedulerDown
+        expr: up{job="gridix-scheduler"} == 0
+        for: 30s
+        labels: {severity: critical}
+        annotations:
+          summary: "Scheduler down"
+          description: "The scheduler metrics target is down — no jobs will be assigned."
