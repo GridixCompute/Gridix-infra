@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -43,6 +43,25 @@ class Settings(BaseSettings):
         retired = [k.strip() for k in self.kek_previous.split(",") if k.strip()]
         return [self.kek, *retired] if self.kek else retired
 
+    @model_validator(mode="after")
+    def _validate_liveness_window(self) -> "Settings":
+        """Refuse to boot if the reaper could reclaim a live job between heartbeats.
+
+        connection_timeout must leave room for at least two agent heartbeats; otherwise a
+        long-running job's provider ages past the timeout between beats, gets flagged
+        unreachable, and its K=1 job is spuriously reassigned to a second provider (which
+        then collides on the container name). This bug only surfaces when two independently
+        reasonable configs interact, so the code — not a runbook — has to enforce it.
+        """
+        if self.connection_timeout_seconds <= 2 * self.agent_heartbeat_interval_seconds:
+            raise ValueError(
+                f"connection_timeout_seconds ({self.connection_timeout_seconds}) must be > "
+                f"2 * agent_heartbeat_interval_seconds "
+                f"({self.agent_heartbeat_interval_seconds}) so a long job's provider is not "
+                "flagged unreachable between heartbeats (see docs/RUNBOOKS.md)."
+            )
+        return self
+
     # Trusted verifier secret standing in for the TEE vendor root of trust (9.5).
     attestation_secret: str = ""
     # Lifetime of job-scoped secrets injected into the container (9.6).
@@ -74,6 +93,10 @@ class Settings(BaseSettings):
     poll_hold_seconds: float = Field(default=25.0, ge=0.0)
     poll_tick_seconds: float = Field(default=1.0, gt=0.0)
     connection_timeout_seconds: int = Field(default=30, ge=1)
+    # The cadence the coordinator assumes agents heartbeat at. connection_timeout must leave
+    # room for at least two heartbeats (see the model validator) so a long-running job's
+    # provider isn't flagged unreachable between beats and its job spuriously reassigned.
+    agent_heartbeat_interval_seconds: int = Field(default=10, ge=1)
 
     # Relay / tunnel (Session 7.2-7.3)
     relay_request_timeout: float = Field(default=30.0, gt=0.0)

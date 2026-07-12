@@ -116,7 +116,7 @@ class AgentConfig:
             poll_interval=float(os.environ.get("GRIDIX_POLL_INTERVAL", "1")),
             poll_jitter=float(os.environ.get("GRIDIX_POLL_JITTER", "0.3")),
             poll_backoff_max=float(os.environ.get("GRIDIX_POLL_BACKOFF_MAX", "30")),
-            heartbeat_interval=float(os.environ.get("GRIDIX_HEARTBEAT_INTERVAL", "15")),
+            heartbeat_interval=float(os.environ.get("GRIDIX_HEARTBEAT_INTERVAL", "10")),
             enable_gpu=os.environ.get("GRIDIX_ENABLE_GPU", "false").lower() == "true",
             # Optional NAT-traversal tunnel. Empty → agent runs poll-only (batch).
             relay_url=os.environ.get("GRIDIX_RELAY_URL", ""),
