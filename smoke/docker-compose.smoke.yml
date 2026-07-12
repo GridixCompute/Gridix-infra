@@ -36,6 +36,9 @@ services:
       GRIDIX_REDIS_URL: redis://redis:6379/0
       GRIDIX_SECRET_KEY: dev-insecure-secret-change-me
       GRIDIX_STORAGE_LOCAL_PATH: /data/blobs
+      # Fast leases so the reaper reacts quickly during the node-death demo.
+      GRIDIX_LEASE_SECONDS: "20"
+      GRIDIX_CONNECTION_TIMEOUT_SECONDS: "12"
     ports:
       - "127.0.0.1:8080:8000"
     volumes:
@@ -57,6 +60,8 @@ services:
       GRIDIX_REDIS_URL: redis://redis:6379/0
       GRIDIX_SECRET_KEY: dev-insecure-secret-change-me
       GRIDIX_CANARY_RATE: "0"  # no canary injection during the smoke run (image not published)
+      GRIDIX_LEASE_SECONDS: "20"
+      GRIDIX_CONNECTION_TIMEOUT_SECONDS: "12"
     depends_on:
       api:
         condition: service_started
