@@ -95,13 +95,7 @@ async def record_result(
 
     # Autoflush is off; make this attempt's completion visible to the count/quorum queries.
     await session.flush()
-    finished = await session.scalar(
-        select(func.count())
-        .select_from(JobAttempt)
-        .where(JobAttempt.job_id == job.id, JobAttempt.finished_at.is_not(None))
-    )
-    if (finished or 0) >= job.redundancy:
-        await _finalize(session, job, settings)
+    await maybe_finalize(session, job, settings)
     logger.info(
         "recorded result job={} provider={} verdict={} → job status {}",
         job.id,
@@ -110,6 +104,27 @@ async def record_result(
         job.status,
     )
     return job.status
+
+
+async def maybe_finalize(session: AsyncSession, job: Job, settings: Settings) -> None:
+    """Finalize the job once every vote is accounted for.
+
+    A job resolves when the number of finished attempts reaches its redundancy: for K=1 that
+    is the single result; for K>1 it is reached either when all K providers report or when
+    the lease reaper (``reap_expired_attempts``) has marked the missing ones lost — so a dead
+    provider can never hang the job. Quorum is then taken over the usable results only, so an
+    honest majority still settles even if a minority never returned. Called on every result
+    and by the attempt reaper; a no-op until the job can actually be decided.
+    """
+    if job.status in TERMINAL_STATES:
+        return
+    finished = await session.scalar(
+        select(func.count())
+        .select_from(JobAttempt)
+        .where(JobAttempt.job_id == job.id, JobAttempt.finished_at.is_not(None))
+    )
+    if (finished or 0) >= job.redundancy:
+        await _finalize(session, job, settings)
 
 
 async def _finalize(session: AsyncSession, job: Job, settings: Settings) -> None:

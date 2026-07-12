@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings
 from app.matcher import get_matcher
 from app.models import AttemptOutcome, Job, JobAttempt, JobStatus, Provider
+from app.results import maybe_finalize
 from app.state_machine import transition
 
 
@@ -128,6 +129,7 @@ async def reap_expired_leases(session: AsyncSession, settings: Settings) -> list
         select(Job)
         .where(
             Job.status.in_((JobStatus.assigned, JobStatus.running)),
+            Job.redundancy == 1,  # K>1 jobs are reaped per-attempt (reap_expired_attempts)
             Job.lease_expires_at.is_not(None),
             Job.lease_expires_at < now,
         )
@@ -140,6 +142,48 @@ async def reap_expired_leases(session: AsyncSession, settings: Settings) -> list
     ]
     await session.commit()
     return requeued
+
+
+async def reap_expired_attempts(session: AsyncSession, settings: Settings) -> None:
+    """Resolve individual redundant-job attempts whose lease lapsed, then finalize any job
+    the surviving votes now decide.
+
+    This is what lets a K>1 job survive a provider dying mid-run: the dead provider's attempt
+    is marked a non-vote and the job finalizes over whoever answered in time — an honest
+    majority still settles; if no majority remains the job fails and the developer is
+    refunded. Job-level reaping owns K=1 jobs (requeue-to-retry); this owns K>1, which are
+    excluded from the job-level reaper so the two never fight over the same job.
+    """
+    now = _now()
+    redundant_active = (
+        select(Job.id)
+        .where(Job.redundancy > 1, Job.status.in_((JobStatus.assigned, JobStatus.running)))
+        .scalar_subquery()
+    )
+    stale = list(
+        await session.scalars(
+            select(JobAttempt)
+            .where(
+                JobAttempt.finished_at.is_(None),
+                JobAttempt.lease_expires_at.is_not(None),
+                JobAttempt.lease_expires_at < now,
+                JobAttempt.job_id.in_(redundant_active),
+            )
+            .with_for_update(skip_locked=True)
+        )
+    )
+    job_ids: set[uuid.UUID] = set()
+    for attempt in stale:
+        attempt.outcome = AttemptOutcome.reassigned
+        attempt.finished_at = now
+        job_ids.add(attempt.job_id)
+    # Autoflush is off; make the resolved attempts visible to the finalize count/quorum.
+    await session.flush()
+    for job_id in job_ids:
+        job = await session.get(Job, job_id)
+        if job is not None:
+            await maybe_finalize(session, job, settings)
+    await session.commit()
 
 
 async def recover_queued_jobs(session: AsyncSession, limit: int = 1000) -> list[str]:
@@ -172,6 +216,7 @@ async def drain_unreachable_providers(session: AsyncSession, settings: Settings)
         select(Job)
         .where(
             Job.status.in_((JobStatus.assigned, JobStatus.running)),
+            Job.redundancy == 1,  # K>1 jobs drain per-attempt via reap_expired_attempts
             Job.assigned_provider_id.in_(unreachable),
         )
         .with_for_update(skip_locked=True)
