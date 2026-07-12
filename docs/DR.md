@@ -8,11 +8,14 @@ database is up".
 
 | Metric | Target | Measured | How |
 |---|---|---|---|
-| **RPO** (max data loss) | ≤ 1 h | **1 h** | Hourly encrypted `pg_dump` (systemd timer). Worst case = time since the last successful dump. |
-| **RTO** (restore + verify) | ≤ 30 min | **~2.6 s** mechanical | Measured on the live coordinator DB (see drill below). Scales with DB size + adds detection/provisioning/repoint time in a real incident. |
+| **RPO** (max data loss) | ≤ 1 h | **1 h** | Hourly encrypted `pg_dump` (cron; systemd timer where root is available). Worst case = time since the last successful dump. |
+| **RTO** (restore + verify) | ≤ 30 min | **~17.5 s** | Latest drill (`ops/DR_EVIDENCE.md`): restore ~11.7 s + integrity verify ~5.8 s, then a few seconds to bring api/scheduler up on the restored DB. Tooling startup dominates at this data size; `pg_restore` grows with DB size — re-measure at scale. |
 
 Sub-hour RPO needs continuous WAL archiving / PITR (see *Future*). The implemented mechanism
-today is scheduled logical backups.
+today is scheduled logical backups. **Proven end to end** — backup fires unattended (cron),
+restore into an empty DB matches the pre-backup baseline (counts, balanced ledger, zero
+orphans), and the restored DB runs as a live system: a new job submitted against it completes
+and the ledger stays balanced. Full log: `ops/DR_EVIDENCE.md`.
 
 ## Implemented backup (real, scheduled)
 
@@ -55,17 +58,19 @@ docker run --rm --network <net> \
 2. **No orphans** — zero `job_attempts`/`ledger_entries` pointing at a missing job, zero jobs
    pointing at a missing developer.
 
-### Last drill result (coordinator DB: 4 jobs, 22 ledger rows, 40 KiB dump)
+### Last drill result (coordinator DB: 12 jobs [10 completed / 1 failed / 1 timeout], 82 ledger rows, 2 providers)
 
 | Phase | Time |
 |---|---|
-| Backup (dump + encrypt + upload) | ~1.4 s |
-| Restore (download + decrypt + pg_restore) | ~1.3 s |
-| Verify (ledger + orphans) | ~1.3 s |
+| Backup (dump + encrypt + upload) | ~12 s (mc container spin-up dominates) |
+| Restore (download + decrypt + pg_restore) | ~11.7 s |
+| Verify (integrity + counts) | ~5.8 s |
 
-Result: `ledger discrepancies: 0`, all orphan checks `0` → **RESTORE VERIFY: PASS**.
-Backup object confirmed encrypted (`Salted__` header). Re-run the drill after any schema
-migration or significant data growth and update the numbers above.
+Result: counts match baseline exactly, `discrepancies: 0`, all four orphan checks `0` →
+**RESTORE VERIFY: PASS**. Then api+scheduler brought up against the restored DB and a **new job
+completed with the ledger still balanced** (debit==credit 1041.67 → 1545.67). Backup object
+confirmed encrypted (`Salted__` header). Full evidence: `ops/DR_EVIDENCE.md`. Re-run the drill
+after any schema migration or significant data growth and update the numbers above.
 
 ## Redis
 
