@@ -1,0 +1,41 @@
+# DR failover verification: run api + scheduler against the RESTORED database (gridix_restore)
+# to prove the restore yields a working system, not just data. Reuses the already-built
+# control-plane image and the live postgres/redis/minio; isolates its queue on redis DB 1 and
+# serves on 127.0.0.1:8081 so it can't disturb the primary stack.
+#   docker compose -p gridixrestore -f smoke/docker-compose.restore.yml up -d
+services:
+  api-restore:
+    image: gridixs3-api
+    command: ["api"]
+    environment:
+      GRIDIX_ENV: dev
+      GRIDIX_DATABASE_URL: postgresql+asyncpg://gridix:gridix@postgres:5432/gridix_restore
+      GRIDIX_REDIS_URL: redis://redis:6379/1
+      GRIDIX_SECRET_KEY: dev-insecure-secret-change-me
+      GRIDIX_STORAGE_BACKEND: s3
+      GRIDIX_S3_BUCKET: gridix-blobs
+      GRIDIX_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: gridixadmin
+      AWS_SECRET_ACCESS_KEY: gridixsecret123
+      AWS_DEFAULT_REGION: us-east-1
+    ports:
+      - "127.0.0.1:8081:8000"
+    networks: [gridix]
+    restart: unless-stopped
+
+  scheduler-restore:
+    image: gridixs3-api
+    command: ["scheduler"]
+    environment:
+      GRIDIX_ENV: dev
+      GRIDIX_DATABASE_URL: postgresql+asyncpg://gridix:gridix@postgres:5432/gridix_restore
+      GRIDIX_REDIS_URL: redis://redis:6379/1
+      GRIDIX_SECRET_KEY: dev-insecure-secret-change-me
+      GRIDIX_CANARY_RATE: "0"
+    networks: [gridix]
+    restart: unless-stopped
+
+networks:
+  gridix:
+    name: gridixs3_default
+    external: true
