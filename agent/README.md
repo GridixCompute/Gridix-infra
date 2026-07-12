@@ -8,34 +8,36 @@ is assumed hostile; the isolation is the point.
 ## Requirements
 
 - A Linux host with **Docker** installed and running (the agent shells out to it).
-- **Python 3.11+** (bare-metal install) — or just Docker (container install).
 - A **provider key** from registration: `POST /providers` on the coordinator returns it once.
 
-## Install (bare-metal, systemd)
+## Install (recommended)
 
-Runs the agent as a service that restarts on failure and survives reboots:
+`install.sh` pulls the published image from GHCR and runs it as a self-restarting
+container. The version defaults to the agent's `__version__` (image tag `vX.Y.Z`):
 
 ```bash
-sudo GRIDIX_API_URL=https://coordinator.example.com \
-     GRIDIX_PROVIDER_KEY=grdx_your_key \
-     ./install.sh
+GRIDIX_API_URL=https://coordinator.example.com \
+GRIDIX_PROVIDER_KEY=grdx_your_key \
+./install.sh
 
-systemctl status gridix-agent
-journalctl -u gridix-agent -f
+docker logs -f gridix-agent
 ```
 
-Re-run `install.sh` to upgrade in place. Optional env: `GRIDIX_RELAY_URL` (NAT traversal),
-`GRIDIX_ENABLE_GPU=true` (pass `--gpus` to job containers).
+Re-run to upgrade/reconfigure. Overrides: `GRIDIX_AGENT_VERSION=0.2.0`, or a full ref with
+`GRIDIX_AGENT_IMAGE=ghcr.io/gridixcompute/gridix-agent:tag`. Optional passthrough:
+`GRIDIX_RELAY_URL` (NAT traversal), `GRIDIX_ENABLE_GPU=true` (pass `--gpus` to job
+containers). If the GHCR package is private, `docker login ghcr.io` first.
 
-## Run (Docker)
+## Run (manual Docker)
+
+Equivalent to what `install.sh` does, if you prefer to run it yourself:
 
 ```bash
-docker build -t gridix-agent .
 docker run -d --restart=always --name gridix-agent \
   -e GRIDIX_API_URL=https://coordinator.example.com \
   -e GRIDIX_PROVIDER_KEY=grdx_your_key \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  gridix-agent
+  ghcr.io/gridixcompute/gridix-agent:v0.1.0
 ```
 
 Mounting the Docker socket grants host-level control — run the agent only on machines you
@@ -57,8 +59,5 @@ own.
 ## Uninstall
 
 ```bash
-sudo systemctl disable --now gridix-agent
-sudo rm /etc/systemd/system/gridix-agent.service /etc/gridix-agent.env
-sudo rm -rf /opt/gridix-agent
-sudo systemctl daemon-reload
+docker rm -f gridix-agent
 ```

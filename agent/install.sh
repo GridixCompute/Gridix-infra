@@ -1,49 +1,38 @@
 #!/usr/bin/env bash
-# GRIDIX provider agent installer — bare-metal, systemd-managed, idempotent.
+# GRIDIX provider agent installer — pulls the published image from GHCR and runs it as a
+# self-restarting Docker container. Idempotent (re-run to upgrade/reconfigure).
 #
-#   sudo GRIDIX_API_URL=https://coordinator.example.com \
-#        GRIDIX_PROVIDER_KEY=grdx_... \
-#        ./install.sh
+#   GRIDIX_API_URL=https://coordinator.example.com \
+#   GRIDIX_PROVIDER_KEY=grdx_... \
+#   ./install.sh
 #
-# Installs the agent into a self-contained venv, writes a root-only env file, and runs it
-# as a systemd service that restarts on failure and survives reboots. Re-running upgrades
-# the code and deps in place. Optional passthrough env: GRIDIX_RELAY_URL, GRIDIX_ENABLE_GPU.
+# Version defaults to the agent's __version__ (image tag vX.Y.Z). Override with
+# GRIDIX_AGENT_VERSION=0.2.0, or pin a full ref with GRIDIX_AGENT_IMAGE=ghcr.io/...:tag.
+# Optional passthrough: GRIDIX_RELAY_URL, GRIDIX_ENABLE_GPU.
 set -euo pipefail
 
-PREFIX=${GRIDIX_AGENT_PREFIX:-/opt/gridix-agent}
-ENV_FILE=${GRIDIX_AGENT_ENV:-/etc/gridix-agent.env}
-UNIT=/etc/systemd/system/gridix-agent.service
 SRC=$(cd "$(dirname "$0")" && pwd)
+DEFAULT_VERSION=$(grep -oE '__version__ = "[^"]+"' "$SRC/agent.py" 2>/dev/null \
+  | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "0.1.0")
+VERSION=${GRIDIX_AGENT_VERSION:-$DEFAULT_VERSION}
+IMAGE=${GRIDIX_AGENT_IMAGE:-ghcr.io/gridixcompute/gridix-agent:v${VERSION}}
+NAME=${GRIDIX_AGENT_NAME:-gridix-agent}
 
 : "${GRIDIX_API_URL:?set GRIDIX_API_URL (the coordinator URL)}"
 : "${GRIDIX_PROVIDER_KEY:?set GRIDIX_PROVIDER_KEY (from provider registration)}"
-[ "$(id -u)" -eq 0 ] || { echo "run as root (systemd + docker access)"; exit 1; }
-command -v docker  >/dev/null || { echo "docker is required — the agent runs job containers"; exit 1; }
-command -v python3 >/dev/null || { echo "python3 is required"; exit 1; }
+command -v docker >/dev/null || { echo "docker is required — the agent runs job containers"; exit 1; }
 
-echo "==> installing agent into $PREFIX"
-install -d "$PREFIX"
-install -m 0644 "$SRC/agent.py" "$PREFIX/agent.py"
-install -m 0644 "$SRC/requirements.txt" "$PREFIX/requirements.txt"
+echo "==> pulling $IMAGE"
+docker pull "$IMAGE"
 
-echo "==> creating venv + installing deps"
-[ -d "$PREFIX/venv" ] || python3 -m venv "$PREFIX/venv"
-"$PREFIX/venv/bin/pip" install --quiet --upgrade pip
-"$PREFIX/venv/bin/pip" install --quiet -r "$PREFIX/requirements.txt"
+echo "==> (re)starting container '$NAME'"
+docker rm -f "$NAME" >/dev/null 2>&1 || true
+docker run -d --name "$NAME" --restart=always \
+  -e GRIDIX_API_URL="$GRIDIX_API_URL" \
+  -e GRIDIX_PROVIDER_KEY="$GRIDIX_PROVIDER_KEY" \
+  ${GRIDIX_RELAY_URL:+-e GRIDIX_RELAY_URL="$GRIDIX_RELAY_URL"} \
+  ${GRIDIX_ENABLE_GPU:+-e GRIDIX_ENABLE_GPU="$GRIDIX_ENABLE_GPU"} \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  "$IMAGE"
 
-echo "==> writing $ENV_FILE (root-only)"
-umask 077
-{
-  echo "GRIDIX_API_URL=$GRIDIX_API_URL"
-  echo "GRIDIX_PROVIDER_KEY=$GRIDIX_PROVIDER_KEY"
-  [ -n "${GRIDIX_RELAY_URL:-}" ]  && echo "GRIDIX_RELAY_URL=$GRIDIX_RELAY_URL"
-  [ -n "${GRIDIX_ENABLE_GPU:-}" ] && echo "GRIDIX_ENABLE_GPU=$GRIDIX_ENABLE_GPU"
-} > "$ENV_FILE"
-
-echo "==> installing systemd unit"
-sed -e "s#@PREFIX@#$PREFIX#g" -e "s#@ENV_FILE@#$ENV_FILE#g" \
-  "$SRC/gridix-agent.service" > "$UNIT"
-systemctl daemon-reload
-systemctl enable --now gridix-agent
-
-echo "==> done. Check: systemctl status gridix-agent  |  journalctl -u gridix-agent -f"
+echo "==> done ($IMAGE). logs: docker logs -f $NAME"
