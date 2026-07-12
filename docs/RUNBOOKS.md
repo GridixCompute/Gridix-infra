@@ -51,3 +51,14 @@ normal operation (every posting is a balanced group).
    transactions and the audit chain (`verify_audit_chain`, 12.6).
 3. Most likely a bad restore (12.4) — restore to a clean `recovery_target` and re-verify.
 4. Post a *new* balancing correction group (never edit history); document in an incident.
+
+## Configuration invariant: heartbeat < connection timeout
+
+`connection_timeout_seconds` (coordinator) MUST be greater than the agent's
+`GRIDIX_HEARTBEAT_INTERVAL` (with margin). Otherwise, while an agent runs a long job, its
+`last_seen` ages past the timeout *between* heartbeats, the coordinator flags the provider
+unreachable, and the reaper reassigns the in-flight K=1 job to another provider — two agents
+then run it and collide on the container name (`gridix-<id> already in use`), failing one
+attempt. No job is lost (it stays terminal) and nothing leaks, but it is wasted, spurious
+work. Defaults are safe (timeout 30s > heartbeat 15s). Found via a live smoke test with an
+aggressive chaos-tuned timeout (12s) and the default 15s heartbeat.
