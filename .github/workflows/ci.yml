@@ -132,4 +132,5 @@ jobs:
           python -m pip install --upgrade pip pip-audit
           pip install -e ".[dev]"
       - name: Dependency audit (pip-audit)
-        run: pip-audit --strict
+        # Skip the local editable project (gridix isn't on PyPI); audit third-party deps.
+        run: pip-audit --strict --skip-editable
