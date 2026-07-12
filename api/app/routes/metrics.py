@@ -6,6 +6,7 @@ wrapped so a dependency being down (Redis, storage) reports as a 0/down gauge ra
 failing the scrape — the point of metrics is to stay observable *during* an outage.
 """
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Response
@@ -118,17 +119,19 @@ async def metrics(session: SessionDep, settings: SettingsDep) -> Response:
     g_dur.labels(quantile="0.5").set(_percentile(durations, 0.5))
     g_dur.labels(quantile="0.95").set(_percentile(durations, 0.95))
 
-    # Dependency health — a down dependency is a 0 gauge, never a failed scrape.
+    # Dependency health — a down dependency is a 0 gauge, never a failed scrape. Bound each
+    # probe so a hung/unreachable backend can't slow the scrape into a timeout (which would
+    # make the series go stale and flap the alerts).
     try:
-        g_queue.set(await queue_depth())
+        g_queue.set(await asyncio.wait_for(queue_depth(), timeout=2.0))
         g_redis.set(1)
-    except Exception:  # noqa: BLE001 - Redis down: report it, don't fail the scrape
+    except Exception:  # noqa: BLE001 - Redis down/slow: report it, don't fail the scrape
         g_queue.set(0)
         g_redis.set(0)
     try:
-        await get_storage().exists(_HEALTH_SENTINEL)
+        await asyncio.wait_for(get_storage().exists(_HEALTH_SENTINEL), timeout=2.0)
         g_storage.set(1)
-    except Exception:  # noqa: BLE001 - storage down: report it, don't fail the scrape
+    except Exception:  # noqa: BLE001 - storage down/slow: report it, don't fail the scrape
         g_storage.set(0)
 
     return Response(generate_latest(reg), media_type=CONTENT_TYPE_LATEST)
