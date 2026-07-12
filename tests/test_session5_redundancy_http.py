@@ -9,14 +9,15 @@ finalizes only once all votes are in.
 """
 
 import uuid
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from app.assignment import assign_providers
+from app.assignment import assign_providers, reap_expired_attempts
 from app.ledger import deposit_stake
 from app.matcher import CapabilityMatcher, ReputationMatcher, set_matcher
-from app.models import Dispute, Job, JobStatus, Provider
+from app.models import Dispute, Job, JobAttempt, JobStatus, Provider
 from conftest import auth, make_provider, register
 from sqlalchemy import select
 
@@ -145,3 +146,86 @@ async def test_secondary_provider_can_heartbeat_and_report(client, session, sett
         f"/agent/jobs/{job_id}/status", headers=auth(key), json={"status": "running"}
     )
     assert st.status_code == 200, st.text
+
+
+async def _setup_kn_job(client, session, settings, names, redundancy):
+    """Register providers (staked + reputable), submit a high-value job, and assign it."""
+    keys: dict[str, str] = {}
+    for name in names:
+        pid, key = await make_provider(client, name, cpu_cores=8, memory_mb=16000)
+        keys[pid] = key
+    _dev, dev_key = await register(client, "developer", "acme")
+    r = await client.post(
+        "/jobs",
+        headers=auth(dev_key),
+        json={
+            "image_ref": "img",
+            "is_high_value": True,
+            "redundancy": redundancy,
+            "resource_spec": {"cpu_cores": 1, "memory_mb": 1000},
+        },
+    )
+    job_id = uuid.UUID(r.json()["id"])
+    for pid in keys:
+        await deposit_stake(session, uuid.UUID(pid), Decimal(settings.min_provider_stake))
+        p = await session.get(Provider, uuid.UUID(pid))
+        p.reputation = 85.0
+    await session.commit()
+    providers = await assign_providers(session, job_id, settings)
+    return keys, job_id, providers
+
+
+async def _expire_attempt(session, job_id, provider_id) -> None:
+    attempt = await session.scalar(
+        select(JobAttempt).where(
+            JobAttempt.job_id == job_id, JobAttempt.provider_id == provider_id
+        )
+    )
+    attempt.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+
+
+async def test_kn_survives_one_provider_dying(client, session, settings) -> None:
+    """K=3 with one provider that never returns: the attempt reaper marks it a non-vote and
+    the job settles on the surviving two-of-three majority — no hang, majority paid."""
+    keys, job_id, providers = await _setup_kn_job(client, session, settings, ("a", "b", "c"), 3)
+
+    for provider in providers[:2]:  # two agree; the third goes silent
+        await client.post(
+            f"/agent/jobs/{job_id}/result",
+            headers=auth(keys[str(provider.id)]),
+            json=await _result_body("AAA"),
+        )
+    job = await session.get(Job, job_id)
+    await session.refresh(job)
+    assert job.status is JobStatus.running, "must not finalize while the third vote may arrive"
+
+    await _expire_attempt(session, job_id, providers[2].id)
+    await session.commit()
+    await reap_expired_attempts(session, settings)
+
+    job = await session.get(Job, job_id)
+    await session.refresh(job)
+    assert job.status is JobStatus.completed, "the surviving majority settles the job"
+    assert job.result_ref == "AAA"
+    assert float(job.cost_final) > 0, "the majority is paid"
+
+
+async def test_kn_fails_and_refunds_when_no_majority_survives(client, session, settings) -> None:
+    """K=3 where only one provider returns and the other two die: no majority is possible, so
+    the job fails and the developer is fully refunded (cost_final 0)."""
+    keys, job_id, providers = await _setup_kn_job(client, session, settings, ("a", "b", "c"), 3)
+
+    await client.post(
+        f"/agent/jobs/{job_id}/result",
+        headers=auth(keys[str(providers[0].id)]),
+        json=await _result_body("AAA"),
+    )
+    for dead in providers[1:]:
+        await _expire_attempt(session, job_id, dead.id)
+    await session.commit()
+    await reap_expired_attempts(session, settings)
+
+    job = await session.get(Job, job_id)
+    await session.refresh(job)
+    assert job.status is JobStatus.failed, "one vote cannot reach a 3-way quorum"
+    assert float(job.cost_final) == 0.0, "the developer is fully refunded"

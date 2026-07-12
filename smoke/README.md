@@ -73,10 +73,10 @@ set (not 0), `PidsLimit` set, `User="65534:65534"`.
 
 ## Not covered here
 
-These assets use K=1. The K>1 happy path is now fixed and covered by
-`tests/test_session5_redundancy_http.py` (all K providers polled → quorum settles →
-dissenter slashed). One P1 follow-up remains: **partial failure** of a redundant job (a
-provider dies mid-run) is not finalized early on the surviving majority — it relies on the
-job-level lease reaper, which requeues then fails+refunds after `max_attempts`. No hang and
-no wrong payment, but an honest 2-of-3 agreement isn't harvested. Early-quorum finalize +
-per-attempt reaping is the next increment.
+These assets use K=1. K>1 (redundant execution) is fixed and covered by
+`tests/test_session5_redundancy_http.py`: all K providers are polled → quorum settles →
+dissenter slashed, and a provider dying mid-run is reaped per-attempt so the surviving
+majority still settles (or the developer is refunded if no majority remains). Remaining
+trade-off: a K>1 job decides on its first assignment round — it is not requeued for a fresh
+round if providers die (it fails + refunds instead). Round-level retry for K>1 is a possible
+future refinement.

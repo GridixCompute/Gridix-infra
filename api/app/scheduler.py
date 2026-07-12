@@ -19,6 +19,7 @@ from loguru import logger
 from app.assignment import (
     assign_job,
     drain_unreachable_providers,
+    reap_expired_attempts,
     reap_expired_leases,
     recover_queued_jobs,
 )
@@ -64,6 +65,10 @@ async def _reaper_loop(stop: asyncio.Event) -> None:
     interval = max(1.0, min(settings.lease_seconds / 4, settings.connection_timeout_seconds / 2))
     while not stop.is_set():
         try:
+            # Resolve dead attempts of redundant (K>1) jobs first, so a job the surviving
+            # votes already decide is finalized before the job-level reaper looks at it.
+            async with factory() as session:
+                await reap_expired_attempts(session, settings)
             async with factory() as session:
                 requeued = await reap_expired_leases(session, settings)
             async with factory() as session:
