@@ -160,3 +160,35 @@ clean multiples confirm no stake/unstake failed. Sample unstake tx
 `0xbd39f8facac2267bf652e71d418c019a8a6d34d2eb7b530551faa0db85693215` (status 1). The only
 non-successful events were client-side gas-estimation refusals once a wallet's ETH ran below one
 tx's worth — the loop's intended budget stop, not contract reverts.
+
+---
+
+# Backend settlement write-path — live Sepolia (Gap #1, all 3 proofs OK)
+
+The earlier live exercises drove the **contracts** (via a Foundry script). This closes the last
+gap: the Session-13 backend's **own Python send-path** — `app.chain.client.Web3ChainClient`
+(signing, live-chain nonce, gas estimation, ABI encoding, EIP-1559 fields, receipt polling) — had
+only ever run against the in-memory `FakeChain`. `smoke/drive_settlement_sepolia.py` instantiates
+the real client and calls its three COORDINATOR write methods against live Sepolia.
+
+Reused the throwaway MockUSDC exercise pair (our deployer key holds `COORDINATOR_ROLE` on both, so
+no redeploy): GridixEscrow `0x04B237e8b5F3de59F02C3E61007351Eb5d8CA09B`, GridixStaking
+`0xfc51f5439c96B47B37304BBd63147ef53d15D01F`, MockUSDC `0x48d9eb22261094f9C2F31587daD06fa80df6d23B`.
+Setup (approve/deposit — developer side) via web3; the three proofs via the backend client verbatim.
+
+**All succeeded (status 0x1), on-chain state moved exactly as expected:**
+
+| Step | Client method | Tx | Block | Effect (raw USDC, 6-dec) |
+|---|---|---|---|---|
+| setup | (approve escrow) | `0x73ac5613…c44f68` | 11263682 | — |
+| setup | (escrow.deposit 10) | `0xba315acd…a502d742` | 11263685 | escrow.balanceOf(dev) 0 → 10e6 |
+| **PROOF 1** | `send_debit(dev, 3e6)` | `0x3aef1644…983787d6` | 11263687 | escrow.balanceOf(dev) 10e6 → **7e6** (−3e6) |
+| setup | (approve staking) | `0xd07b0b24…a0008657` | 11263688 | — |
+| **PROOF 2** | `send_deposit_settlement(5e6)` | `0x33a8e98a…9b7fcdeada` | 11263711 | settlementPool 20e6 → **25e6** (+5e6) |
+| **PROOF 3** | `send_settle_batch([p],[2e6])` | `0x48702c68…931fff06` | 11263716 | earnings(p) 0 → **2e6**, pool 25e6 → **23e6** |
+
+Every post-condition asserted in the driver held. Gas: ~0.00053 ETH for all 6 txs at ~1.7–1.9 gwei.
+One operational note: PROOF 2 was mined a few blocks late because its `maxFeePerGas` (built from
+`eth_gas_price` at submit) briefly sat under the market — it still confirmed at status 1; the
+driver's receipt-wait ceiling was raised to ~300s to absorb that. This validates the client's send
+path end-to-end against a real RPC; the engine's idempotency/DB logic remains covered by FakeChain.
