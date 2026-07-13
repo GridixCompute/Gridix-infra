@@ -191,4 +191,35 @@ Every post-condition asserted in the driver held. Gas: ~0.00053 ETH for all 6 tx
 One operational note: PROOF 2 was mined a few blocks late because its `maxFeePerGas` (built from
 `eth_gas_price` at submit) briefly sat under the market — it still confirmed at status 1; the
 driver's receipt-wait ceiling was raised to ~300s to absorb that. This validates the client's send
-path end-to-end against a real RPC; the engine's idempotency/DB logic remains covered by FakeChain.
+path end-to-end against a real RPC.
+
+---
+
+# Full SettlementEngine — live Sepolia (engine, not raw client)
+
+Gap #1 proved the raw client. This goes one level up: `smoke/drive_settlement_engine_sepolia.py`
+runs the real `app.chain.settlement.SettlementEngine` — durable nonce reservation, `ChainSettlement`
+/`ProviderSettlement` rows, the record→broadcast→recover→confirm state machine, and idempotency —
+against live Sepolia over a real (SQLite) DB. Same engine code that is otherwise only exercised by
+the in-memory FakeChain, now orchestrating real transactions. Reused the exercise pair; escrow
+(≥3 USDC) and pool (≥2 USDC) were already funded from the Gap-#1 run, so the engine emitted exactly
+two txs and needed no setup. Seeded off-chain: provider earned 2 USDC, developer consumed 3 USDC.
+
+**One `engine.tick(force=True)` loop drove it to a fully-settled steady state, status 0x1 both:**
+
+| Kind | Reserved nonce | Tx | Block | On-chain effect |
+|---|---|---|---|---|
+| `settle_batch` | 46 | `0x6f63d6aa…b96a3892` | 11263790 | earnings(provider) +2e6 |
+| `debit` | **47** (= settle+1) | `0xc8f6b231…8fb2e0e3` | 11263792 | escrow.balanceOf(dev) −3e6 |
+
+Three engine-specific properties observed live (not just the individual txs):
+1. **Serialisation** — the engine deliberately records the debit only once nothing is in-flight, so
+   `settle_batch` confirmed *first* (round 2), then the `debit` was recorded, broadcast, and confirmed.
+2. **Monotonic nonce reservation across rows** — debit landed at exactly `settle_nonce + 1` (47),
+   persisted on the row before broadcast, so a stuck tx would be replaced at its own nonce, never dup'd.
+3. **Idempotency** — a second `tick(force=True)` after confirmation returned `batched=0 debited=0`
+   and created no new rows (still 2): already-settled earnings are never re-selected. No double-pay.
+
+Gas ~0.00015 ETH for the run. The engine's adversarial paths (crash-before-broadcast recovery,
+reverted-tx reservation release, reorg rollback) stay covered by FakeChain — those can't be forced
+on a real testnet on demand; this run proves the happy-path state machine against a real chain.
