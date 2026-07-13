@@ -1,0 +1,6 @@
+# Foundry build/deps artifacts — reproduce with `forge install` + `forge build`.
+out/
+cache/
+broadcast/
+lib/
+.env
