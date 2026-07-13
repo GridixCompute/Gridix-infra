@@ -60,6 +60,7 @@ class ChainWatcher:
         *,
         usdc_decimals: int,
         confirmations: int,
+        start_block: int = 0,
         reorg_window: int | None = None,
         clock=None,
     ) -> None:
@@ -67,6 +68,8 @@ class ChainWatcher:
         self._factory = factory
         self._decimals = usdc_decimals
         self._confirmations = confirmations
+        # Where a fresh cursor begins: the contracts' deploy block, or the current head (0).
+        self._start_block = start_block
         # How far back to re-verify hashes each scan. Must exceed the depth we apply effects at,
         # so an orphan of an applied event is always caught.
         self._reorg_window = reorg_window if reorg_window is not None else confirmations + 2
@@ -89,7 +92,10 @@ class ChainWatcher:
         latest = await self._client.latest_block()
         cursor = await session.get(ChainCursor, _STREAM)
         if cursor is None:
-            cursor = ChainCursor(stream=_STREAM, last_scanned_block=0, head_block_hash=None)
+            # Fresh cursor: start from the configured deploy block, or the current head if unset,
+            # so we never ask a public RPC for a genesis-to-now scan.
+            initial = self._start_block if self._start_block > 0 else max(0, latest - 1)
+            cursor = ChainCursor(stream=_STREAM, last_scanned_block=initial, head_block_hash=None)
             session.add(cursor)
 
         # 1) reorg check + orphan rollback over the trailing window.
