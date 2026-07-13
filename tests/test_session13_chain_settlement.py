@@ -62,7 +62,10 @@ def restore_provider():
 
 def _engine(fc: FakeChain, **kw) -> SettlementEngine:
     return SettlementEngine(
-        fc, get_sessionmaker(), usdc_decimals=6, confirmations=CONF,
+        fc,
+        get_sessionmaker(),
+        usdc_decimals=6,
+        confirmations=CONF,
         threshold_usdc=kw.get("threshold", Decimal("1000")),
         interval_seconds=kw.get("interval", 3600.0),
     )
@@ -154,8 +157,11 @@ async def test_settlement_no_double_pay_across_crash(restore_provider):
 
     assert await fc.staking_earnings_of(pw) == 40 * USDC  # paid exactly once
     async with get_sessionmaker()() as s:
-        rows = list(await s.scalars(select(ChainSettlement).where(
-            ChainSettlement.kind == ChainTxKind.settle_batch)))
+        rows = list(
+            await s.scalars(
+                select(ChainSettlement).where(ChainSettlement.kind == ChainTxKind.settle_batch)
+            )
+        )
         assert len(rows) == 1 and rows[0].status is ChainTxStatus.confirmed
 
 
@@ -174,8 +180,11 @@ async def test_settlement_recovers_when_broadcast_crashed_before_send(restore_pr
     engine = _engine(fc)
     await engine.tick(force=True)  # rows written (pending), broadcast failed
     async with get_sessionmaker()() as s:
-        pending = list(await s.scalars(select(ChainSettlement).where(
-            ChainSettlement.status == ChainTxStatus.pending)))
+        pending = list(
+            await s.scalars(
+                select(ChainSettlement).where(ChainSettlement.status == ChainTxStatus.pending)
+            )
+        )
         assert pending  # durable intent survived the failed send
 
     # Recovery re-broadcasts and confirms — exactly one payout.
@@ -201,8 +210,11 @@ async def test_reverted_settlement_releases_reservation_and_retries(restore_prov
     fc.mine(CONF + 1)
     await engine.tick()  # recovery sees the revert → marks failed, releases reservation
     async with get_sessionmaker()() as s:
-        failed = list(await s.scalars(select(ChainSettlement).where(
-            ChainSettlement.status == ChainTxStatus.failed)))
+        failed = list(
+            await s.scalars(
+                select(ChainSettlement).where(ChainSettlement.status == ChainTxStatus.failed)
+            )
+        )
         assert failed
 
     # Stop reverting → the released earnings settle on the next cycle.

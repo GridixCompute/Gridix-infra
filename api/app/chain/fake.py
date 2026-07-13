@@ -106,8 +106,13 @@ class FakeChain(ChainClient):
         prov = provider.lower()
 
         def apply(num: int, bh: str) -> tuple[int, list[LogSpec]]:
-            return 1, [("Slashed", self.staking_address,
-                        {"provider": prov, "amount": amount, "evidenceHash": evidence_hash})]
+            return 1, [
+                (
+                    "Slashed",
+                    self.staking_address,
+                    {"provider": prov, "amount": amount, "evidenceHash": evidence_hash},
+                )
+            ]
 
         return self._enqueue("external", apply)
 
@@ -140,8 +145,9 @@ class FakeChain(ChainClient):
                 if kind == "tx":
                     self._receipts[tx_hash] = Receipt(tx_hash, status, number, bh)
                 for name, address, args in specs:
-                    block_logs.append(ChainLog(name, address, tx_hash, len(block_logs),
-                                               number, bh, args))
+                    block_logs.append(
+                        ChainLog(name, address, tx_hash, len(block_logs), number, bh, args)
+                    )
             self._logs[number] = block_logs
             self._blocks.append(BlockRef(number, bh, parent.hash))
 
@@ -209,9 +215,7 @@ class FakeChain(ChainClient):
 
         return self._enqueue("tx", apply, nonce)
 
-    async def send_settle_batch(
-        self, providers: list[str], amounts: list[int], nonce: int
-    ) -> str:
+    async def send_settle_batch(self, providers: list[str], amounts: list[int], nonce: int) -> str:
         def effect() -> tuple[int, list[LogSpec]]:
             total = sum(amounts)
             if total > self._pool:
@@ -239,7 +243,12 @@ class FakeChain(ChainClient):
             if self._escrow_bal[dev] < amount:
                 return 0, []
             self._escrow_bal[dev] -= amount
-            return 1, [("Debited", self.escrow_address,
-                        {"developer": dev, "amount": amount, "to": _TREASURY})]
+            return 1, [
+                (
+                    "Debited",
+                    self.escrow_address,
+                    {"developer": dev, "amount": amount, "to": _TREASURY},
+                )
+            ]
 
         return self._broadcast("debit", nonce, effect)

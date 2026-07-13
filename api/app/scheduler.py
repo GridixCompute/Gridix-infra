@@ -141,8 +141,10 @@ async def _chain_watcher_loop(stop: asyncio.Event) -> None:
     if client is None:
         return
     watcher = ChainWatcher(
-        client, get_sessionmaker(),
-        usdc_decimals=settings.usdc_decimals, confirmations=settings.chain_confirmations,
+        client,
+        get_sessionmaker(),
+        usdc_decimals=settings.usdc_decimals,
+        confirmations=settings.chain_confirmations,
     )
     while not stop.is_set():
         await watcher.tick()
@@ -156,8 +158,10 @@ async def _settlement_loop(stop: asyncio.Event) -> None:
     if client is None:
         return
     engine = SettlementEngine(
-        client, get_sessionmaker(),
-        usdc_decimals=settings.usdc_decimals, confirmations=settings.chain_confirmations,
+        client,
+        get_sessionmaker(),
+        usdc_decimals=settings.usdc_decimals,
+        confirmations=settings.chain_confirmations,
         threshold_usdc=settings.settlement_threshold_usdc,
         interval_seconds=settings.settlement_interval_seconds,
     )
