@@ -8,9 +8,10 @@ the repo, an image, or a log. Two backends are real and testable:
   (e.g. ``/run/secrets/GRIDIX_KEK``). File permissions provide scoped access, and rotating a
   mounted secret needs no image rebuild.
 
-A ``vault`` backend (HashiCorp Vault / cloud KMS) is a documented seam, deliberately not
-implemented here: shipping an unexercised client into the key path would be worse than an
-honest, fail-fast "not configured". Selecting it raises at startup, not mid-request.
+* ``vault`` — HashiCorp Vault (KV v2): all managed secrets in one path, read once at startup
+  after an AppRole/token login (never the root token). The highest-value secret — the
+  coordinator private key, which can debit every developer's escrow — is meant to live here,
+  not in ``.env`` where it would be lost or leaked with the box. See ``docs/VAULT.md``.
 
 ``init_secrets`` is the one entrypoint: it installs the backend, overlays any file/vault
 secrets onto ``Settings`` (so all existing code keeps reading ``settings.kek`` etc.), and
@@ -74,6 +75,96 @@ class FileSecretManager:
         return None
 
 
+def _secret_name_candidates(name: str) -> tuple[str, ...]:
+    """Callers ask by field name (``coordinator_private_key``) or env name (``GRIDIX_SECRET_KEY``);
+    stores hold keys in either style. Resolve both, preferring an exact match."""
+    return (name, name.upper(), f"GRIDIX_{name}", f"GRIDIX_{name}".upper())
+
+
+class VaultSecretManager:
+    """Reads secrets from HashiCorp Vault (KV v2). Fills the 12.1 seam.
+
+    All managed secrets live in ONE KV-v2 secret at ``<mount>/data/<path>``; each Vault key is
+    the env-style name (e.g. ``GRIDIX_COORDINATOR_PRIVATE_KEY``). The backend authenticates once
+    (AppRole preferred, or a TTL token — never the root token) and reads that single path, whose
+    values are cached in memory. The bound Vault policy must grant read on exactly that path and
+    nothing else (no write, no list) — least privilege for a process that only consumes secrets.
+
+    Construction performs the login + read eagerly, so a missing/unreachable Vault, a failed
+    auth, or an absent path fails fast at startup (``SecretConfigurationError``) rather than on a
+    later request. No secret value is ever placed in an exception message, log line, or repr.
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        try:
+            import hvac  # lazy: only needed when secret_backend == "vault"
+        except ModuleNotFoundError as exc:  # pragma: no cover - exercised only without the extra
+            raise SecretConfigurationError(
+                "GRIDIX_SECRET_BACKEND=vault needs the 'vault' extra: pip install '.[vault]'"
+            ) from exc
+
+        if not settings.vault_addr:
+            raise SecretConfigurationError(
+                "GRIDIX_SECRET_BACKEND=vault but GRIDIX_VAULT_ADDR unset"
+            )
+
+        client = hvac.Client(url=settings.vault_addr, namespace=settings.vault_namespace or None)
+        try:
+            self._authenticate(client, settings)
+            if not client.is_authenticated():
+                raise SecretConfigurationError("Vault authentication failed (check role/token)")
+            resp = client.secrets.kv.v2.read_secret_version(
+                mount_point=settings.vault_kv_mount,
+                path=settings.vault_secret_path,
+                raise_on_deleted_version=True,
+            )
+        except SecretConfigurationError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - surface any hvac/transport error, sans secrets
+            raise SecretConfigurationError(
+                f"cannot read secrets from Vault at {settings.vault_addr} "
+                f"({settings.vault_kv_mount}/{settings.vault_secret_path}): {type(exc).__name__}"
+            ) from None
+        data = resp.get("data", {}).get("data", {})
+        if not isinstance(data, dict) or not data:
+            raise SecretConfigurationError(
+                f"Vault secret {settings.vault_kv_mount}/{settings.vault_secret_path} is empty"
+            )
+        self._cache: dict[str, str] = {str(k): str(v) for k, v in data.items()}
+        self._addr = settings.vault_addr
+        self._path = f"{settings.vault_kv_mount}/{settings.vault_secret_path}"
+        # Drop the client so no live token lingers; the values are already cached.
+        client.token = None
+
+    @staticmethod
+    def _authenticate(client, settings: Settings) -> None:
+        if settings.vault_auth_method == "approle":
+            if not settings.vault_role_id or not settings.vault_secret_id:
+                raise SecretConfigurationError(
+                    "vault_auth_method=approle needs GRIDIX_VAULT_ROLE_ID and _SECRET_ID"
+                )
+            client.auth.approle.login(
+                role_id=settings.vault_role_id, secret_id=settings.vault_secret_id
+            )
+        elif settings.vault_auth_method == "token":
+            if not settings.vault_token:
+                raise SecretConfigurationError("vault_auth_method=token needs GRIDIX_VAULT_TOKEN")
+            client.token = settings.vault_token
+        else:  # pragma: no cover - Literal already constrains this
+            raise SecretConfigurationError(
+                f"unknown vault_auth_method {settings.vault_auth_method}"
+            )
+
+    def get(self, name: str) -> str | None:
+        for candidate in _secret_name_candidates(name):
+            if candidate in self._cache:
+                return self._cache[candidate]
+        return None
+
+    def __repr__(self) -> str:  # never expose cached secret values
+        return f"VaultSecretManager(addr={self._addr!r}, path={self._path!r})"
+
+
 def build_secret_manager(settings: Settings) -> SecretManager:
     """Construct the configured backend, or fail fast with a clear message."""
     backend = settings.secret_backend
@@ -82,11 +173,7 @@ def build_secret_manager(settings: Settings) -> SecretManager:
     if backend == "file":
         return FileSecretManager(settings.secret_dir)
     if backend == "vault":
-        raise SecretConfigurationError(
-            "GRIDIX_SECRET_BACKEND=vault is a documented seam that is not implemented in this "
-            "build. Inject secrets via env (GRIDIX_SECRET_BACKEND=env) or files "
-            "(GRIDIX_SECRET_BACKEND=file) until a live Vault/KMS exists to test against."
-        )
+        return VaultSecretManager(settings)
     raise SecretConfigurationError(f"unknown secret backend {backend!r}")
 
 
