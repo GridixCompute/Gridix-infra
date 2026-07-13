@@ -358,8 +358,13 @@ class Web3ChainClient(ChainClient):
         }
         gas = await fn.estimate_gas({"from": self._acct.address})
         base["gas"] = int(gas * self._gas_multiplier)
-        base["maxFeePerGas"] = await self._w3.eth.gas_price
-        base["maxPriorityFeePerGas"] = self._w3.to_wei(1, "gwei")
+        # EIP-1559 fees: the priority (tip) must never exceed maxFeePerGas. On a quiet chain
+        # `eth_gasPrice` can dip below a flat 1 gwei tip, which the node rejects ("max priority
+        # fee higher than max fee"). Cap the tip at the current price and give maxFee headroom.
+        gas_price = await self._w3.eth.gas_price
+        tip = min(self._w3.to_wei(1, "gwei"), gas_price)
+        base["maxPriorityFeePerGas"] = tip
+        base["maxFeePerGas"] = gas_price + tip
         tx = await fn.build_transaction(base)
         signed = self._acct.sign_transaction(tx)
         raw = getattr(signed, "raw_transaction", None) or signed.rawTransaction

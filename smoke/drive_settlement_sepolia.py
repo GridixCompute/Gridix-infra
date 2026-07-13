@@ -90,14 +90,16 @@ async def _send_raw(w3: AsyncWeb3, acct, fn) -> str:
     """Build/sign/broadcast a tx from `acct` — mirrors Web3ChainClient._send for setup steps."""
     nonce = await w3.eth.get_transaction_count(acct.address, "pending")
     gas = await fn.estimate_gas({"from": acct.address})
+    gas_price = await w3.eth.gas_price
+    tip = min(w3.to_wei(1, "gwei"), gas_price)  # tip must not exceed maxFee on a quiet chain
     tx = await fn.build_transaction(
         {
             "from": acct.address,
             "nonce": nonce,
             "chainId": CHAIN_ID,
             "gas": int(gas * 1.25),
-            "maxFeePerGas": await w3.eth.gas_price,
-            "maxPriorityFeePerGas": w3.to_wei(1, "gwei"),
+            "maxFeePerGas": gas_price + tip,
+            "maxPriorityFeePerGas": tip,
         }
     )
     signed = acct.sign_transaction(tx)
