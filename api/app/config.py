@@ -136,6 +136,12 @@ class Settings(BaseSettings):
     chain_balance_cache_ttl_seconds: float = Field(default=5.0, ge=0.0)
     # How often the watcher polls for new blocks/events.
     chain_poll_interval_seconds: float = Field(default=5.0, gt=0.0)
+    # Block to start watching from on a fresh cursor (the contracts' deploy block). 0 means
+    # "start from the current head" — avoids a genesis-to-now scan that public RPCs reject.
+    chain_start_block: int = Field(default=0, ge=0)
+    # Max block span per eth_getLogs call (public RPCs cap wide ranges). The watcher scans in
+    # windows of this size so a catch-up after downtime never trips a provider limit.
+    chain_log_window: int = Field(default=500, ge=1)
     # Settlement trigger: batch when unsettled provider earnings reach this total (USDC, whole
     # units) OR when the scheduled interval elapses — whichever comes first. Threshold fills the
     # batch for gas efficiency; the interval is a floor so small balances never wait forever.

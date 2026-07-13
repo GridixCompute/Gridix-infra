@@ -145,6 +145,7 @@ async def _chain_watcher_loop(stop: asyncio.Event) -> None:
         get_sessionmaker(),
         usdc_decimals=settings.usdc_decimals,
         confirmations=settings.chain_confirmations,
+        start_block=settings.chain_start_block,
     )
     while not stop.is_set():
         await watcher.tick()

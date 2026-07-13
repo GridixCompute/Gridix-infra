@@ -245,11 +245,17 @@ class Web3ChainClient(ChainClient):
         staking_address: str,
         coordinator_private_key: str,
         gas_multiplier: float = 1.25,
+        log_window: int = 500,
     ) -> None:
         try:
             from eth_account import Account
             from web3 import AsyncWeb3
-            from web3.providers.async_rpc import AsyncHTTPProvider
+
+            # AsyncHTTPProvider moved across web3 6/7 — accept either location.
+            try:
+                from web3 import AsyncHTTPProvider
+            except ImportError:  # web3 < 7
+                from web3.providers.async_rpc import AsyncHTTPProvider
         except ModuleNotFoundError as exc:  # pragma: no cover - exercised only without extra
             raise ChainError(
                 "web3 is required for on-chain settlement; install with '.[chain]'"
@@ -265,6 +271,7 @@ class Web3ChainClient(ChainClient):
             address=self._w3.to_checksum_address(staking_address), abi=_STAKING_ABI
         )
         self._gas_multiplier = gas_multiplier
+        self._log_window = max(1, log_window)
         self._addr_lc = self._acct.address.lower()
 
     @property
@@ -297,20 +304,29 @@ class Web3ChainClient(ChainClient):
 
     async def get_logs(self, from_block: int, to_block: int) -> list[ChainLog]:
         logs: list[ChainLog] = []
-        for contract in (self._escrow, self._staking):
-            for name in _events_of(contract):
-                event = contract.events[name]()
-                raw = await self._w3.eth.get_logs(
-                    {
-                        "address": contract.address,
-                        "fromBlock": from_block,
-                        "toBlock": to_block,
-                        "topics": [event.topic],
-                    }
-                )
-                for entry in raw:
-                    decoded = event.process_log(entry)
-                    logs.append(_to_chain_log(name, contract.address.lower(), decoded))
+        # Scan in bounded windows: public RPCs reject wide eth_getLogs ranges, so a catch-up
+        # after downtime (or a fresh cursor) must never ask for genesis-to-now in one call.
+        start = from_block
+        while start <= to_block:
+            end = min(start + self._log_window - 1, to_block)
+            for contract in (self._escrow, self._staking):
+                for name in _events_of(contract):
+                    event = contract.events[name]()
+                    try:
+                        raw = await self._w3.eth.get_logs(
+                            {
+                                "address": contract.address,
+                                "fromBlock": start,
+                                "toBlock": end,
+                                "topics": [event.topic],
+                            }
+                        )
+                    except Exception as exc:  # noqa: BLE001 - surface as a recoverable ChainError
+                        raise ChainError(f"get_logs {start}-{end} failed: {exc}") from exc
+                    for entry in raw:
+                        decoded = event.process_log(entry)
+                        logs.append(_to_chain_log(name, contract.address.lower(), decoded))
+            start = end + 1
         logs.sort(key=lambda log: (log.block_number, log.log_index))
         return logs
 

@@ -50,6 +50,7 @@ def install_chain(settings: Settings) -> ChainClient | None:
         escrow_address=settings.escrow_address,
         staking_address=settings.staking_address,
         coordinator_private_key=key,
+        log_window=settings.chain_log_window,
     )
     logger.info("chain layer enabled (coordinator {})", client.coordinator_address)
     return install_chain_client(settings, client)
