@@ -15,6 +15,5 @@ htmlcov/
 # Internal planning docs — kept locally, never published.
 reference/
 
-# local Claude Code config and CI workflows — not published
+# local Claude Code config — not published
 .claude/
-.github/workflows/
