@@ -128,3 +128,35 @@ stake=100e6 (200 staked, 50 slashed→dispute overturned→returned, 100 unstake
 earnings(other)=10e6 (settled, unwithdrawn). Exercise contracts (throwaway, MockUSDC):
 GridixEscrow `0x04B237e8b5F3de59F02C3E61007351Eb5d8CA09B`, GridixStaking
 `0xfc51f5439c96B47B37304BBd63147ef53d15D01F`.
+
+---
+
+# Multi-wallet stake/unstake churn (Sepolia — 41 stake + 40 unstake, 0 reverts)
+
+To check for runtime errors under repeated use from many independent callers, stake/unstake was
+driven from **10 distinct fresh wallets**, each funded from the contract-creator wallet
+(`0x2dA408cb2899351eC948b4A3Dd438caA9Ac213e8`). Reused the live exercise pair (no redeploy):
+GridixStaking `0xfc51f5439c96B47B37304BBd63147ef53d15D01F` (unpaused, cooldown 0) over MockUSDC
+`0x48d9eb22261094f9C2F31587daD06fa80df6d23B`. Each wallet minted its own MockUSDC, approved once,
+then looped `stake(5 USDC)`→`unstake(5 USDC)` as far as its ETH slice allowed; leftover ETH was
+swept back to the creator.
+
+Budget-bounded by the creator's ~0.0284 test ETH at a ~3.7–4.7 gwei base fee (which is why the
+per-wallet loop count is 4, not 10 — the target was scaled to fit the on-hand faucet balance).
+
+**Result — every transaction that reached the chain succeeded (status 0x1), zero reverts:**
+
+```
+on-chain totals:  41 stake tx   +   40 unstake tx      (81 stake/unstake ops)
+total wallet txs: 121  (10 mint + 10 approve + 41 stake + 40 unstake + 20 sweep)
+per wallet:       4 stake / 4 unstake  (w2: 5 stake — one extra from an RPC-retry re-submit)
+net ETH spent:    0.02836 -> 0.00159  (~0.0268 ETH, incl. sweep-backs)
+```
+
+Accounting verified directly on-chain afterwards: every wallet's cooling bucket
+(`unstakingOf`) equals `unstakes × 5 USDC` exactly (10 × 20 USDC cooling), and active stake is 0
+(w2: 5 USDC, its one extra stake) — a mid-sequence revert would have left ragged state, so the
+clean multiples confirm no stake/unstake failed. Sample unstake tx
+`0xbd39f8facac2267bf652e71d418c019a8a6d34d2eb7b530551faa0db85693215` (status 1). The only
+non-successful events were client-side gas-estimation refusals once a wallet's ETH ran below one
+tx's worth — the loop's intended budget stop, not contract reverts.
