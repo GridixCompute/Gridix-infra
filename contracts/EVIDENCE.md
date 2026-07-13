@@ -104,3 +104,27 @@ hasRole(COORDINATOR_ROLE,  admin)        == false           ✓
 
 Three separate roles: the party that slashes (coordinator) cannot resolve its own dispute
 (arbiter), and neither is the admin.
+
+---
+
+# Live on-chain exercise (Sepolia, 17/17 tx OK)
+
+To check for runtime errors, every function of both contracts was exercised with real Sepolia
+transactions (`script/Exercise.s.sol`). Because the production deployments use Circle USDC
+(unmintable) and separate role keys, the exercise deployed a fresh MockUSDC + a fresh pair with
+the deployer holding all roles — same contract code. **All 17 transactions succeeded (status
+0x1), no reverts:**
+
+```
+ 1 deploy MockUSDC        6 escrow.deposit      11 depositSettlement   16 unstake
+ 2 deploy GridixEscrow    7 escrow.debit        12 settleBatch(2)      17 completeUnstake
+ 3 deploy GridixStaking   8 escrow.withdraw     13 staking.withdraw
+ 4 usdc.mint              9 approve             14 slash
+ 5 approve               10 stake               15 resolveDispute(overturned)
+```
+
+Final state consistent: escrow.balanceOf=0 (100 deposited − 30 debited − 70 withdrawn),
+stake=100e6 (200 staked, 50 slashed→dispute overturned→returned, 100 unstaked+claimed),
+earnings(other)=10e6 (settled, unwithdrawn). Exercise contracts (throwaway, MockUSDC):
+GridixEscrow `0x04B237e8b5F3de59F02C3E61007351Eb5d8CA09B`, GridixStaking
+`0xfc51f5439c96B47B37304BBd63147ef53d15D01F`.
