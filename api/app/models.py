@@ -163,6 +163,9 @@ class Developer(Base):
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    # On-chain wallet (GridixEscrow depositor) for the settlement layer (Session 13). Lowercase
+    # 0x-hex; nullable so fiat-only developers keep working. Unique so one wallet maps to one dev.
+    wallet_address: Mapped[str | None] = mapped_column(String(42), unique=True, index=True)
     created_at: Mapped[datetime] = _created_at()
 
     jobs: Mapped[list["Job"]] = relationship(back_populates="developer")
@@ -191,6 +194,9 @@ class Provider(Base):
 
     reputation: Mapped[float] = mapped_column(Float, default=50.0, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # On-chain wallet (GridixStaking staker / settlement payee) for Session 13. Lowercase 0x-hex.
+    wallet_address: Mapped[str | None] = mapped_column(String(42), unique=True, index=True)
 
     # Confidential compute (Session 9.4-9.5): whether the provider has a currently-valid
     # TEE attestation. Set by the attestation flow; only these run confidential-tee jobs.
@@ -574,3 +580,130 @@ class BandwidthEvent(Base):
     created_at: Mapped[datetime] = _created_at()
 
     __table_args__ = (CheckConstraint("num_bytes >= 0", name="ck_bandwidth_nonneg"),)
+
+
+# ── On-chain settlement layer (Session 13) ─────────────────────────────────────────────
+# These tables are the durable state the chain layer recovers from after a crash. The
+# off-chain ledger stays the accounting source of truth; nothing here changes a balance —
+# they record *intent to touch the chain* (settlements) and *observed chain facts* (events)
+# so settlement is idempotent and the watcher survives reorgs.
+
+
+class ChainTxStatus(enum.StrEnum):
+    """Lifecycle of an outbound chain transaction (settleBatch / debit / depositSettlement)."""
+
+    pending = "pending"  # row written, nonce reserved, NOT yet broadcast
+    submitted = "submitted"  # broadcast; tx hash known, awaiting confirmations
+    confirmed = "confirmed"  # mined and confirmed N deep — terminal success
+    failed = "failed"  # reverted or permanently dropped — terminal failure
+
+
+class ChainTxKind(enum.StrEnum):
+    """What an outbound chain transaction does."""
+
+    settle_batch = "settle_batch"  # GridixStaking.settleBatch — credit provider earnings
+    deposit_settlement = "deposit_settlement"  # GridixStaking.depositSettlement — fund the pool
+    debit = "debit"  # GridixEscrow.debit — pull consumed developer escrow to treasury
+
+
+class ChainSettlement(Base):
+    """One outbound aggregate chain transaction, recorded BEFORE broadcast (Session 13).
+
+    This is the idempotency backbone: the ``batch_key`` is a deterministic id for the work a
+    transaction represents, so a crash between "decide to send" and "confirmed" can never
+    produce a second payout — recovery finds the existing row by key/nonce instead of building
+    a fresh batch. ``nonce`` pins the account sequence so a stuck tx is replaced, not doubled.
+    """
+
+    __tablename__ = "chain_settlements"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    kind: Mapped[ChainTxKind] = mapped_column(
+        Enum(ChainTxKind, name="chain_tx_kind", native_enum=False, length=24), nullable=False
+    )
+    status: Mapped[ChainTxStatus] = mapped_column(
+        Enum(ChainTxStatus, name="chain_tx_status", native_enum=False, length=16),
+        default=ChainTxStatus.pending,
+        nullable=False,
+        index=True,
+    )
+    # Deterministic idempotency key for the work this tx settles (e.g. sorted payee+amount set,
+    # or "debit:<dev>:<epoch>"). Unique so the same work is never enqueued twice.
+    batch_key: Mapped[str] = mapped_column(String(200), unique=True, nullable=False, index=True)
+    # Account nonce reserved for this tx (monotonic per coordinator EOA). Unique among live rows.
+    nonce: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    tx_hash: Mapped[str | None] = mapped_column(String(66), unique=True, index=True)
+    block_number: Mapped[int | None] = mapped_column(BigInteger)
+    # The payees + raw-unit amounts this tx pays (JSON: [[address, amount_units], ...]) so the
+    # ledger can be marked settled only once the tx confirms.
+    payload: Mapped[dict | None] = mapped_column(JSONVariant)
+    error: Mapped[str | None] = mapped_column(String(512))
+    created_at: Mapped[datetime] = _created_at()
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ProviderSettlement(Base):
+    """How much of a provider's off-chain earnings has been pushed on-chain (Session 13).
+
+    One row per (provider, settlement) leg — the source of "already settled on-chain" used to
+    compute the next batch and to reconcile against ``staking.earningsOf`` + withdrawn. Written
+    in the same transaction that confirms the parent ``ChainSettlement`` so the two never drift.
+    """
+
+    __tablename__ = "provider_settlements"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("providers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    settlement_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("chain_settlements.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    amount_units: Mapped[int] = mapped_column(BigInteger, nullable=False)  # raw USDC units
+    created_at: Mapped[datetime] = _created_at()
+
+    __table_args__ = (CheckConstraint("amount_units >= 0", name="ck_provsettle_nonneg"),)
+
+
+class ChainEvent(Base):
+    """An observed on-chain log the watcher has seen (Session 13).
+
+    Deduplicated by (tx_hash, log_index). ``confirmed`` flips only once the event's block is
+    ``chain_confirmations`` deep; ``processed`` flips once its side effect (e.g. crediting a
+    developer's ledger on Deposit) has been applied. ``block_hash`` lets the watcher detect a
+    reorg (same number, different hash) and roll back anything applied on the orphaned block.
+    """
+
+    __tablename__ = "chain_events"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    event_name: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    tx_hash: Mapped[str] = mapped_column(String(66), nullable=False, index=True)
+    log_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    block_number: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    block_hash: Mapped[str] = mapped_column(String(66), nullable=False)
+    address: Mapped[str] = mapped_column(String(42), nullable=False)
+    args: Mapped[dict | None] = mapped_column(JSONVariant)
+    confirmed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    processed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    created_at: Mapped[datetime] = _created_at()
+
+    __table_args__ = (UniqueConstraint("tx_hash", "log_index", name="uq_chain_event_log"),)
+
+
+class ChainCursor(Base):
+    """The watcher's high-water mark: the last block fully scanned for a given stream.
+
+    A single-row-per-stream table so a restart resumes from where it left off instead of
+    rescanning from genesis. ``block_hash`` of the cursor head is kept to anchor reorg checks.
+    """
+
+    __tablename__ = "chain_cursors"
+
+    stream: Mapped[str] = mapped_column(String(32), primary_key=True)
+    last_scanned_block: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    head_block_hash: Mapped[str | None] = mapped_column(String(66))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
+    )

@@ -24,9 +24,20 @@ class Alert:
 def evaluate_alerts(signals: dict, settings: Settings) -> list[Alert]:
     """Return the alerts firing for a snapshot of ``signals``.
 
-    Signals: ``queue_depth``, ``providers_connected``, ``ledger_discrepancies``.
+    Signals: ``queue_depth``, ``providers_connected``, ``ledger_discrepancies``,
+    ``chain_divergences``.
     """
     alerts: list[Alert] = []
+
+    if int(signals.get("chain_divergences", 0)) > 0:
+        alerts.append(
+            Alert(
+                "chain_ledger_divergence",
+                "critical",
+                f"{signals['chain_divergences']} on-chain vs off-chain divergence(s) — settlement "
+                "and the ledger disagree; freeze settlement and reconcile (see RUNBOOKS.md).",
+            )
+        )
 
     if int(signals.get("ledger_discrepancies", 0)) > 0:
         alerts.append(

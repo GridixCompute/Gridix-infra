@@ -27,6 +27,25 @@ groups:
           summary: "Ledger discrepancy"
           description: "{{ $value }} unbalanced ledger group(s) — freeze settlement (RUNBOOKS.md)."
 
+      # On-chain vs off-chain money invariant (Session 13). A single unit of divergence between
+      # GridixEscrow/GridixStaking and the ledger is a stop-the-world event — freeze settlement.
+      - alert: ChainLedgerDivergence
+        expr: gridix_chain_ledger_divergence > 0
+        for: 0s
+        labels: {severity: critical}
+        annotations:
+          summary: "On-chain vs ledger divergence"
+          description: "{{ $value }} chain/ledger divergence(s) — settlement and the ledger disagree; freeze settlement and reconcile (RUNBOOKS.md)."
+
+      # Reconciliation itself stopped running — we'd be blind to a divergence.
+      - alert: ChainReconcileStale
+        expr: time() - gridix_chain_reconcile_timestamp > 900
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Chain reconciliation stale"
+          description: "No successful on-chain reconciliation in 15m — the last-line money check is not running."
+
       # Every provider gone though some are registered — jobs will stall.
       - alert: MassProviderDropout
         expr: gridix_providers_total > 0 and gridix_providers_connected == 0
