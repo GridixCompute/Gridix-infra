@@ -41,7 +41,12 @@ def install_chain(settings: Settings) -> ChainClient | None:
     for name in ("chain_rpc_url", "escrow_address", "staking_address"):
         if not getattr(settings, name):
             raise ValueError(f"chain_enabled but {name} is unset")
-    key = settings.coordinator_private_key or get_secret_manager().get("coordinator_private_key")
+    # Prefer Vault/secret-manager over a value in Settings: the key is fetched on demand here and
+    # handed straight to the client (which needs it to sign). It is never logged or persisted on
+    # Settings; the SecretStr wrapper masks any accidental repr of a value injected via env.
+    key = settings.coordinator_private_key.get_secret_value() or get_secret_manager().get(
+        "coordinator_private_key"
+    )
     if not key:
         raise ValueError("chain_enabled but coordinator_private_key is unset")
     client = Web3ChainClient(

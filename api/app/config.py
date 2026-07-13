@@ -4,7 +4,7 @@ from decimal import Decimal
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,6 +31,21 @@ class Settings(BaseSettings):
     # or a Vault/KMS seam. See app.secret_manager.
     secret_backend: Literal["env", "file", "vault"] = "env"
     secret_dir: str = "/run/secrets"
+
+    # HashiCorp Vault backend (12.1 seam, now real). Only read when secret_backend == "vault".
+    # The backend authenticates, then reads ALL managed secrets from a single KV-v2 secret at
+    # `<vault_kv_mount>/data/<vault_secret_path>`. Its token needs read-only on that one path.
+    vault_addr: str = ""  # e.g. https://vault.internal:8200
+    vault_namespace: str = ""  # Vault Enterprise namespace (optional)
+    vault_kv_mount: str = "secret"  # KV-v2 mount point
+    vault_secret_path: str = "gridix"  # secret path under the mount
+    vault_auth_method: Literal["approle", "token"] = "approle"
+    # AppRole (preferred): the role_id/secret_id are the bootstrap "secret zero" — inject them
+    # via env/file, never commit them. secret_id should be short-TTL/response-wrapped in prod.
+    vault_role_id: str = ""
+    vault_secret_id: str = ""
+    # Token auth (alternative): a periodic/TTL token — NEVER the root token.
+    vault_token: str = ""
 
     secret_key: str = "dev-insecure-secret-change-me"
     # Coordinator key-encryption key (Fernet) for brokering per-job data keys (9.3).
@@ -127,9 +142,11 @@ class Settings(BaseSettings):
     staking_address: str = ""  # GridixStaking
     usdc_address: str = ""
     usdc_decimals: int = Field(default=6, ge=0, le=36)
-    # Coordinator EOA private key (COORDINATOR_ROLE on both contracts). Read via secret_manager;
-    # never a safe default. Used to sign debit/settleBatch/depositSettlement.
-    coordinator_private_key: str = ""
+    # Coordinator EOA private key (COORDINATOR_ROLE on both contracts) — it can debit EVERY
+    # developer's escrow, so it is the highest-value secret here. Prefer Vault: leave this empty
+    # and let bootstrap fetch it on demand via the secret manager (it never lands in Settings).
+    # Typed SecretStr so that even an accidental log/repr of Settings masks it ("**********").
+    coordinator_private_key: SecretStr = SecretStr("")
     # Confirmations to wait before treating a chain event/receipt as final (reorg guard).
     chain_confirmations: int = Field(default=3, ge=1)
     # Short TTL cache for on-chain balance reads so we don't RPC on every request.

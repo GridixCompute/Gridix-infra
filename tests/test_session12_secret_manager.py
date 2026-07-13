@@ -62,10 +62,10 @@ def test_env_backend_is_default() -> None:
     assert isinstance(build_secret_manager(Settings(env="dev")), EnvSecretManager)
 
 
-def test_vault_backend_fails_fast() -> None:
-    """The Vault/KMS seam is not implemented — selecting it raises at build, not at use."""
-    with pytest.raises(SecretConfigurationError, match="vault"):
-        build_secret_manager(Settings(env="dev", secret_backend="vault"))
+def test_vault_backend_requires_addr() -> None:
+    """Selecting vault without an address fails fast at build, not mid-request."""
+    with pytest.raises(SecretConfigurationError, match="VAULT_ADDR"):
+        build_secret_manager(Settings(env="dev", secret_backend="vault", vault_addr=""))
 
 
 def test_file_secret_manager_reads_and_strips(tmp_path) -> None:
@@ -107,3 +107,118 @@ def test_init_secrets_fails_fast_on_missing_file_secrets(tmp_path) -> None:
     )
     with pytest.raises(SecretConfigurationError):
         init_secrets(settings)
+
+
+# ── Vault backend (12.1 seam, now real; hvac mocked so the suite stays hermetic) ─────────────
+from unittest.mock import MagicMock, patch  # noqa: E402
+
+from app.secret_manager import VaultSecretManager  # noqa: E402
+
+_COORD_KEY = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+_VAULT_DATA = {
+    "GRIDIX_SECRET_KEY": "vault-sourced-secret-key-value",
+    "GRIDIX_KEK": "vault-sourced-kek",
+    "GRIDIX_ATTESTATION_SECRET": "vault-sourced-att",
+    "GRIDIX_COORDINATOR_PRIVATE_KEY": _COORD_KEY,
+}
+
+
+def _fake_client(data=None, *, authenticated=True, read_error: Exception | None = None):
+    client = MagicMock()
+    client.is_authenticated.return_value = authenticated
+    if read_error is not None:
+        client.secrets.kv.v2.read_secret_version.side_effect = read_error
+    else:
+        client.secrets.kv.v2.read_secret_version.return_value = {"data": {"data": data or {}}}
+    return client
+
+
+def _vault_settings(**overrides) -> Settings:
+    base = {
+        "env": "prod",
+        "secret_backend": "vault",
+        "vault_addr": "http://127.0.0.1:8200",
+        "vault_auth_method": "token",
+        "vault_token": "s.not-a-root-token",
+    }
+    base.update(overrides)
+    return Settings(**base)
+
+
+def test_vault_reads_secrets_by_field_and_env_name() -> None:
+    """A managed lookup (GRIDIX_SECRET_KEY) and a bare field lookup (coordinator_private_key)
+    both resolve from the single KV secret."""
+    with patch("hvac.Client", return_value=_fake_client(_VAULT_DATA)):
+        mgr = VaultSecretManager(_vault_settings())
+    assert mgr.get("GRIDIX_SECRET_KEY") == "vault-sourced-secret-key-value"
+    assert mgr.get("coordinator_private_key") == _COORD_KEY
+    assert mgr.get("GRIDIX_MISSING") is None
+
+
+def test_vault_init_secrets_overlays_and_validates() -> None:
+    """init_secrets over Vault populates settings from Vault (not env) and passes validation;
+    the coordinator key stays out of Settings, reachable only via the manager."""
+    settings = _vault_settings(secret_key="dev-insecure-secret-change-me", kek="")
+    with patch("hvac.Client", return_value=_fake_client(_VAULT_DATA)):
+        init_secrets(settings)
+    assert settings.secret_key == "vault-sourced-secret-key-value"
+    assert settings.kek == "vault-sourced-kek"
+    # the coordinator key was never overlaid onto Settings — fetched on demand instead
+    assert settings.coordinator_private_key.get_secret_value() == ""
+    from app.secret_manager import get_secret_manager
+
+    assert get_secret_manager().get("coordinator_private_key") == _COORD_KEY
+
+
+def test_vault_fails_fast_when_unreachable() -> None:
+    """A down/unreachable Vault raises at startup — and the message carries no secret."""
+    boom = ConnectionError("connection refused")
+    with (
+        patch("hvac.Client", return_value=_fake_client(read_error=boom)),
+        pytest.raises(SecretConfigurationError) as exc,
+    ):
+        VaultSecretManager(_vault_settings())
+    assert _COORD_KEY not in str(exc.value)
+    assert "Vault" in str(exc.value)
+
+
+def test_vault_fails_fast_on_auth_failure() -> None:
+    with (
+        patch("hvac.Client", return_value=_fake_client(_VAULT_DATA, authenticated=False)),
+        pytest.raises(SecretConfigurationError, match="authentication failed"),
+    ):
+        VaultSecretManager(_vault_settings())
+
+
+def test_vault_approle_requires_role_and_secret_id() -> None:
+    settings = _vault_settings(vault_auth_method="approle", vault_role_id="", vault_secret_id="")
+    with (
+        patch("hvac.Client", return_value=_fake_client(_VAULT_DATA)),
+        pytest.raises(SecretConfigurationError, match="approle"),
+    ):
+        VaultSecretManager(settings)
+
+
+def test_vault_empty_secret_rejected() -> None:
+    with (
+        patch("hvac.Client", return_value=_fake_client({})),
+        pytest.raises(SecretConfigurationError, match="empty"),
+    ):
+        VaultSecretManager(_vault_settings())
+
+
+def test_vault_manager_repr_hides_secret_values() -> None:
+    """repr must never expose the cache — a stray logger.info(manager) can't leak the key."""
+    with patch("hvac.Client", return_value=_fake_client(_VAULT_DATA)):
+        mgr = VaultSecretManager(_vault_settings())
+    text = repr(mgr)
+    assert "127.0.0.1:8200" in text
+    assert _COORD_KEY not in text
+    assert "vault-sourced-secret-key-value" not in text
+
+
+def test_coordinator_key_masked_in_settings_repr() -> None:
+    """Even if the key is injected via env, a repr of Settings shows it masked (SecretStr)."""
+    settings = Settings(env="dev", coordinator_private_key=_COORD_KEY)
+    assert _COORD_KEY not in repr(settings)
+    assert settings.coordinator_private_key.get_secret_value() == _COORD_KEY

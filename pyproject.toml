@@ -37,6 +37,11 @@ s3 = [
 chain = [
     "web3>=6.15",
 ]
+# HashiCorp Vault secret backend (12.1 seam, now real). Install with `.[vault]` when
+# GRIDIX_SECRET_BACKEND=vault (VaultSecretManager imports hvac lazily; env/file need nothing).
+vault = [
+    "hvac>=2.1",
+]
 agent = [
     "httpx>=0.27",
     "docker>=7.0",
