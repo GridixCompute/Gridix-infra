@@ -94,7 +94,11 @@ class Reconciler:
             for d in divergences:
                 logger.error(
                     "RECONCILE DIVERGENCE {} {}: expected {} units, chain has {} (delta {})",
-                    d.kind, d.subject, d.expected, d.actual, d.delta,
+                    d.kind,
+                    d.subject,
+                    d.expected,
+                    d.actual,
+                    d.delta,
                 )
         else:
             logger.info("reconciliation clean: on-chain and ledger agree (zero divergence)")
@@ -109,9 +113,7 @@ class Reconciler:
     # ── developer escrow ─────────────────────────────────────────────────────────────────
     async def _check_developers(self, session: AsyncSession) -> list[Divergence]:
         devs = list(
-            await session.scalars(
-                select(Developer).where(Developer.wallet_address.is_not(None))
-            )
+            await session.scalars(select(Developer).where(Developer.wallet_address.is_not(None)))
         )
         settled = await self._settled_units_by_dev(session)
         debited = await self._confirmed_debited_by_dev(session)
@@ -132,9 +134,7 @@ class Reconciler:
     # ── provider payout ──────────────────────────────────────────────────────────────────
     async def _check_providers(self, session: AsyncSession) -> list[Divergence]:
         provs = list(
-            await session.scalars(
-                select(Provider).where(Provider.wallet_address.is_not(None))
-            )
+            await session.scalars(select(Provider).where(Provider.wallet_address.is_not(None)))
         )
         recorded = await self._recorded_settled_by_provider(session)
         observed = await self._observed_settled_by_wallet(session)

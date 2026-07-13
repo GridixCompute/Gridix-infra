@@ -105,9 +105,7 @@ class ChainClient(ABC):
     # ── writes (all COORDINATOR_ROLE) ───────────────────────────────────────────────────
 
     @abstractmethod
-    async def send_settle_batch(
-        self, providers: list[str], amounts: list[int], nonce: int
-    ) -> str:
+    async def send_settle_batch(self, providers: list[str], amounts: list[int], nonce: int) -> str:
         """GridixStaking.settleBatch — credit N providers in one tx. Returns the tx hash."""
 
     @abstractmethod
@@ -122,49 +120,111 @@ class ChainClient(ABC):
 # ── minimal ABIs (only the fragments we call/decode) ───────────────────────────────────
 
 _ESCROW_ABI = [
-    {"type": "function", "name": "balanceOf", "stateMutability": "view",
-     "inputs": [{"name": "developer", "type": "address"}],
-     "outputs": [{"name": "", "type": "uint256"}]},
-    {"type": "function", "name": "debit", "stateMutability": "nonpayable",
-     "inputs": [{"name": "developer", "type": "address"}, {"name": "amount", "type": "uint256"}],
-     "outputs": []},
-    {"type": "event", "name": "Deposited", "anonymous": False,
-     "inputs": [{"name": "developer", "type": "address", "indexed": True},
-                {"name": "amount", "type": "uint256", "indexed": False}]},
-    {"type": "event", "name": "Withdrawn", "anonymous": False,
-     "inputs": [{"name": "developer", "type": "address", "indexed": True},
-                {"name": "amount", "type": "uint256", "indexed": False}]},
-    {"type": "event", "name": "Debited", "anonymous": False,
-     "inputs": [{"name": "developer", "type": "address", "indexed": True},
-                {"name": "amount", "type": "uint256", "indexed": False},
-                {"name": "to", "type": "address", "indexed": True}]},
+    {
+        "type": "function",
+        "name": "balanceOf",
+        "stateMutability": "view",
+        "inputs": [{"name": "developer", "type": "address"}],
+        "outputs": [{"name": "", "type": "uint256"}],
+    },
+    {
+        "type": "function",
+        "name": "debit",
+        "stateMutability": "nonpayable",
+        "inputs": [{"name": "developer", "type": "address"}, {"name": "amount", "type": "uint256"}],
+        "outputs": [],
+    },
+    {
+        "type": "event",
+        "name": "Deposited",
+        "anonymous": False,
+        "inputs": [
+            {"name": "developer", "type": "address", "indexed": True},
+            {"name": "amount", "type": "uint256", "indexed": False},
+        ],
+    },
+    {
+        "type": "event",
+        "name": "Withdrawn",
+        "anonymous": False,
+        "inputs": [
+            {"name": "developer", "type": "address", "indexed": True},
+            {"name": "amount", "type": "uint256", "indexed": False},
+        ],
+    },
+    {
+        "type": "event",
+        "name": "Debited",
+        "anonymous": False,
+        "inputs": [
+            {"name": "developer", "type": "address", "indexed": True},
+            {"name": "amount", "type": "uint256", "indexed": False},
+            {"name": "to", "type": "address", "indexed": True},
+        ],
+    },
 ]
 
 _STAKING_ABI = [
-    {"type": "function", "name": "earningsOf", "stateMutability": "view",
-     "inputs": [{"name": "provider", "type": "address"}],
-     "outputs": [{"name": "", "type": "uint256"}]},
-    {"type": "function", "name": "settlementPool", "stateMutability": "view",
-     "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
-    {"type": "function", "name": "settleBatch", "stateMutability": "nonpayable",
-     "inputs": [{"name": "providers", "type": "address[]"},
-                {"name": "amounts", "type": "uint256[]"}],
-     "outputs": []},
-    {"type": "function", "name": "depositSettlement", "stateMutability": "nonpayable",
-     "inputs": [{"name": "amount", "type": "uint256"}], "outputs": []},
-    {"type": "event", "name": "Settled", "anonymous": False,
-     "inputs": [{"name": "provider", "type": "address", "indexed": True},
-                {"name": "amount", "type": "uint256", "indexed": False}]},
-    {"type": "event", "name": "Slashed", "anonymous": False,
-     "inputs": [{"name": "provider", "type": "address", "indexed": True},
-                {"name": "amount", "type": "uint256", "indexed": False},
-                {"name": "evidenceHash", "type": "bytes32", "indexed": True}]},
+    {
+        "type": "function",
+        "name": "earningsOf",
+        "stateMutability": "view",
+        "inputs": [{"name": "provider", "type": "address"}],
+        "outputs": [{"name": "", "type": "uint256"}],
+    },
+    {
+        "type": "function",
+        "name": "settlementPool",
+        "stateMutability": "view",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "uint256"}],
+    },
+    {
+        "type": "function",
+        "name": "settleBatch",
+        "stateMutability": "nonpayable",
+        "inputs": [
+            {"name": "providers", "type": "address[]"},
+            {"name": "amounts", "type": "uint256[]"},
+        ],
+        "outputs": [],
+    },
+    {
+        "type": "function",
+        "name": "depositSettlement",
+        "stateMutability": "nonpayable",
+        "inputs": [{"name": "amount", "type": "uint256"}],
+        "outputs": [],
+    },
+    {
+        "type": "event",
+        "name": "Settled",
+        "anonymous": False,
+        "inputs": [
+            {"name": "provider", "type": "address", "indexed": True},
+            {"name": "amount", "type": "uint256", "indexed": False},
+        ],
+    },
+    {
+        "type": "event",
+        "name": "Slashed",
+        "anonymous": False,
+        "inputs": [
+            {"name": "provider", "type": "address", "indexed": True},
+            {"name": "amount", "type": "uint256", "indexed": False},
+            {"name": "evidenceHash", "type": "bytes32", "indexed": True},
+        ],
+    },
 ]
 
 _ERC20_APPROVE_ABI = [
-    {"type": "function", "name": "approve", "stateMutability": "nonpayable",
-     "inputs": [{"name": "spender", "type": "address"}, {"name": "amount", "type": "uint256"}],
-     "outputs": [{"name": "", "type": "bool"}]},
+    {
+        "type": "function",
+        "name": "approve",
+        "stateMutability": "nonpayable",
+        "inputs": [{"name": "spender", "type": "address"}, {"name": "amount", "type": "uint256"}],
+        "outputs": [{"name": "", "type": "bool"}],
+    },
 ]
 
 _WATCHED_EVENTS = {"Deposited", "Withdrawn", "Debited", "Settled", "Slashed"}
@@ -290,9 +350,7 @@ class Web3ChainClient(ChainClient):
         h = await self._w3.eth.send_raw_transaction(raw)
         return h.hex() if hasattr(h, "hex") else str(h)
 
-    async def send_settle_batch(
-        self, providers: list[str], amounts: list[int], nonce: int
-    ) -> str:
+    async def send_settle_batch(self, providers: list[str], amounts: list[int], nonce: int) -> str:
         cs = [self._w3.to_checksum_address(p) for p in providers]
         return await self._send(self._staking.functions.settleBatch(cs, amounts), nonce)
 

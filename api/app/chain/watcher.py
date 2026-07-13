@@ -109,9 +109,15 @@ class ChainWatcher:
                     continue
                 session.add(
                     ChainEvent(
-                        event_name=log.event_name, tx_hash=log.tx_hash, log_index=log.log_index,
-                        block_number=log.block_number, block_hash=log.block_hash,
-                        address=log.address, args=log.args, confirmed=False, processed=False,
+                        event_name=log.event_name,
+                        tx_hash=log.tx_hash,
+                        log_index=log.log_index,
+                        block_number=log.block_number,
+                        block_hash=log.block_hash,
+                        address=log.address,
+                        args=log.args,
+                        confirmed=False,
+                        processed=False,
                     )
                 )
                 result.new_events += 1
@@ -128,9 +134,7 @@ class ChainWatcher:
     ) -> None:
         """Drop (and reverse) any stored event whose block was orphaned by a reorg."""
         events = list(
-            await session.scalars(
-                select(ChainEvent).where(ChainEvent.block_number >= window_start)
-            )
+            await session.scalars(select(ChainEvent).where(ChainEvent.block_number >= window_start))
         )
         if not events:
             return

@@ -221,7 +221,10 @@ class SettlementEngine:
         result.batched = len(providers)
         logger.info(
             "settlement batch {} recorded: {} providers, {} units (nonce {})",
-            cycle, len(providers), total, settle_nonce,
+            cycle,
+            len(providers),
+            total,
+            settle_nonce,
         )
 
     # ── developer escrow debit (aggregate consumed → treasury, on-chain) ─────────────────
@@ -315,9 +318,9 @@ class SettlementEngine:
 
     async def _inflight(self, session: AsyncSession) -> int:
         return await session.scalar(
-            select(func.count()).select_from(ChainSettlement).where(
-                ChainSettlement.status.in_((ChainTxStatus.pending, ChainTxStatus.submitted))
-            )
+            select(func.count())
+            .select_from(ChainSettlement)
+            .where(ChainSettlement.status.in_((ChainTxStatus.pending, ChainTxStatus.submitted)))
         )
 
     async def _broadcast(self, row: ChainSettlement) -> None:
@@ -388,9 +391,7 @@ class SettlementEngine:
 
     async def _reserved_by_provider(self, session: AsyncSession) -> dict[uuid.UUID, int]:
         rows = await session.execute(
-            select(
-                ProviderSettlement.provider_id, func.sum(ProviderSettlement.amount_units)
-            )
+            select(ProviderSettlement.provider_id, func.sum(ProviderSettlement.amount_units))
             .join(ChainSettlement, ChainSettlement.id == ProviderSettlement.settlement_id)
             .where(ChainSettlement.status.in_(_LIVE))
             .group_by(ProviderSettlement.provider_id)
