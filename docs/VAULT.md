@@ -125,3 +125,10 @@ python smoke/vault/verify_live.py up
 # DOWN (after stopping Vault)
 python smoke/vault/verify_live.py down
 ```
+
+`smoke/vault/verify_coordinator_wiring.py` goes one step further: with the coordinator key in Vault
+and the production contract addresses + `GRIDIX_EXPECTED_COORDINATOR_ADDRESS` set, it runs the real
+`init_secrets` + `install_chain` startup path and asserts the key read from Vault derives to the
+expected on-chain role holder — and that a wrong expected address fails fast. Proven live on
+2026-07-13 against the production deployment (coordinator rotated to
+`0xBbBe5A990C8e0C9B174309d5e0E1f1C932F774E9`; grants in `contracts/EVIDENCE.md`).

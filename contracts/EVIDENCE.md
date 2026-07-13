@@ -244,14 +244,32 @@ state `eth_call` reads work on publicnode.
 address` fails fast if the loaded key doesn't derive to `GRIDIX_EXPECTED_COORDINATOR_ADDRESS`, so a
 wrong/rotated key can never sign against real escrow silently.
 
-**Write-path — NOT YET PROVEN. The production contracts are deployed but not proven operational.**
-Two facts block a real production `debit`/`settleBatch`, both confirmed on-chain:
-1. The production `COORDINATOR_ROLE` holder is `0xB54C…5532`, and **its private key is not held**
-   anywhere in this project — only the admin key `0x2dA408…` (`DEFAULT_ADMIN_ROLE`) is. A debit/
-   settle cannot be signed until either that key is supplied or `COORDINATOR_ROLE` is granted (by
-   the admin) to a key we do control.
-2. Our Circle-Sepolia-USDC balance is **0**, and the production token (`0x1c7D…7238`) is unmintable
-   — a real deposit→debit→settle needs testnet USDC funded from Circle's faucet.
+**Coordinator rotated to a key we control (2026-07-13).** The original production `COORDINATOR_ROLE`
+holder `0xB54C…5532` has **no private key anywhere in this project** — only the admin key
+`0x2dA408…` (`DEFAULT_ADMIN_ROLE`) is held. Per the `docs/VAULT.md` rotation flow, the admin granted
+`COORDINATOR_ROLE` to a freshly generated key we control, **`0xBbBe5A990C8e0C9B174309d5e0E1f1C932F774E9`**,
+on both production contracts:
 
-Until a `debit` and a `settleBatch` confirm on the production contracts (tx hashes recorded here),
-they remain **deployed but unproven** — a developer deposit today could not be debited by anyone.
+| Grant | Tx | Block |
+|---|---|---|
+| escrow `grantRole(COORDINATOR_ROLE, 0xBbBe…774E9)` | `0x18f9fa8c…c7205a5a` | 11264809 |
+| staking `grantRole(COORDINATOR_ROLE, 0xBbBe…774E9)` | `0xa3862195…e24c682cba` | 11264810 |
+
+`hasRole(COORDINATOR_ROLE, 0xBbBe…774E9)` == true on both (verified on-chain). The old `0xB54C…5532`
+is **not yet revoked** — per the rotation procedure, revoke only after a funded `debit`/`settleBatch`
+proves the new key works; it is a dead key (no holder) meanwhile. Its private key lives in
+`contracts/.env` (gitignored, throwaway).
+
+**Coordinator wiring PROVEN live (`smoke/vault/verify_coordinator_wiring.py`).** The real startup path
+was run against a live Vault + the production addresses: `init_secrets` read the new coordinator key
+from Vault, `install_chain` built the production client fetching that key from the manager (never
+Settings/env), and `verify_coordinator_address` asserted the derived address ==
+`0xBbBe…774E9`. A wrong expected address fails fast ("refusing to start with the wrong key"). The
+private key appears in no log/output (grep-verified).
+
+**Funded write-path — STILL DEFERRED (by decision).** A real `debit` + `settleBatch` on the production
+contracts is not yet run: our Circle-Sepolia-USDC balance is **0** and the production token
+(`0x1c7D…7238`) is unmintable, so it needs testnet USDC from Circle's faucet. Until a `debit` and a
+`settleBatch` confirm on the production contracts (tx hashes to be recorded here), they are
+**operable but not yet proven operational** — the coordinator can now sign, but no debit/settle has
+been demonstrated end-to-end on the real deployment.
