@@ -25,6 +25,11 @@ from app.assignment import (
     recover_queued_jobs,
 )
 from app.canary import create_canary_job
+from app.chain.bootstrap import install_chain
+from app.chain.reconcile import Reconciler
+from app.chain.registry import get_chain_client
+from app.chain.settlement import SettlementEngine
+from app.chain.watcher import ChainWatcher
 from app.config import get_settings
 from app.db import get_sessionmaker
 from app.logging import configure_logging
@@ -129,12 +134,61 @@ async def _canary_loop(stop: asyncio.Event) -> None:
             logger.exception("canary injection failed")
 
 
+async def _chain_watcher_loop(stop: asyncio.Event) -> None:
+    """Ingest confirmed on-chain events (deposits/withdrawals mirror into the ledger)."""
+    settings = get_settings()
+    client = get_chain_client()
+    if client is None:
+        return
+    watcher = ChainWatcher(
+        client, get_sessionmaker(),
+        usdc_decimals=settings.usdc_decimals, confirmations=settings.chain_confirmations,
+    )
+    while not stop.is_set():
+        await watcher.tick()
+        await asyncio.sleep(settings.chain_poll_interval_seconds)
+
+
+async def _settlement_loop(stop: asyncio.Event) -> None:
+    """Recover in-flight settlements and push new aggregate batches on-chain (idempotent)."""
+    settings = get_settings()
+    client = get_chain_client()
+    if client is None:
+        return
+    engine = SettlementEngine(
+        client, get_sessionmaker(),
+        usdc_decimals=settings.usdc_decimals, confirmations=settings.chain_confirmations,
+        threshold_usdc=settings.settlement_threshold_usdc,
+        interval_seconds=settings.settlement_interval_seconds,
+    )
+    # Tick often enough to confirm/recover promptly; the batch trigger itself is
+    # threshold/interval-gated inside the engine, so frequent ticks don't over-settle.
+    while not stop.is_set():
+        await engine.tick()
+        await asyncio.sleep(settings.chain_poll_interval_seconds)
+
+
+async def _reconcile_loop(stop: asyncio.Event) -> None:
+    """Reconcile on-chain balances against the ledger; publish the divergence gauge."""
+    settings = get_settings()
+    client = get_chain_client()
+    if client is None:
+        return
+    reconciler = Reconciler(client, get_sessionmaker(), usdc_decimals=settings.usdc_decimals)
+    while not stop.is_set():
+        await reconciler.run()
+        await asyncio.sleep(settings.reconcile_interval_seconds)
+
+
 async def main() -> None:
     """Run the scheduler until SIGINT/SIGTERM."""
     configure_logging()
     settings = get_settings()
     # Fail fast if secrets are misconfigured — before doing any work.
     init_secrets(settings)
+    # Install the chain layer (no-op when disabled). The scheduler is the coordinator, so it
+    # also runs the watcher / settlement / reconciliation loops.
+    install_chain(settings)
     # Serve worker metrics (its own Prometheus scrape target).
     start_http_server(settings.scheduler_metrics_port)
     logger.info("GRIDIX scheduler starting (metrics on :{})", settings.scheduler_metrics_port)
@@ -146,8 +200,11 @@ async def main() -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop.set)
 
+    coros = [_assignment_loop(stop), _reaper_loop(stop), _canary_loop(stop)]
+    if settings.chain_enabled:
+        coros += [_chain_watcher_loop(stop), _settlement_loop(stop), _reconcile_loop(stop)]
     try:
-        await asyncio.gather(_assignment_loop(stop), _reaper_loop(stop), _canary_loop(stop))
+        await asyncio.gather(*coros)
     finally:
         await close_redis()
         logger.info("GRIDIX scheduler stopped")

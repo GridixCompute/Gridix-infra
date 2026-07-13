@@ -7,6 +7,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, Response, status
 from loguru import logger
 from sqlalchemy import select
 
+from app.chain.provider import as_usdc_provider
 from app.deps import DeveloperDep, SessionDep, SettingsDep
 from app.models import Job, JobAttempt, JobStatus, LedgerEntry
 from app.payments import get_payment_provider
@@ -69,6 +70,22 @@ async def submit_job(
             return existing
 
     escrow = escrow_estimate(body.resource_spec.model_dump(), body.timeout_seconds, settings)
+
+    # Submit gate (Session 13): if on-chain settlement is active, refuse a job the developer
+    # can't cover. available = min(ledger balance, on-chain escrow − outstanding holds), read
+    # from a short-TTL cache so this costs no RPC on the hot path. Fiat-only mode skips the gate.
+    provider = get_payment_provider()
+    usdc = as_usdc_provider(provider)
+    if usdc is not None and not await usdc.can_afford(session, developer, escrow):
+        available = await usdc.available_balance(session, developer)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"Insufficient balance: job needs {escrow} USDC escrow but only "
+                f"{available} USDC is available. Deposit more to GridixEscrow."
+            ),
+        )
+
     job = Job(
         developer_id=developer.id,
         status=JobStatus.queued,

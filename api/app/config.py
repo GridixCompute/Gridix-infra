@@ -1,5 +1,6 @@
 """Application configuration loaded from the environment via Pydantic Settings."""
 
+from decimal import Decimal
 from functools import lru_cache
 from typing import Literal
 
@@ -113,6 +114,35 @@ class Settings(BaseSettings):
     protocol_fee_bps: int = Field(default=250, ge=0, le=10_000)
     base_job_price: float = Field(default=1.0, ge=0.0)
     data_price_per_gb: float = Field(default=0.10, ge=0.0)
+
+    # ── On-chain settlement (Session 13) ──────────────────────────────────────────────
+    # The off-chain ledger stays the source of truth for per-job accounting; the chain layer
+    # only mirrors deposits and pushes *aggregate* settlements. All chain code is behind a
+    # ChainClient seam, so with chain_enabled=False (the default) nothing touches an RPC and
+    # the whole suite runs hermetically.
+    chain_enabled: bool = False
+    chain_rpc_url: str = ""
+    chain_id: int = Field(default=11155111)  # Sepolia
+    escrow_address: str = ""  # GridixEscrow
+    staking_address: str = ""  # GridixStaking
+    usdc_address: str = ""
+    usdc_decimals: int = Field(default=6, ge=0, le=36)
+    # Coordinator EOA private key (COORDINATOR_ROLE on both contracts). Read via secret_manager;
+    # never a safe default. Used to sign debit/settleBatch/depositSettlement.
+    coordinator_private_key: str = ""
+    # Confirmations to wait before treating a chain event/receipt as final (reorg guard).
+    chain_confirmations: int = Field(default=3, ge=1)
+    # Short TTL cache for on-chain balance reads so we don't RPC on every request.
+    chain_balance_cache_ttl_seconds: float = Field(default=5.0, ge=0.0)
+    # How often the watcher polls for new blocks/events.
+    chain_poll_interval_seconds: float = Field(default=5.0, gt=0.0)
+    # Settlement trigger: batch when unsettled provider earnings reach this total (USDC, whole
+    # units) OR when the scheduled interval elapses — whichever comes first. Threshold fills the
+    # batch for gas efficiency; the interval is a floor so small balances never wait forever.
+    settlement_threshold_usdc: Decimal = Field(default=Decimal("100"), ge=0)
+    settlement_interval_seconds: float = Field(default=3600.0, gt=0.0)
+    # How often to reconcile on-chain balances against the off-chain ledger.
+    reconcile_interval_seconds: float = Field(default=300.0, gt=0.0)
 
     # Hardening
     rate_limit_per_minute: int = Field(default=120, ge=1)

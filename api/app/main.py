@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from loguru import logger
 
+from app.chain.bootstrap import install_chain
 from app.config import get_settings
 from app.errors import install_error_handlers
 from app.logging import configure_logging
@@ -33,6 +34,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     # Fail fast if secrets are misconfigured — before serving a single request.
     init_secrets(settings)
+    # Install the on-chain payment provider so the submit gate reads on-chain balances
+    # (no-op when chain_enabled is false — the process stays fiat-only).
+    install_chain(settings)
     logger.info("GRIDIX API starting (env={})", settings.env)
     yield
     await close_redis()
