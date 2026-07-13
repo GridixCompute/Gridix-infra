@@ -79,3 +79,42 @@ if their effect was already applied, reversed with a compensating (append-only, 
 | `GRIDIX_RECONCILE_INTERVAL_SECONDS` | `300` | Reconciliation cadence. |
 
 Install the driver with the optional extra: `pip install '.[chain]'` (web3, lazy-imported).
+
+## Live Sepolia verification
+
+Beyond the hermetic FakeChain suite (`tests/test_session13_chain_settlement.py`), the layer is
+proven end-to-end against **live Sepolia** (chain id 11155111) at two levels. Both drivers reuse a
+throwaway MockUSDC exercise pair where the coordinator key holds `COORDINATOR_ROLE` (so the
+production contracts' role separation is untouched). Full tx tables + addresses live in
+[`contracts/EVIDENCE.md`](../contracts/EVIDENCE.md).
+
+**1. Raw client send-path** — `smoke/drive_settlement_sepolia.py` drives `Web3ChainClient`'s three
+coordinator write methods (signing, live-chain nonce, gas estimation, ABI encoding, receipt polling
+— the surface FakeChain can only fake):
+
+| Method | Tx | Block | Effect (raw USDC) |
+|---|---|---|---|
+| `send_debit` | `0x3aef1644…983787d6` | 11263687 | escrow.balanceOf(dev) −3e6 |
+| `send_deposit_settlement` | `0x33a8e98a…9b7fcdeada` | 11263711 | settlementPool +5e6 |
+| `send_settle_batch` | `0x48702c68…931fff06` | 11263716 | earnings(provider) +2e6 |
+
+**2. Full `SettlementEngine`** — `smoke/drive_settlement_engine_sepolia.py` runs the real engine
+(durable nonce reservation, `ChainSettlement`/`ProviderSettlement` rows, the
+record→broadcast→recover→confirm state machine, idempotency) over an on-disk SQLite DB against the
+live chain:
+
+| Kind | Reserved nonce | Tx | Block | Effect |
+|---|---|---|---|---|
+| `settle_batch` | 46 | `0x6f63d6aa…b96a3892` | 11263790 | earnings(provider) +2e6 |
+| `debit` | 47 (= settle+1) | `0xc8f6b231…8fb2e0e3` | 11263792 | escrow.balanceOf(dev) −3e6 |
+
+Three engine properties were confirmed live: **serialisation** (`_maybe_debit` skips while a tx is
+in-flight, so `settle_batch` confirms before the `debit` is recorded), **monotonic nonce
+reservation** across rows (debit = `settle_nonce + 1`, persisted before broadcast), and
+**idempotency** (a second `tick(force=True)` after confirmation found nothing new — no double-pay).
+
+**What stays FakeChain-only, by design.** The adversarial fault paths — crash between record and
+broadcast (recovery re-sends at the same nonce), a reverted `settleBatch` releasing its reservation,
+and a reorg rolling back an applied effect — cannot be forced on a public testnet on demand, so they
+remain covered by FakeChain's `fail_next_send` / `force_revert` / `reorg` hooks. The live runs prove
+the happy-path state machine against a real RPC; FakeChain proves it survives the failures.
