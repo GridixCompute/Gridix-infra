@@ -223,3 +223,35 @@ Three engine-specific properties observed live (not just the individual txs):
 Gas ~0.00015 ETH for the run. The engine's adversarial paths (crash-before-broadcast recovery,
 reverted-tx reservation release, reorg rollback) stay covered by FakeChain — those can't be forced
 on a real testnet on demand; this run proves the happy-path state machine against a real chain.
+
+---
+
+# PRODUCTION contracts (0xd930…/0x7208…) — operational status
+
+All the live proofs above use the throwaway MockUSDC **exercise pair**. The production deployment
+is a different set of addresses with a different role assignment, so it must be proven separately.
+
+**Read-only observation — PROVEN (2026-07-13).** `smoke/reconcile_prod_readonly.py` ran the real
+`ChainWatcher` + `Reconciler` against the production contracts (no tx, no funds touched): the
+watcher scanned production logs from the deploy block (11262619) to head with **zero financial
+events** (the deployment is pristine), and the reconciler read real on-chain balances for a seeded
+developer + provider and found **zero divergence** vs the off-chain ledger (`CHAIN_DIVERGENCE`
+gauge = 0). Operational note: publicnode gates `eth_getLogs` on old ranges behind a paid "archive"
+token — a catch-up scan needs an archive-capable RPC (used `https://sepolia.drpc.org`); current-
+state `eth_call` reads work on publicnode.
+
+**Startup safety — coordinator-key assertion added.** `app.chain.bootstrap.verify_coordinator_
+address` fails fast if the loaded key doesn't derive to `GRIDIX_EXPECTED_COORDINATOR_ADDRESS`, so a
+wrong/rotated key can never sign against real escrow silently.
+
+**Write-path — NOT YET PROVEN. The production contracts are deployed but not proven operational.**
+Two facts block a real production `debit`/`settleBatch`, both confirmed on-chain:
+1. The production `COORDINATOR_ROLE` holder is `0xB54C…5532`, and **its private key is not held**
+   anywhere in this project — only the admin key `0x2dA408…` (`DEFAULT_ADMIN_ROLE`) is. A debit/
+   settle cannot be signed until either that key is supplied or `COORDINATOR_ROLE` is granted (by
+   the admin) to a key we do control.
+2. Our Circle-Sepolia-USDC balance is **0**, and the production token (`0x1c7D…7238`) is unmintable
+   — a real deposit→debit→settle needs testnet USDC funded from Circle's faucet.
+
+Until a `debit` and a `settleBatch` confirm on the production contracts (tx hashes recorded here),
+they remain **deployed but unproven** — a developer deposit today could not be debited by anyone.
