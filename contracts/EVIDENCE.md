@@ -273,3 +273,27 @@ contracts is not yet run: our Circle-Sepolia-USDC balance is **0** and the produ
 `settleBatch` confirm on the production contracts (tx hashes to be recorded here), they are
 **operable but not yet proven operational** — the coordinator can now sign, but no debit/settle has
 been demonstrated end-to-end on the real deployment.
+
+**Vault->signing seam CLOSED (`smoke/vault/verify_vault_signs_writes.py`, 2026-07-13).** The last
+untested composition — a coordinator key fetched *from Vault* actually broadcasting a live tx — is
+now proven. Via the real startup path (`init_secrets` + `install_chain`), the key was read from
+Vault, the client built + address-asserted to `0xBbBe…774E9`, and THAT client signed a live
+`debit` + `settleBatch` on the exercise pair (MockUSDC we control; `COORDINATOR_ROLE` granted to
+`0xBbBe` there too):
+
+| Step | Signer | Tx | Block | Effect |
+|---|---|---|---|---|
+| debit | Vault key `0xBbBe` | `0xad142f63…061e1bce` | 11264781 | escrow(dev) 9e6 -> 7e6 |
+| settleBatch | Vault key `0xBbBe` | `0xa9cdc5d8…ffa2f9a6` | 11264782 | earnings(p) 6e6 -> 7e6 |
+
+Key never printed (grep-verified). The Vault path is proven end-to-end: **Vault -> key -> build
+client -> assert address -> sign -> funds move.** The only gap left for the *production* instances is
+Circle USDC; the mechanics are identical to this run.
+
+**Real production-code bug found by running (fixed).** This run surfaced a latent
+`Web3ChainClient._send` bug: it set `maxFeePerGas = eth_gasPrice` and a flat
+`maxPriorityFeePerGas = 1 gwei`. When Sepolia gas dips below 1 gwei, `maxPriorityFeePerGas >
+maxFeePerGas` and the node rejects the tx ("max priority fee higher than max fee") — invisible on
+mainnet (gas >> 1 gwei), fatal on a quiet testnet. Fixed: cap the tip at the current price and give
+maxFee headroom (`tip = min(1 gwei, gas_price)`, `maxFeePerGas = gas_price + tip`). Same fix applied
+to the standalone smoke drivers.
