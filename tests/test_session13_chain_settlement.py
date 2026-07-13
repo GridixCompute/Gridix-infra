@@ -338,3 +338,22 @@ async def test_no_job_lost_and_ledger_balanced_after_settlement(restore_provider
         earned = await account_balance(s, LedgerAccount.provider, pid)
     assert earned == Decimal("9")
     assert await fc.staking_earnings_of(pw) == 9 * USDC
+
+
+# ── coordinator-address assertion (Session 14: prod wiring guard) ─────────────────────────────
+def test_verify_coordinator_address_accepts_match_and_case_insensitive() -> None:
+    from app.chain.bootstrap import verify_coordinator_address
+
+    addr = "0xB54CE6FbB941E4b2A444E2E256149b6C21335532"
+    verify_coordinator_address(addr.lower(), addr)  # case-insensitive, must not raise
+    verify_coordinator_address(addr, "")  # empty expected → check skipped
+
+
+def test_verify_coordinator_address_rejects_wrong_key() -> None:
+    from app.chain.bootstrap import verify_coordinator_address
+
+    with pytest.raises(ValueError, match="refusing to start with the wrong key"):
+        verify_coordinator_address(
+            "0x2dA408cb2899351eC948b4A3Dd438caA9Ac213e8",  # admin key derives here
+            "0xB54CE6FbB941E4b2A444E2E256149b6C21335532",  # but this role holder is expected
+        )

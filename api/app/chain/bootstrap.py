@@ -57,5 +57,21 @@ def install_chain(settings: Settings) -> ChainClient | None:
         coordinator_private_key=key,
         log_window=settings.chain_log_window,
     )
+    verify_coordinator_address(client.coordinator_address, settings.expected_coordinator_address)
     logger.info("chain layer enabled (coordinator {})", client.coordinator_address)
     return install_chain_client(settings, client)
+
+
+def verify_coordinator_address(derived: str, expected: str) -> None:
+    """Fail fast if the coordinator key doesn't derive to the expected on-chain role holder.
+
+    ``expected`` is the address that actually holds COORDINATOR_ROLE on the deployed contracts. If
+    it's set and the loaded key derives to a different address, we are about to sign escrow debits
+    with the wrong (or a rotated-out) key — refuse to start rather than fail silently on-chain.
+    Both values are public addresses; no secret is logged. Empty ``expected`` skips the check.
+    """
+    if expected and derived.lower() != expected.lower():
+        raise ValueError(
+            f"coordinator key derives to {derived} but expected_coordinator_address is {expected} "
+            "— refusing to start with the wrong key"
+        )

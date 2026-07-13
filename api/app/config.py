@@ -147,6 +147,10 @@ class Settings(BaseSettings):
     # and let bootstrap fetch it on demand via the secret manager (it never lands in Settings).
     # Typed SecretStr so that even an accidental log/repr of Settings masks it ("**********").
     coordinator_private_key: SecretStr = SecretStr("")
+    # Expected address the coordinator key must derive to (the on-chain COORDINATOR_ROLE holder).
+    # When set, bootstrap asserts derived == expected at startup and FAILS FAST on mismatch, so a
+    # wrong/rotated key can never be used silently against real escrow. Public address, no secret.
+    expected_coordinator_address: str = ""
     # Confirmations to wait before treating a chain event/receipt as final (reorg guard).
     chain_confirmations: int = Field(default=3, ge=1)
     # Short TTL cache for on-chain balance reads so we don't RPC on every request.
