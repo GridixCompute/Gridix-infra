@@ -4,2870 +4,2870 @@
  */
 
 export interface paths {
-  "/health": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health
+         * @description Return 200 only when both Postgres and Redis are reachable, else 503.
+         */
+        get: operations["health_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Health
-     * @description Return 200 only when both Postgres and Redis are reachable, else 503.
-     */
-    get: operations["health_health_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/developers": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/developers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Developer
+         * @description Create a developer and return its API key exactly once.
+         */
+        post: operations["register_developer_developers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Register Developer
-     * @description Create a developer and return its API key exactly once.
-     */
-    post: operations["register_developer_developers_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/providers": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Provider
+         * @description Create a provider and return its API key exactly once.
+         */
+        post: operations["register_provider_providers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Register Provider
-     * @description Create a provider and return its API key exactly once.
-     */
-    post: operations["register_provider_providers_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/blobs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/blobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Blob
+         * @description Store an input blob and return its ref for use as a job's ``input_ref``.
+         */
+        post: operations["upload_blob_blobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Upload Blob
-     * @description Store an input blob and return its ref for use as a job's ``input_ref``.
-     */
-    post: operations["upload_blob_blobs_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/uploads": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Upload
+         * @description Begin a resumable upload.
+         */
+        post: operations["create_upload_uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Create Upload
-     * @description Begin a resumable upload.
-     */
-    post: operations["create_upload_uploads_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/uploads/{upload_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/uploads/{upload_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Upload
+         * @description Return the current offset (bytes received) so the client can resume.
+         */
+        get: operations["get_upload_uploads__upload_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Append Chunk
+         * @description Append a chunk at ``Upload-Offset``. A mismatched offset is a 409 (retry after GET).
+         */
+        patch: operations["append_chunk_uploads__upload_id__patch"];
+        trace?: never;
     };
-    /**
-     * Get Upload
-     * @description Return the current offset (bytes received) so the client can resume.
-     */
-    get: operations["get_upload_uploads__upload_id__get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /**
-     * Append Chunk
-     * @description Append a chunk at ``Upload-Offset``. A mismatched offset is a 409 (retry after GET).
-     */
-    patch: operations["append_chunk_uploads__upload_id__patch"];
-    trace?: never;
-  };
-  "/uploads/{upload_id}/complete": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/uploads/{upload_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Upload
+         * @description Assemble the staged chunks, verify the declared digest, and promote to a blob.
+         */
+        post: operations["complete_upload_uploads__upload_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Complete Upload
-     * @description Assemble the staged chunks, verify the declared digest, and promote to a blob.
-     */
-    post: operations["complete_upload_uploads__upload_id__complete_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/jobs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Jobs
+         * @description List the caller's own jobs, newest first.
+         */
+        get: operations["list_jobs_jobs_get"];
+        put?: never;
+        /**
+         * Submit Job
+         * @description Validate, escrow funds for, and enqueue a job.
+         *
+         *     The job lands in ``queued`` and its id goes on the queue; the scheduler (Session 3)
+         *     matches it to a provider. Worst-case cost is escrowed now and reconciled at
+         *     settlement. Re-submitting with the same ``Idempotency-Key`` returns the original job
+         *     instead of creating a duplicate.
+         */
+        post: operations["submit_job_jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * List Jobs
-     * @description List the caller's own jobs, newest first.
-     */
-    get: operations["list_jobs_jobs_get"];
-    put?: never;
-    /**
-     * Submit Job
-     * @description Validate, escrow funds for, and enqueue a job.
-     *
-     *     The job lands in ``queued`` and its id goes on the queue; the scheduler (Session 3)
-     *     matches it to a provider. Worst-case cost is escrowed now and reconciled at
-     *     settlement. Re-submitting with the same ``Idempotency-Key`` returns the original job
-     *     instead of creating a duplicate.
-     */
-    post: operations["submit_job_jobs_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/jobs/{job_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Job
+         * @description Read one of the caller's own jobs.
+         */
+        get: operations["get_job_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Job
-     * @description Read one of the caller's own jobs.
-     */
-    get: operations["get_job_jobs__job_id__get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/jobs/{job_id}/result": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/jobs/{job_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Result
+         * @description Stream the result blob of a completed job the caller owns.
+         */
+        get: operations["download_result_jobs__job_id__result_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Download Result
-     * @description Stream the result blob of a completed job the caller owns.
-     */
-    get: operations["download_result_jobs__job_id__result_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/jobs/{job_id}/audit": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/jobs/{job_id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Job Audit
+         * @description Return the full audit trail for a job: attempts and ledger movements.
+         */
+        get: operations["job_audit_jobs__job_id__audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Job Audit
-     * @description Return the full audit trail for a job: attempts and ledger movements.
-     */
-    get: operations["job_audit_jobs__job_id__audit_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/providers/me": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/providers/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Me
+         * @description Return the authenticated provider's current record.
+         */
+        get: operations["get_me_providers_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Me
+         * @description Partially update declared capabilities. Only provided fields change.
+         */
+        patch: operations["update_me_providers_me_patch"];
+        trace?: never;
     };
-    /**
-     * Get Me
-     * @description Return the authenticated provider's current record.
-     */
-    get: operations["get_me_providers_me_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /**
-     * Update Me
-     * @description Partially update declared capabilities. Only provided fields change.
-     */
-    patch: operations["update_me_providers_me_patch"];
-    trace?: never;
-  };
-  "/providers/me/bandwidth": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/providers/me/bandwidth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Bandwidth
+         * @description Return this provider's byte counters — lifetime and for the current session.
+         */
+        get: operations["my_bandwidth_providers_me_bandwidth_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * My Bandwidth
-     * @description Return this provider's byte counters — lifetime and for the current session.
-     */
-    get: operations["my_bandwidth_providers_me_bandwidth_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/providers/me/benchmark": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/providers/me/benchmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Benchmark
+         * @description Return the provider's latest benchmark report, or null if none submitted.
+         */
+        get: operations["my_benchmark_providers_me_benchmark_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * My Benchmark
-     * @description Return the provider's latest benchmark report, or null if none submitted.
-     */
-    get: operations["my_benchmark_providers_me_benchmark_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/providers/me/trust": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/providers/me/trust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Trust
+         * @description Report the provider's trust source (Session 11.3): attested / benchmark / self_report.
+         */
+        get: operations["my_trust_providers_me_trust_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * My Trust
-     * @description Report the provider's trust source (Session 11.3): attested / benchmark / self_report.
-     */
-    get: operations["my_trust_providers_me_trust_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/poll": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/poll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Poll
+         * @description Long-poll for work: return immediately if a job is assigned, else hold the
+         *     connection open up to ``poll_hold_seconds`` before returning empty.
+         *
+         *     Holding the request open keeps the control channel warm across idle periods while
+         *     still surfacing new work within a poll tick of it being assigned.
+         */
+        post: operations["poll_agent_poll_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Poll
-     * @description Long-poll for work: return immediately if a job is assigned, else hold the
-     *     connection open up to ``poll_hold_seconds`` before returning empty.
-     *
-     *     Holding the request open keeps the control channel warm across idle periods while
-     *     still surfacing new work within a poll tick of it being assigned.
-     */
-    post: operations["poll_agent_poll_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/ping": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/ping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ping
+         * @description Idle keepalive: refresh presence so the coordinator knows the agent is alive.
+         */
+        post: operations["ping_agent_ping_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Ping
-     * @description Idle keepalive: refresh presence so the coordinator knows the agent is alive.
-     */
-    post: operations["ping_agent_ping_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/path": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/path": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report Path
+         * @description Negotiate the reachability path from the agent's NAT report.
+         *
+         *     A direct P2P path is chosen when the NAT topology allows it (open / restricted cone);
+         *     a symmetric NAT can't be punched, so the session uses the relay. The choice is
+         *     recorded on the provider and logged. Actual hole punching happens out of band; a
+         *     direct send that fails still falls back to relay transparently (ProviderChannel).
+         */
+        post: operations["report_path_agent_path_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Report Path
-     * @description Negotiate the reachability path from the agent's NAT report.
-     *
-     *     A direct P2P path is chosen when the NAT topology allows it (open / restricted cone);
-     *     a symmetric NAT can't be punched, so the session uses the relay. The choice is
-     *     recorded on the provider and logged. Actual hole punching happens out of band; a
-     *     direct send that fails still falls back to relay transparently (ProviderChannel).
-     */
-    post: operations["report_path_agent_path_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/cache": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/cache": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report Cache
+         * @description Sync the provider's cached artifact digests (Session 8.5 locality hint).
+         *
+         *     Replaces the recorded set so it tracks the agent's LRU cache; the scheduler then
+         *     soft-prefers this provider for jobs whose input it already holds.
+         */
+        post: operations["report_cache_agent_cache_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Report Cache
-     * @description Sync the provider's cached artifact digests (Session 8.5 locality hint).
-     *
-     *     Replaces the recorded set so it tracks the agent's LRU cache; the scheduler then
-     *     soft-prefers this provider for jobs whose input it already holds.
-     */
-    post: operations["report_cache_agent_cache_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/artifacts/{digest}/peers": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/artifacts/{digest}/peers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Artifact Peers
+         * @description Return where to fetch an artifact from (Session 8.7). Origin unless peer
+         *     distribution is enabled and another provider already seeds the digest.
+         */
+        get: operations["artifact_peers_agent_artifacts__digest__peers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Artifact Peers
-     * @description Return where to fetch an artifact from (Session 8.7). Origin unless peer
-     *     distribution is enabled and another provider already seeds the digest.
-     */
-    get: operations["artifact_peers_agent_artifacts__digest__peers_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/heartbeat": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Heartbeat
+         * @description Extend the lease on an in-flight job so the reaper does not reclaim it.
+         */
+        post: operations["heartbeat_agent_heartbeat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Heartbeat
-     * @description Extend the lease on an in-flight job so the reaper does not reclaim it.
-     */
-    post: operations["heartbeat_agent_heartbeat_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/jobs/{job_id}/status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/jobs/{job_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report Status
+         * @description Agent reports it has begun executing: ``assigned → running``.
+         *
+         *     For a redundant job the first provider to report moves the job to ``running``; the
+         *     others find it already there and only advance their own attempt — the per-attempt state
+         *     is what matters, the job status is shared.
+         */
+        post: operations["report_status_agent_jobs__job_id__status_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Report Status
-     * @description Agent reports it has begun executing: ``assigned → running``.
-     *
-     *     For a redundant job the first provider to report moves the job to ``running``; the
-     *     others find it already there and only advance their own attempt — the per-attempt state
-     *     is what matters, the job status is shared.
-     */
-    post: operations["report_status_agent_jobs__job_id__status_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/benchmark": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/benchmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Benchmark
+         * @description Store a signed onboarding benchmark and validate it against declared hardware.
+         *
+         *     The report is attributed to the authenticated provider; validation (Session 11.2)
+         *     catches a machine claiming hardware it can't benchmark to.
+         */
+        post: operations["submit_benchmark_agent_benchmark_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Submit Benchmark
-     * @description Store a signed onboarding benchmark and validate it against declared hardware.
-     *
-     *     The report is attributed to the authenticated provider; validation (Session 11.2)
-     *     catches a machine claiming hardware it can't benchmark to.
-     */
-    post: operations["submit_benchmark_agent_benchmark_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/health": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report Health
+         * @description Ingest a telemetry sample and flag the provider degraded if a signal crosses a
+         *     threshold (Session 11.4). Recovery telemetry clears the flag.
+         */
+        post: operations["report_health_agent_health_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Report Health
-     * @description Ingest a telemetry sample and flag the provider degraded if a signal crosses a
-     *     threshold (Session 11.4). Recovery telemetry clears the flag.
-     */
-    post: operations["report_health_agent_health_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/attest": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/attest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Attestation
+         * @description Verify a TEE attestation quote and set the provider's attested flag (Session 9.5).
+         *
+         *     A valid quote grants ``tee_attested`` (enabling confidential-tee assignment and key
+         *     release); a tampered or absent quote clears it and is rejected (400).
+         */
+        post: operations["submit_attestation_agent_attest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Submit Attestation
-     * @description Verify a TEE attestation quote and set the provider's attested flag (Session 9.5).
-     *
-     *     A valid quote grants ``tee_attested`` (enabling confidential-tee assignment and key
-     *     release); a tampered or absent quote clears it and is rejected (400).
-     */
-    post: operations["submit_attestation_agent_attest_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/jobs/{job_id}/key": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/jobs/{job_id}/key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Job Key
+         * @description Release the job's data key to its assigned agent (Session 9.3).
+         *
+         *     Only the provider the job is assigned to receives it, and only while the job is in
+         *     flight — the key is job-scoped and expires with the job.
+         */
+        get: operations["get_job_key_agent_jobs__job_id__key_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Job Key
-     * @description Release the job's data key to its assigned agent (Session 9.3).
-     *
-     *     Only the provider the job is assigned to receives it, and only while the job is in
-     *     flight — the key is job-scoped and expires with the job.
-     */
-    get: operations["get_job_key_agent_jobs__job_id__key_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/jobs/{job_id}/secrets": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/jobs/{job_id}/secrets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Job Secrets
+         * @description Mint short-lived, job-scoped secrets for the assigned agent (Session 9.6).
+         *
+         *     Values are never persisted and never logged (only their names); they expire on their
+         *     own and are unavailable once the job ends.
+         */
+        get: operations["get_job_secrets_agent_jobs__job_id__secrets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Job Secrets
-     * @description Mint short-lived, job-scoped secrets for the assigned agent (Session 9.6).
-     *
-     *     Values are never persisted and never logged (only their names); they expire on their
-     *     own and are unavailable once the job ends.
-     */
-    get: operations["get_job_secrets_agent_jobs__job_id__secrets_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/jobs/{job_id}/input": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/jobs/{job_id}/input": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Input
+         * @description Stream the input blob for a job assigned to this provider.
+         */
+        get: operations["download_input_agent_jobs__job_id__input_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Download Input
-     * @description Stream the input blob for a job assigned to this provider.
-     */
-    get: operations["download_input_agent_jobs__job_id__input_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/blobs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/blobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Result Blob
+         * @description Store a result blob and return its (content-addressed) ref for the result call.
+         */
+        post: operations["upload_result_blob_agent_blobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Upload Result Blob
-     * @description Store a result blob and return its (content-addressed) ref for the result call.
-     */
-    post: operations["upload_result_blob_agent_blobs_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/agent/jobs/{job_id}/result": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/agent/jobs/{job_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Result
+         * @description Accept a result + proof and move the job to its terminal state.
+         *
+         *     The result is verified (proof, exit/timeout, canary match) and, once enough attempts
+         *     are in, the job finalizes by quorum — settling the winner and slashing cheats.
+         */
+        post: operations["submit_result_agent_jobs__job_id__result_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Submit Result
-     * @description Accept a result + proof and move the job to its terminal state.
-     *
-     *     The result is verified (proof, exit/timeout, canary match) and, once enough attempts
-     *     are in, the job finalizes by quorum — settling the winner and slashing cheats.
-     */
-    post: operations["submit_result_agent_jobs__job_id__result_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/disputes/me": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/disputes/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Disputes
+         * @description List the calling provider's disputes, newest first.
+         */
+        get: operations["my_disputes_disputes_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * My Disputes
-     * @description List the calling provider's disputes, newest first.
-     */
-    get: operations["my_disputes_disputes_me_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/disputes/review-queue": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/disputes/review-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review Queue
+         * @description Operator view: disputes awaiting manual adjudication, oldest first (10.4).
+         *
+         *     Declared before ``/disputes/{dispute_id}`` so the literal path isn't captured as an id.
+         */
+        get: operations["review_queue_disputes_review_queue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Review Queue
-     * @description Operator view: disputes awaiting manual adjudication, oldest first (10.4).
-     *
-     *     Declared before ``/disputes/{dispute_id}`` so the literal path isn't captured as an id.
-     */
-    get: operations["review_queue_disputes_review_queue_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/disputes/{dispute_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/disputes/{dispute_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dispute
+         * @description Return one of the provider's disputes with the full evidence that triggered it.
+         */
+        get: operations["get_dispute_disputes__dispute_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Dispute
-     * @description Return one of the provider's disputes with the full evidence that triggered it.
-     */
-    get: operations["get_dispute_disputes__dispute_id__get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/disputes/{dispute_id}/contest": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/disputes/{dispute_id}/contest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Contest
+         * @description Contest an open slash within its window → moves it to review.
+         */
+        post: operations["contest_disputes__dispute_id__contest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Contest
-     * @description Contest an open slash within its window → moves it to review.
-     */
-    post: operations["contest_disputes__dispute_id__contest_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/disputes/{dispute_id}/rule": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/disputes/{dispute_id}/rule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rule On Dispute
+         * @description Operator records a ruling on an under-review dispute, with an audit-logged reason.
+         */
+        post: operations["rule_on_dispute_disputes__dispute_id__rule_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Rule On Dispute
-     * @description Operator records a ruling on an under-review dispute, with an audit-logged reason.
-     */
-    post: operations["rule_on_dispute_disputes__dispute_id__rule_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/jobs/{job_id}/endpoint": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/jobs/{job_id}/endpoint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Endpoint
+         * @description Return the routed URL + capability token for an endpoint job the caller owns.
+         */
+        get: operations["get_endpoint_jobs__job_id__endpoint_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Endpoint
-     * @description Return the routed URL + capability token for an endpoint job the caller owns.
-     */
-    get: operations["get_endpoint_jobs__job_id__endpoint_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/metrics": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Metrics
+         * @description Expose current metrics in Prometheus text format.
+         */
+        get: operations["metrics_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Metrics
-     * @description Expose current metrics in Prometheus text format.
-     */
-    get: operations["metrics_metrics_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-  schemas: {
-    /**
-     * Ack
-     * @description Generic acknowledgement with the resulting job status.
-     */
-    Ack: {
-      /**
-       * Job Id
-       * Format: uuid
-       */
-      job_id: string;
-      status: components["schemas"]["JobStatus"];
+    schemas: {
+        /**
+         * Ack
+         * @description Generic acknowledgement with the resulting job status.
+         */
+        Ack: {
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            status: components["schemas"]["JobStatus"];
+        };
+        /**
+         * AgentJob
+         * @description Everything an agent needs to run one assigned job.
+         */
+        AgentJob: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Image Ref */
+            image_ref: string;
+            /** Input Ref */
+            input_ref: string | null;
+            /** Resource Spec */
+            resource_spec: {
+                [key: string]: unknown;
+            };
+            /** Args */
+            args: {
+                [key: string]: unknown;
+            } | null;
+            /** Allow Egress */
+            allow_egress: boolean;
+            /** Timeout Seconds */
+            timeout_seconds: number;
+            /** Exposed Port */
+            exposed_port: number | null;
+            /** Lease Expires At */
+            lease_expires_at: string | null;
+        };
+        /**
+         * AgentPathReport
+         * @description Agent reports its NAT classification + candidates so the coordinator can decide
+         *     whether a direct path is possible or the relay must be used.
+         */
+        AgentPathReport: {
+            /**
+             * Nat Type
+             * @enum {string}
+             */
+            nat_type: "open" | "restricted" | "symmetric";
+            /** Candidates */
+            candidates?: components["schemas"]["IceCandidate"][];
+        };
+        /**
+         * AgentPollResponse
+         * @description Poll result — a job to run, or ``job=null`` when the queue for this provider is
+         *     empty.
+         */
+        AgentPollResponse: {
+            job?: components["schemas"]["AgentJob"] | null;
+        };
+        /**
+         * AgentResultRequest
+         * @description Agent submits a terminal result (Session 4).
+         */
+        AgentResultRequest: {
+            /** Result Ref */
+            result_ref?: string | null;
+            /** Exit Code */
+            exit_code: number;
+            /** Proof */
+            proof: {
+                [key: string]: unknown;
+            };
+            /**
+             * Timed Out
+             * @default false
+             */
+            timed_out: boolean;
+        };
+        /**
+         * AgentStatusRequest
+         * @description Agent reports it has started executing (``running``).
+         */
+        AgentStatusRequest: {
+            /**
+             * Status
+             * @constant
+             */
+            status: "running";
+        };
+        /**
+         * AttemptRecord
+         * @description One execution attempt in a job's audit trail.
+         */
+        AttemptRecord: {
+            /** Provider Id */
+            provider_id: string | null;
+            /** Attempt Number */
+            attempt_number: number;
+            /** Outcome */
+            outcome: string;
+            /** Result Ref */
+            result_ref: string | null;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+        };
+        /**
+         * AttestationQuote
+         * @description A TEE attestation quote submitted by the agent (Session 9.5).
+         */
+        AttestationQuote: {
+            /** Measurement */
+            measurement: string;
+            /** Signature */
+            signature: string;
+        };
+        /**
+         * AttestationResult
+         * @description Whether the submitted attestation was accepted.
+         */
+        AttestationResult: {
+            /** Attested */
+            attested: boolean;
+        };
+        /**
+         * BandwidthResponse
+         * @description Per-provider byte counters, lifetime and for the current session (Session 7.7).
+         */
+        BandwidthResponse: {
+            /** Ingress Bytes */
+            ingress_bytes: number;
+            /** Egress Bytes */
+            egress_bytes: number;
+            /** Total Bytes */
+            total_bytes: number;
+            /** Session Ingress Bytes */
+            session_ingress_bytes: number;
+            /** Session Egress Bytes */
+            session_egress_bytes: number;
+        };
+        /**
+         * BenchmarkResponse
+         * @description A stored benchmark report.
+         */
+        BenchmarkResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Provider Id
+             * Format: uuid
+             */
+            provider_id: string;
+            /** Metrics */
+            metrics: {
+                [key: string]: unknown;
+            };
+            /** Signature */
+            signature: string;
+            /** Validated */
+            validated: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * BenchmarkSubmit
+         * @description A signed benchmark report submitted at onboarding (Session 11.1).
+         */
+        BenchmarkSubmit: {
+            /** Metrics */
+            metrics: {
+                [key: string]: unknown;
+            };
+            /** Signature */
+            signature: string;
+        };
+        /**
+         * BlobRef
+         * @description A stored blob's content-addressed ref and size.
+         */
+        BlobRef: {
+            /** Ref */
+            ref: string;
+            /** Size */
+            size: number;
+        };
+        /** Body_upload_blob_blobs_post */
+        Body_upload_blob_blobs_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_upload_result_blob_agent_blobs_post */
+        Body_upload_result_blob_agent_blobs_post: {
+            /** File */
+            file: string;
+        };
+        /**
+         * CacheReport
+         * @description Agent reports the digests it currently has cached (Session 8.5).
+         */
+        CacheReport: {
+            /** Cached */
+            cached?: string[];
+        };
+        /**
+         * DataKeyResponse
+         * @description The brokered per-job data key released to the assigned agent (Session 9.3).
+         */
+        DataKeyResponse: {
+            /** Data Key */
+            data_key: string;
+        };
+        /**
+         * DisputeResponse
+         * @description A slash dispute with its reproducible evidence.
+         */
+        DisputeResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Provider Id
+             * Format: uuid
+             */
+            provider_id: string;
+            /** Job Id */
+            job_id: string | null;
+            /** Amount */
+            amount: number;
+            /** State */
+            state: string;
+            /** Reason */
+            reason: string;
+            /** Evidence */
+            evidence: {
+                [key: string]: unknown;
+            } | null;
+            /** Evidence Hash */
+            evidence_hash: string | null;
+            /** Ruling Reason */
+            ruling_reason: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Resolved At */
+            resolved_at: string | null;
+        };
+        /**
+         * DisputeRuling
+         * @description An operator's manual decision on a dispute (Session 10.4).
+         */
+        DisputeRuling: {
+            /** Upheld */
+            upheld: boolean;
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * EndpointInfo
+         * @description The coordinator-issued routed URL + capability token for an endpoint job.
+         */
+        EndpointInfo: {
+            /** Url */
+            url: string;
+            /** Token */
+            token: string;
+            /** Port */
+            port: number;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HealthReport
+         * @description Telemetry an agent reports periodically (Session 11.4).
+         */
+        HealthReport: {
+            /** Gpu Temp C */
+            gpu_temp_c?: number | null;
+            /**
+             * Throttling
+             * @default false
+             */
+            throttling: boolean;
+            /**
+             * Error Rate
+             * @default 0
+             */
+            error_rate: number;
+            /** Latency Ms */
+            latency_ms?: number | null;
+        };
+        /**
+         * HealthResponse
+         * @description Result of the liveness/readiness probe.
+         */
+        HealthResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "degraded";
+            /** Database */
+            database: boolean;
+            /** Redis */
+            redis: boolean;
+        };
+        /**
+         * HealthResult
+         * @description The evaluated health verdict for a reported sample.
+         */
+        HealthResult: {
+            /** Degraded */
+            degraded: boolean;
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * HeartbeatRequest
+         * @description Extend the lease on an in-flight job.
+         */
+        HeartbeatRequest: {
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+        };
+        /**
+         * HeartbeatResponse
+         * @description The renewed lease deadline.
+         */
+        HeartbeatResponse: {
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /**
+             * Lease Expires At
+             * Format: date-time
+             */
+            lease_expires_at: string;
+        };
+        /**
+         * IceCandidate
+         * @description A single ICE-style connectivity candidate advertised by the agent.
+         */
+        IceCandidate: {
+            /** Address */
+            address: string;
+            /** Port */
+            port: number;
+            /**
+             * Kind
+             * @default host
+             * @enum {string}
+             */
+            kind: "host" | "srflx" | "relay";
+        };
+        /**
+         * JobArgs
+         * @description Optional container overrides for the job.
+         */
+        JobArgs: {
+            /** Command */
+            command?: string[] | null;
+            /** Env */
+            env?: {
+                [key: string]: string;
+            } | null;
+        };
+        /**
+         * JobAudit
+         * @description The full audit trail for one job: lifecycle, attempts, and money movements.
+         */
+        JobAudit: {
+            job: components["schemas"]["JobResponse"];
+            /** Attempts */
+            attempts: components["schemas"]["AttemptRecord"][];
+            /** Ledger */
+            ledger: components["schemas"]["LedgerRecord"][];
+        };
+        /**
+         * JobKind
+         * @description Job classification. Canaries are indistinguishable from real work to providers.
+         * @enum {string}
+         */
+        JobKind: "standard" | "canary";
+        /**
+         * JobResponse
+         * @description A job as seen by its developer.
+         */
+        JobResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Developer Id
+             * Format: uuid
+             */
+            developer_id: string;
+            kind: components["schemas"]["JobKind"];
+            status: components["schemas"]["JobStatus"];
+            /** Image Ref */
+            image_ref: string;
+            /** Input Ref */
+            input_ref: string | null;
+            /** Result Ref */
+            result_ref: string | null;
+            /** Resource Spec */
+            resource_spec: {
+                [key: string]: unknown;
+            };
+            /** Allow Egress */
+            allow_egress: boolean;
+            /** Timeout Seconds */
+            timeout_seconds: number;
+            /** Is High Value */
+            is_high_value: boolean;
+            /** Redundancy */
+            redundancy: number;
+            /** Exposed Port */
+            exposed_port: number | null;
+            /** Data Tier */
+            data_tier: string;
+            /** Assigned Provider Id */
+            assigned_provider_id: string | null;
+            /** Attempt Count */
+            attempt_count: number;
+            /** Lease Expires At */
+            lease_expires_at: string | null;
+            /** Escrow Amount */
+            escrow_amount: number | null;
+            /** Cost Final */
+            cost_final: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * JobSecretsResponse
+         * @description Short-lived, job-scoped secrets injected into the container (Session 9.6).
+         */
+        JobSecretsResponse: {
+            /** Secrets */
+            secrets: {
+                [key: string]: string;
+            };
+            /** Expires At */
+            expires_at: number;
+        };
+        /**
+         * JobStatus
+         * @description States in the job lifecycle. Transitions are enforced by ``app.state_machine``.
+         * @enum {string}
+         */
+        JobStatus: "queued" | "assigned" | "running" | "completed" | "failed" | "timeout";
+        /**
+         * LedgerRecord
+         * @description One ledger row in a job's audit trail.
+         */
+        LedgerRecord: {
+            /** Account */
+            account: string;
+            /** Account Ref */
+            account_ref: string | null;
+            /** Direction */
+            direction: string;
+            /** Amount */
+            amount: number;
+            /** Reason */
+            reason: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * PathResponse
+         * @description The negotiated path for the provider's current session.
+         */
+        PathResponse: {
+            /**
+             * Path Type
+             * @enum {string}
+             */
+            path_type: "direct" | "relay";
+        };
+        /**
+         * PeerFetchPlan
+         * @description Where a provider should fetch an artifact from (Session 8.7).
+         */
+        PeerFetchPlan: {
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "origin" | "peer";
+            /** Provider Id */
+            provider_id?: string | null;
+            /** Seeders */
+            seeders?: string[];
+        };
+        /**
+         * PingResponse
+         * @description Presence status returned to an agent keepalive (Session 7.1).
+         */
+        PingResponse: {
+            /** Connected */
+            connected: boolean;
+            /** Connected At */
+            connected_at: string | null;
+            /** Last Seen */
+            last_seen: string | null;
+        };
+        /**
+         * ProviderCapabilities
+         * @description Capabilities a provider declares. All fields optional on PATCH (partial update).
+         */
+        ProviderCapabilities: {
+            /** Region */
+            region?: string | null;
+            /** Gpu Model */
+            gpu_model?: string | null;
+            /** Gpu Vram Mb */
+            gpu_vram_mb?: number | null;
+            /** Cpu Cores */
+            cpu_cores?: number | null;
+            /** Memory Mb */
+            memory_mb?: number | null;
+            /** Max Concurrent */
+            max_concurrent?: number | null;
+        };
+        /**
+         * ProviderResponse
+         * @description A provider's own view of itself.
+         */
+        ProviderResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Region */
+            region: string | null;
+            /** Gpu Model */
+            gpu_model: string | null;
+            /** Gpu Vram Mb */
+            gpu_vram_mb: number;
+            /** Cpu Cores */
+            cpu_cores: number;
+            /** Memory Mb */
+            memory_mb: number;
+            /** Max Concurrent */
+            max_concurrent: number;
+            /** Reputation */
+            reputation: number;
+            /** Enabled */
+            enabled: boolean;
+            /** Degraded */
+            degraded: boolean;
+            /** Connected At */
+            connected_at: string | null;
+            /** Last Seen */
+            last_seen: string | null;
+            /** Path Type */
+            path_type: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * RegisterDeveloperRequest
+         * @description Register a new developer account.
+         */
+        RegisterDeveloperRequest: {
+            /** Name */
+            name: string;
+        };
+        /**
+         * RegisterProviderRequest
+         * @description Register a new provider account.
+         */
+        RegisterProviderRequest: {
+            /** Name */
+            name: string;
+            /** Region */
+            region?: string | null;
+        };
+        /**
+         * RegisteredPrincipal
+         * @description Response to a successful registration. ``api_key`` is returned exactly once.
+         */
+        RegisteredPrincipal: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Api Key
+             * @description Store this now — it is never shown again.
+             */
+            api_key: string;
+        };
+        /**
+         * ResourceSpec
+         * @description Hardware a job needs. The scheduler matches these against provider capabilities.
+         */
+        ResourceSpec: {
+            /**
+             * Cpu Cores
+             * @default 1
+             */
+            cpu_cores: number;
+            /**
+             * Memory Mb
+             * @default 512
+             */
+            memory_mb: number;
+            /**
+             * Gpu
+             * @default false
+             */
+            gpu: boolean;
+            /**
+             * Gpu Vram Mb
+             * @default 0
+             */
+            gpu_vram_mb: number;
+        };
+        /**
+         * SubmitJobRequest
+         * @description Submit a job for execution.
+         */
+        SubmitJobRequest: {
+            /** Image Ref */
+            image_ref: string;
+            /** Input Ref */
+            input_ref?: string | null;
+            resource_spec?: components["schemas"]["ResourceSpec"];
+            args?: components["schemas"]["JobArgs"] | null;
+            /**
+             * Allow Egress
+             * @default false
+             */
+            allow_egress: boolean;
+            /**
+             * Timeout Seconds
+             * @default 300
+             */
+            timeout_seconds: number;
+            /**
+             * Is High Value
+             * @default false
+             */
+            is_high_value: boolean;
+            /**
+             * Redundancy
+             * @default 1
+             */
+            redundancy: number;
+            /** Exposed Port */
+            exposed_port?: number | null;
+            /**
+             * Data Tier
+             * @default public
+             * @enum {string}
+             */
+            data_tier: "public" | "encrypted_at_rest" | "confidential_tee";
+            /** Wrapped Key */
+            wrapped_key?: string | null;
+        };
+        /**
+         * UploadCreateRequest
+         * @description Start a resumable upload, optionally declaring the final sha256 for verification.
+         */
+        UploadCreateRequest: {
+            /** Digest */
+            digest?: string | null;
+        };
+        /**
+         * UploadSessionResponse
+         * @description An upload session's state, including bytes received (the resume offset).
+         */
+        UploadSessionResponse: {
+            /**
+             * Upload Id
+             * Format: uuid
+             */
+            upload_id: string;
+            /** Received */
+            received: number;
+            /** Blob Ref */
+            blob_ref?: string | null;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
+        };
     };
-    /**
-     * AgentJob
-     * @description Everything an agent needs to run one assigned job.
-     */
-    AgentJob: {
-      /**
-       * Id
-       * Format: uuid
-       */
-      id: string;
-      /** Image Ref */
-      image_ref: string;
-      /** Input Ref */
-      input_ref: string | null;
-      /** Resource Spec */
-      resource_spec: {
-        [key: string]: unknown;
-      };
-      /** Args */
-      args: {
-        [key: string]: unknown;
-      } | null;
-      /** Allow Egress */
-      allow_egress: boolean;
-      /** Timeout Seconds */
-      timeout_seconds: number;
-      /** Exposed Port */
-      exposed_port: number | null;
-      /** Lease Expires At */
-      lease_expires_at: string | null;
-    };
-    /**
-     * AgentPathReport
-     * @description Agent reports its NAT classification + candidates so the coordinator can decide
-     *     whether a direct path is possible or the relay must be used.
-     */
-    AgentPathReport: {
-      /**
-       * Nat Type
-       * @enum {string}
-       */
-      nat_type: "open" | "restricted" | "symmetric";
-      /** Candidates */
-      candidates?: components["schemas"]["IceCandidate"][];
-    };
-    /**
-     * AgentPollResponse
-     * @description Poll result — a job to run, or ``job=null`` when the queue for this provider is
-     *     empty.
-     */
-    AgentPollResponse: {
-      job?: components["schemas"]["AgentJob"] | null;
-    };
-    /**
-     * AgentResultRequest
-     * @description Agent submits a terminal result (Session 4).
-     */
-    AgentResultRequest: {
-      /** Result Ref */
-      result_ref?: string | null;
-      /** Exit Code */
-      exit_code: number;
-      /** Proof */
-      proof: {
-        [key: string]: unknown;
-      };
-      /**
-       * Timed Out
-       * @default false
-       */
-      timed_out: boolean;
-    };
-    /**
-     * AgentStatusRequest
-     * @description Agent reports it has started executing (``running``).
-     */
-    AgentStatusRequest: {
-      /**
-       * Status
-       * @constant
-       */
-      status: "running";
-    };
-    /**
-     * AttemptRecord
-     * @description One execution attempt in a job's audit trail.
-     */
-    AttemptRecord: {
-      /** Provider Id */
-      provider_id: string | null;
-      /** Attempt Number */
-      attempt_number: number;
-      /** Outcome */
-      outcome: string;
-      /** Result Ref */
-      result_ref: string | null;
-      /** Started At */
-      started_at: string | null;
-      /** Finished At */
-      finished_at: string | null;
-    };
-    /**
-     * AttestationQuote
-     * @description A TEE attestation quote submitted by the agent (Session 9.5).
-     */
-    AttestationQuote: {
-      /** Measurement */
-      measurement: string;
-      /** Signature */
-      signature: string;
-    };
-    /**
-     * AttestationResult
-     * @description Whether the submitted attestation was accepted.
-     */
-    AttestationResult: {
-      /** Attested */
-      attested: boolean;
-    };
-    /**
-     * BandwidthResponse
-     * @description Per-provider byte counters, lifetime and for the current session (Session 7.7).
-     */
-    BandwidthResponse: {
-      /** Ingress Bytes */
-      ingress_bytes: number;
-      /** Egress Bytes */
-      egress_bytes: number;
-      /** Total Bytes */
-      total_bytes: number;
-      /** Session Ingress Bytes */
-      session_ingress_bytes: number;
-      /** Session Egress Bytes */
-      session_egress_bytes: number;
-    };
-    /**
-     * BenchmarkResponse
-     * @description A stored benchmark report.
-     */
-    BenchmarkResponse: {
-      /**
-       * Id
-       * Format: uuid
-       */
-      id: string;
-      /**
-       * Provider Id
-       * Format: uuid
-       */
-      provider_id: string;
-      /** Metrics */
-      metrics: {
-        [key: string]: unknown;
-      };
-      /** Signature */
-      signature: string;
-      /** Validated */
-      validated: boolean;
-      /**
-       * Created At
-       * Format: date-time
-       */
-      created_at: string;
-    };
-    /**
-     * BenchmarkSubmit
-     * @description A signed benchmark report submitted at onboarding (Session 11.1).
-     */
-    BenchmarkSubmit: {
-      /** Metrics */
-      metrics: {
-        [key: string]: unknown;
-      };
-      /** Signature */
-      signature: string;
-    };
-    /**
-     * BlobRef
-     * @description A stored blob's content-addressed ref and size.
-     */
-    BlobRef: {
-      /** Ref */
-      ref: string;
-      /** Size */
-      size: number;
-    };
-    /** Body_upload_blob_blobs_post */
-    Body_upload_blob_blobs_post: {
-      /** File */
-      file: string;
-    };
-    /** Body_upload_result_blob_agent_blobs_post */
-    Body_upload_result_blob_agent_blobs_post: {
-      /** File */
-      file: string;
-    };
-    /**
-     * CacheReport
-     * @description Agent reports the digests it currently has cached (Session 8.5).
-     */
-    CacheReport: {
-      /** Cached */
-      cached?: string[];
-    };
-    /**
-     * DataKeyResponse
-     * @description The brokered per-job data key released to the assigned agent (Session 9.3).
-     */
-    DataKeyResponse: {
-      /** Data Key */
-      data_key: string;
-    };
-    /**
-     * DisputeResponse
-     * @description A slash dispute with its reproducible evidence.
-     */
-    DisputeResponse: {
-      /**
-       * Id
-       * Format: uuid
-       */
-      id: string;
-      /**
-       * Provider Id
-       * Format: uuid
-       */
-      provider_id: string;
-      /** Job Id */
-      job_id: string | null;
-      /** Amount */
-      amount: number;
-      /** State */
-      state: string;
-      /** Reason */
-      reason: string;
-      /** Evidence */
-      evidence: {
-        [key: string]: unknown;
-      } | null;
-      /** Evidence Hash */
-      evidence_hash: string | null;
-      /** Ruling Reason */
-      ruling_reason: string | null;
-      /**
-       * Created At
-       * Format: date-time
-       */
-      created_at: string;
-      /** Resolved At */
-      resolved_at: string | null;
-    };
-    /**
-     * DisputeRuling
-     * @description An operator's manual decision on a dispute (Session 10.4).
-     */
-    DisputeRuling: {
-      /** Upheld */
-      upheld: boolean;
-      /** Reason */
-      reason: string;
-    };
-    /**
-     * EndpointInfo
-     * @description The coordinator-issued routed URL + capability token for an endpoint job.
-     */
-    EndpointInfo: {
-      /** Url */
-      url: string;
-      /** Token */
-      token: string;
-      /** Port */
-      port: number;
-    };
-    /** HTTPValidationError */
-    HTTPValidationError: {
-      /** Detail */
-      detail?: components["schemas"]["ValidationError"][];
-    };
-    /**
-     * HealthReport
-     * @description Telemetry an agent reports periodically (Session 11.4).
-     */
-    HealthReport: {
-      /** Gpu Temp C */
-      gpu_temp_c?: number | null;
-      /**
-       * Throttling
-       * @default false
-       */
-      throttling: boolean;
-      /**
-       * Error Rate
-       * @default 0
-       */
-      error_rate: number;
-      /** Latency Ms */
-      latency_ms?: number | null;
-    };
-    /**
-     * HealthResponse
-     * @description Result of the liveness/readiness probe.
-     */
-    HealthResponse: {
-      /**
-       * Status
-       * @enum {string}
-       */
-      status: "ok" | "degraded";
-      /** Database */
-      database: boolean;
-      /** Redis */
-      redis: boolean;
-    };
-    /**
-     * HealthResult
-     * @description The evaluated health verdict for a reported sample.
-     */
-    HealthResult: {
-      /** Degraded */
-      degraded: boolean;
-      /** Reason */
-      reason: string;
-    };
-    /**
-     * HeartbeatRequest
-     * @description Extend the lease on an in-flight job.
-     */
-    HeartbeatRequest: {
-      /**
-       * Job Id
-       * Format: uuid
-       */
-      job_id: string;
-    };
-    /**
-     * HeartbeatResponse
-     * @description The renewed lease deadline.
-     */
-    HeartbeatResponse: {
-      /**
-       * Job Id
-       * Format: uuid
-       */
-      job_id: string;
-      /**
-       * Lease Expires At
-       * Format: date-time
-       */
-      lease_expires_at: string;
-    };
-    /**
-     * IceCandidate
-     * @description A single ICE-style connectivity candidate advertised by the agent.
-     */
-    IceCandidate: {
-      /** Address */
-      address: string;
-      /** Port */
-      port: number;
-      /**
-       * Kind
-       * @default host
-       * @enum {string}
-       */
-      kind: "host" | "srflx" | "relay";
-    };
-    /**
-     * JobArgs
-     * @description Optional container overrides for the job.
-     */
-    JobArgs: {
-      /** Command */
-      command?: string[] | null;
-      /** Env */
-      env?: {
-        [key: string]: string;
-      } | null;
-    };
-    /**
-     * JobAudit
-     * @description The full audit trail for one job: lifecycle, attempts, and money movements.
-     */
-    JobAudit: {
-      job: components["schemas"]["JobResponse"];
-      /** Attempts */
-      attempts: components["schemas"]["AttemptRecord"][];
-      /** Ledger */
-      ledger: components["schemas"]["LedgerRecord"][];
-    };
-    /**
-     * JobKind
-     * @description Job classification. Canaries are indistinguishable from real work to providers.
-     * @enum {string}
-     */
-    JobKind: "standard" | "canary";
-    /**
-     * JobResponse
-     * @description A job as seen by its developer.
-     */
-    JobResponse: {
-      /**
-       * Id
-       * Format: uuid
-       */
-      id: string;
-      /**
-       * Developer Id
-       * Format: uuid
-       */
-      developer_id: string;
-      kind: components["schemas"]["JobKind"];
-      status: components["schemas"]["JobStatus"];
-      /** Image Ref */
-      image_ref: string;
-      /** Input Ref */
-      input_ref: string | null;
-      /** Result Ref */
-      result_ref: string | null;
-      /** Resource Spec */
-      resource_spec: {
-        [key: string]: unknown;
-      };
-      /** Allow Egress */
-      allow_egress: boolean;
-      /** Timeout Seconds */
-      timeout_seconds: number;
-      /** Is High Value */
-      is_high_value: boolean;
-      /** Redundancy */
-      redundancy: number;
-      /** Exposed Port */
-      exposed_port: number | null;
-      /** Data Tier */
-      data_tier: string;
-      /** Assigned Provider Id */
-      assigned_provider_id: string | null;
-      /** Attempt Count */
-      attempt_count: number;
-      /** Lease Expires At */
-      lease_expires_at: string | null;
-      /** Escrow Amount */
-      escrow_amount: number | null;
-      /** Cost Final */
-      cost_final: number | null;
-      /**
-       * Created At
-       * Format: date-time
-       */
-      created_at: string;
-      /**
-       * Updated At
-       * Format: date-time
-       */
-      updated_at: string;
-    };
-    /**
-     * JobSecretsResponse
-     * @description Short-lived, job-scoped secrets injected into the container (Session 9.6).
-     */
-    JobSecretsResponse: {
-      /** Secrets */
-      secrets: {
-        [key: string]: string;
-      };
-      /** Expires At */
-      expires_at: number;
-    };
-    /**
-     * JobStatus
-     * @description States in the job lifecycle. Transitions are enforced by ``app.state_machine``.
-     * @enum {string}
-     */
-    JobStatus: "queued" | "assigned" | "running" | "completed" | "failed" | "timeout";
-    /**
-     * LedgerRecord
-     * @description One ledger row in a job's audit trail.
-     */
-    LedgerRecord: {
-      /** Account */
-      account: string;
-      /** Account Ref */
-      account_ref: string | null;
-      /** Direction */
-      direction: string;
-      /** Amount */
-      amount: number;
-      /** Reason */
-      reason: string;
-      /**
-       * Created At
-       * Format: date-time
-       */
-      created_at: string;
-    };
-    /**
-     * PathResponse
-     * @description The negotiated path for the provider's current session.
-     */
-    PathResponse: {
-      /**
-       * Path Type
-       * @enum {string}
-       */
-      path_type: "direct" | "relay";
-    };
-    /**
-     * PeerFetchPlan
-     * @description Where a provider should fetch an artifact from (Session 8.7).
-     */
-    PeerFetchPlan: {
-      /** Enabled */
-      enabled: boolean;
-      /**
-       * Kind
-       * @enum {string}
-       */
-      kind: "origin" | "peer";
-      /** Provider Id */
-      provider_id?: string | null;
-      /** Seeders */
-      seeders?: string[];
-    };
-    /**
-     * PingResponse
-     * @description Presence status returned to an agent keepalive (Session 7.1).
-     */
-    PingResponse: {
-      /** Connected */
-      connected: boolean;
-      /** Connected At */
-      connected_at: string | null;
-      /** Last Seen */
-      last_seen: string | null;
-    };
-    /**
-     * ProviderCapabilities
-     * @description Capabilities a provider declares. All fields optional on PATCH (partial update).
-     */
-    ProviderCapabilities: {
-      /** Region */
-      region?: string | null;
-      /** Gpu Model */
-      gpu_model?: string | null;
-      /** Gpu Vram Mb */
-      gpu_vram_mb?: number | null;
-      /** Cpu Cores */
-      cpu_cores?: number | null;
-      /** Memory Mb */
-      memory_mb?: number | null;
-      /** Max Concurrent */
-      max_concurrent?: number | null;
-    };
-    /**
-     * ProviderResponse
-     * @description A provider's own view of itself.
-     */
-    ProviderResponse: {
-      /**
-       * Id
-       * Format: uuid
-       */
-      id: string;
-      /** Name */
-      name: string;
-      /** Region */
-      region: string | null;
-      /** Gpu Model */
-      gpu_model: string | null;
-      /** Gpu Vram Mb */
-      gpu_vram_mb: number;
-      /** Cpu Cores */
-      cpu_cores: number;
-      /** Memory Mb */
-      memory_mb: number;
-      /** Max Concurrent */
-      max_concurrent: number;
-      /** Reputation */
-      reputation: number;
-      /** Enabled */
-      enabled: boolean;
-      /** Degraded */
-      degraded: boolean;
-      /** Connected At */
-      connected_at: string | null;
-      /** Last Seen */
-      last_seen: string | null;
-      /** Path Type */
-      path_type: string | null;
-      /**
-       * Created At
-       * Format: date-time
-       */
-      created_at: string;
-    };
-    /**
-     * RegisterDeveloperRequest
-     * @description Register a new developer account.
-     */
-    RegisterDeveloperRequest: {
-      /** Name */
-      name: string;
-    };
-    /**
-     * RegisterProviderRequest
-     * @description Register a new provider account.
-     */
-    RegisterProviderRequest: {
-      /** Name */
-      name: string;
-      /** Region */
-      region?: string | null;
-    };
-    /**
-     * RegisteredPrincipal
-     * @description Response to a successful registration. ``api_key`` is returned exactly once.
-     */
-    RegisteredPrincipal: {
-      /**
-       * Id
-       * Format: uuid
-       */
-      id: string;
-      /** Name */
-      name: string;
-      /**
-       * Api Key
-       * @description Store this now — it is never shown again.
-       */
-      api_key: string;
-    };
-    /**
-     * ResourceSpec
-     * @description Hardware a job needs. The scheduler matches these against provider capabilities.
-     */
-    ResourceSpec: {
-      /**
-       * Cpu Cores
-       * @default 1
-       */
-      cpu_cores: number;
-      /**
-       * Memory Mb
-       * @default 512
-       */
-      memory_mb: number;
-      /**
-       * Gpu
-       * @default false
-       */
-      gpu: boolean;
-      /**
-       * Gpu Vram Mb
-       * @default 0
-       */
-      gpu_vram_mb: number;
-    };
-    /**
-     * SubmitJobRequest
-     * @description Submit a job for execution.
-     */
-    SubmitJobRequest: {
-      /** Image Ref */
-      image_ref: string;
-      /** Input Ref */
-      input_ref?: string | null;
-      resource_spec?: components["schemas"]["ResourceSpec"];
-      args?: components["schemas"]["JobArgs"] | null;
-      /**
-       * Allow Egress
-       * @default false
-       */
-      allow_egress: boolean;
-      /**
-       * Timeout Seconds
-       * @default 300
-       */
-      timeout_seconds: number;
-      /**
-       * Is High Value
-       * @default false
-       */
-      is_high_value: boolean;
-      /**
-       * Redundancy
-       * @default 1
-       */
-      redundancy: number;
-      /** Exposed Port */
-      exposed_port?: number | null;
-      /**
-       * Data Tier
-       * @default public
-       * @enum {string}
-       */
-      data_tier: "public" | "encrypted_at_rest" | "confidential_tee";
-      /** Wrapped Key */
-      wrapped_key?: string | null;
-    };
-    /**
-     * UploadCreateRequest
-     * @description Start a resumable upload, optionally declaring the final sha256 for verification.
-     */
-    UploadCreateRequest: {
-      /** Digest */
-      digest?: string | null;
-    };
-    /**
-     * UploadSessionResponse
-     * @description An upload session's state, including bytes received (the resume offset).
-     */
-    UploadSessionResponse: {
-      /**
-       * Upload Id
-       * Format: uuid
-       */
-      upload_id: string;
-      /** Received */
-      received: number;
-      /** Blob Ref */
-      blob_ref?: string | null;
-    };
-    /** ValidationError */
-    ValidationError: {
-      /** Location */
-      loc: (string | number)[];
-      /** Message */
-      msg: string;
-      /** Error Type */
-      type: string;
-      /** Input */
-      input?: unknown;
-      /** Context */
-      ctx?: Record<string, never>;
-    };
-  };
-  responses: never;
-  parameters: never;
-  requestBodies: never;
-  headers: never;
-  pathItems: never;
+    responses: never;
+    parameters: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-  health_health_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HealthResponse"];
-        };
-      };
-    };
-  };
-  register_developer_developers_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["RegisterDeveloperRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RegisteredPrincipal"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  register_provider_providers_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["RegisterProviderRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RegisteredPrincipal"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  upload_blob_blobs_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "multipart/form-data": components["schemas"]["Body_upload_blob_blobs_post"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["BlobRef"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  create_upload_uploads_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["UploadCreateRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["UploadSessionResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  get_upload_uploads__upload_id__get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        upload_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["UploadSessionResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  append_chunk_uploads__upload_id__patch: {
-    parameters: {
-      query?: never;
-      header: {
-        "Upload-Offset": number;
-        authorization?: string | null;
-      };
-      path: {
-        upload_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["UploadSessionResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  complete_upload_uploads__upload_id__complete_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        upload_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["BlobRef"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  list_jobs_jobs_get: {
-    parameters: {
-      query?: {
-        limit?: number;
-        offset?: number;
-      };
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["JobResponse"][];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  submit_job_jobs_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        "Idempotency-Key"?: string | null;
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["SubmitJobRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["JobResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  get_job_jobs__job_id__get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        job_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["JobResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  download_result_jobs__job_id__result_get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        job_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": unknown;
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  job_audit_jobs__job_id__audit_get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        job_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["JobAudit"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  get_me_providers_me_get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ProviderResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  update_me_providers_me_patch: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["ProviderCapabilities"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ProviderResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  my_bandwidth_providers_me_bandwidth_get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["BandwidthResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  my_benchmark_providers_me_benchmark_get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["BenchmarkResponse"] | null;
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  my_trust_providers_me_trust_get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            [key: string]: unknown;
-          };
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  poll_agent_poll_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AgentPollResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  ping_agent_ping_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["PingResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  report_path_agent_path_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["AgentPathReport"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["PathResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  report_cache_agent_cache_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["CacheReport"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  artifact_peers_agent_artifacts__digest__peers_get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        digest: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["PeerFetchPlan"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  heartbeat_agent_heartbeat_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["HeartbeatRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HeartbeatResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  report_status_agent_jobs__job_id__status_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        job_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["AgentStatusRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["Ack"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  submit_benchmark_agent_benchmark_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["BenchmarkSubmit"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["BenchmarkResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  report_health_agent_health_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["HealthReport"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HealthResult"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  submit_attestation_agent_attest_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["AttestationQuote"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AttestationResult"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  get_job_key_agent_jobs__job_id__key_get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        job_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["DataKeyResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  get_job_secrets_agent_jobs__job_id__secrets_get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        job_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["JobSecretsResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  download_input_agent_jobs__job_id__input_get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        job_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": unknown;
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  upload_result_blob_agent_blobs_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "multipart/form-data": components["schemas"]["Body_upload_result_blob_agent_blobs_post"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["BlobRef"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  submit_result_agent_jobs__job_id__result_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        job_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["AgentResultRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["Ack"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  my_disputes_disputes_me_get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["DisputeResponse"][];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  review_queue_disputes_review_queue_get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["DisputeResponse"][];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  get_dispute_disputes__dispute_id__get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        dispute_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["DisputeResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  contest_disputes__dispute_id__contest_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        dispute_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["DisputeResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  rule_on_dispute_disputes__dispute_id__rule_post: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        dispute_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["DisputeRuling"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["DisputeResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  get_endpoint_jobs__job_id__endpoint_get: {
-    parameters: {
-      query?: never;
-      header?: {
-        authorization?: string | null;
-      };
-      path: {
-        job_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["EndpointInfo"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  metrics_metrics_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": unknown;
-        };
-      };
-    };
-  };
+    health_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    register_developer_developers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterDeveloperRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisteredPrincipal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_provider_providers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterProviderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisteredPrincipal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_blob_blobs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_blob_blobs_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlobRef"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_upload_uploads_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadSessionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_upload_uploads__upload_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadSessionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    append_chunk_uploads__upload_id__patch: {
+        parameters: {
+            query?: never;
+            header: {
+                "Upload-Offset": number;
+                authorization?: string | null;
+            };
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadSessionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_upload_uploads__upload_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlobRef"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_jobs_jobs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_job_jobs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitJobRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_job_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_result_jobs__job_id__result_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    job_audit_jobs__job_id__audit_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobAudit"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_me_providers_me_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_me_providers_me_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderCapabilities"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_bandwidth_providers_me_bandwidth_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BandwidthResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_benchmark_providers_me_benchmark_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchmarkResponse"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_trust_providers_me_trust_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    poll_agent_poll_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentPollResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ping_agent_ping_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_path_agent_path_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentPathReport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_cache_agent_cache_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CacheReport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    artifact_peers_agent_artifacts__digest__peers_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                digest: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeerFetchPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    heartbeat_agent_heartbeat_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HeartbeatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HeartbeatResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_status_agent_jobs__job_id__status_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ack"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_benchmark_agent_benchmark_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BenchmarkSubmit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchmarkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_health_agent_health_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HealthReport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_attestation_agent_attest_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttestationQuote"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttestationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_job_key_agent_jobs__job_id__key_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataKeyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_job_secrets_agent_jobs__job_id__secrets_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobSecretsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_input_agent_jobs__job_id__input_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_result_blob_agent_blobs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_result_blob_agent_blobs_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlobRef"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_result_agent_jobs__job_id__result_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentResultRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ack"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_disputes_disputes_me_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DisputeResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_queue_disputes_review_queue_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DisputeResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dispute_disputes__dispute_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                dispute_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DisputeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    contest_disputes__dispute_id__contest_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                dispute_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DisputeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rule_on_dispute_disputes__dispute_id__rule_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                dispute_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisputeRuling"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DisputeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_endpoint_jobs__job_id__endpoint_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EndpointInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    metrics_metrics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
 }
