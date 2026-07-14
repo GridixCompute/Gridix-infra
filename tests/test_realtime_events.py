@@ -15,7 +15,7 @@ from app.routes.events import job_event_stream
 from app.state_machine import transition
 from httpx import AsyncClient
 
-from tests.conftest import auth, register
+from conftest import auth, register
 
 
 async def _submit_job(client: AsyncClient, key: str) -> str:
