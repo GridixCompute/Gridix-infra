@@ -57,6 +57,28 @@ def test_gpu_flag_gated_by_capability() -> None:
     assert "--gpus" in _argv(resource_spec=spec, enable_gpu=True)
 
 
+def test_gpu_defaults_to_all_when_no_devices_pinned() -> None:
+    spec = {"cpu_cores": 1, "memory_mb": 512, "gpu": True}
+    argv = _argv(resource_spec=spec, enable_gpu=True)
+    i = argv.index("--gpus")
+    assert argv[i + 1] == "all"
+
+
+def test_gpu_pins_to_configured_devices() -> None:
+    """With devices configured, the job is confined to exactly those GPUs (isolation), not all."""
+    spec = {"cpu_cores": 1, "memory_mb": 512, "gpu": True}
+    argv = _argv(resource_spec=spec, enable_gpu=True, gpu_devices="GPU-abc,GPU-def")
+    i = argv.index("--gpus")
+    assert argv[i + 1] == "device=GPU-abc,GPU-def"
+    assert "all" not in argv[i + 1]
+
+
+def test_gpu_devices_ignored_without_capability() -> None:
+    """No --gpus at all when the job doesn't want a GPU, even if devices are configured."""
+    spec = {"cpu_cores": 1, "memory_mb": 512}  # gpu not requested
+    assert "--gpus" not in _argv(resource_spec=spec, enable_gpu=True, gpu_devices="0")
+
+
 def test_input_mounted_read_only() -> None:
     """A provided input path is bind-mounted read-only."""
     argv = _argv(input_path=Path("/tmp/in"))
