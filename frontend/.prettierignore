@@ -1,0 +1,9 @@
+# Generated files — never reformat, so the CI anti-drift gate (regenerate → diff)
+# stays byte-stable.
+openapi.snapshot.json
+src/lib/api/schema.ts
+
+# Dependencies / build output
+node_modules
+.next
+pnpm-lock.yaml

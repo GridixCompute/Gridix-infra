@@ -21,7 +21,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          # Include the vault extra so the Vault-backend tests (which import hvac)
+          # actually run instead of erroring on a missing optional module.
+          pip install -e ".[dev,vault]"
 
       - name: Lint (ruff, zero tolerance)
         run: |
@@ -129,9 +131,75 @@ jobs:
           python-version: "3.11"
       - name: Install
         run: |
-          python -m pip install --upgrade pip pip-audit
+          # setuptools is upgraded past PYSEC-2026-3447 (fixed in 83.0.0).
+          python -m pip install --upgrade "pip" "setuptools>=83.0.0" pip-audit
           pip install -e ".[dev]"
       - name: Dependency audit (pip-audit)
         # Skip the local editable project (gridix isn't on PyPI); still fails on any real
         # vulnerability in third-party deps. (--strict would error on the skipped package.)
         run: pip-audit --skip-editable
+
+  # Frontend gates: lint, type-safety, unit/component tests, and a production build.
+  # A PR that breaks any of these fails here.
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Format check
+        run: pnpm format:check
+      - name: Type-check
+        run: pnpm typecheck
+      - name: Tests
+        run: pnpm test
+      - name: Production build
+        run: pnpm build
+
+  # Anti-drift: the frontend's types are GENERATED from the backend OpenAPI schema.
+  # Regenerate the snapshot + types from the live backend and fail if they differ
+  # from what's committed — a schema change without a regenerate closes a whole class
+  # of silent contract-drift bugs.
+  openapi-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install frontend
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - name: Regenerate OpenAPI snapshot + TypeScript types
+        run: |
+          python api/scripts/dump_openapi.py
+          pnpm --dir frontend gen:types
+      - name: Fail if the committed API contract drifted
+        run: |
+          git diff --exit-code frontend/openapi.snapshot.json frontend/src/lib/api/schema.ts \
+            || { echo "::error::OpenAPI drift. Run 'python api/scripts/dump_openapi.py && pnpm --dir frontend gen:types' and commit the result."; exit 1; }

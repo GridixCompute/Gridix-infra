@@ -42,7 +42,11 @@ async def get_endpoint(
     return EndpointInfo(url=url, token=token, port=job.exposed_port)
 
 
-@router.api_route("/endpoints/{job_id}/{path:path}", methods=_METHODS)
+# Transparent reverse-proxy to a job's exposed HTTP port. It is a passthrough,
+# not part of the typed JSON API contract, so it stays out of the OpenAPI schema
+# (one function serving many methods otherwise emits a duplicate operationId,
+# which FastAPI warns about and breaks generated clients).
+@router.api_route("/endpoints/{job_id}/{path:path}", methods=_METHODS, include_in_schema=False)
 async def endpoint_gateway(
     job_id: uuid.UUID,
     path: str,
