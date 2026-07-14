@@ -14,7 +14,7 @@ const eslintConfig = [
       "@typescript-eslint/no-explicit-any": "error",
     },
   }),
-  { ignores: [".next/**", "node_modules/**", "src/lib/api/schema.ts"] },
+  { ignores: [".next/**", "node_modules/**", "src/lib/api/schema.ts", "next-env.d.ts"] },
 ];
 
 export default eslintConfig;
