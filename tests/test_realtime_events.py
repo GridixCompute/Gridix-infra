@@ -13,9 +13,8 @@ from app.db import get_sessionmaker
 from app.models import Job, JobStatus
 from app.routes.events import job_event_stream
 from app.state_machine import transition
-from httpx import AsyncClient
-
 from conftest import auth, register
+from httpx import AsyncClient
 
 
 async def _submit_job(client: AsyncClient, key: str) -> str:
