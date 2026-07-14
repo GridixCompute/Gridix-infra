@@ -97,6 +97,7 @@ class AgentConfig:
     poll_backoff_max: float
     heartbeat_interval: float
     enable_gpu: bool
+    gpu_devices: str
     relay_url: str
     relay_ping_interval: float
     cache_dir: str
@@ -118,6 +119,10 @@ class AgentConfig:
             poll_backoff_max=float(os.environ.get("GRIDIX_POLL_BACKOFF_MAX", "30")),
             heartbeat_interval=float(os.environ.get("GRIDIX_HEARTBEAT_INTERVAL", "10")),
             enable_gpu=os.environ.get("GRIDIX_ENABLE_GPU", "false").lower() == "true",
+            # GPU devices this agent may hand to jobs — comma-separated UUIDs or indices
+            # (e.g. "GPU-abc,GPU-def" or "0,1"). Empty = all visible GPUs. Pin one agent per
+            # device on a multi-GPU box (a distinct set each) so jobs never share a card.
+            gpu_devices=os.environ.get("GRIDIX_GPU_DEVICES", "").strip(),
             # Optional NAT-traversal tunnel. Empty → agent runs poll-only (batch).
             relay_url=os.environ.get("GRIDIX_RELAY_URL", ""),
             relay_ping_interval=float(os.environ.get("GRIDIX_RELAY_PING_INTERVAL", "20")),
@@ -135,6 +140,7 @@ def build_run_argv(
     resource_spec: dict,
     allow_egress: bool,
     enable_gpu: bool,
+    gpu_devices: str = "",
     exposed_port: int | None = None,
 ) -> list[str]:
     """Assemble the hardened ``docker run`` argv for one job.
@@ -193,7 +199,10 @@ def build_run_argv(
         # Publish to loopback only; the agent reaches it, the public internet cannot.
         argv += ["-p", f"127.0.0.1:{exposed_port}:{exposed_port}"]
     if resource_spec.get("gpu") and enable_gpu:
-        argv += ["--gpus", "all"]
+        # Pin the job to this agent's own device(s) when configured, so two agents on one box
+        # never hand the same card to two jobs. `device=<ids>` exposes ONLY those GPUs to the
+        # container (it can't see or touch the others); empty falls back to all visible GPUs.
+        argv += ["--gpus", f"device={gpu_devices}" if gpu_devices else "all"]
     argv.append(image_ref)
     return argv
 
@@ -468,6 +477,7 @@ class Agent:
             resource_spec=job.get("resource_spec") or {},
             allow_egress=job.get("allow_egress", False),
             enable_gpu=self._cfg.enable_gpu,
+            gpu_devices=self._cfg.gpu_devices,
             exposed_port=job.get("exposed_port"),
         )
         started = time.monotonic()

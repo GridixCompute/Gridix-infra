@@ -53,12 +53,28 @@ coordinator runs on the *same* host, add `--network host` so the agent can reach
 |----------|---------|---------|
 | `GRIDIX_API_URL` | `http://localhost:8000` | Coordinator base URL |
 | `GRIDIX_PROVIDER_KEY` | — (required) | Provider API key |
-| `GRIDIX_ENABLE_GPU` | `false` | Pass `--gpus all` to job containers |
+| `GRIDIX_ENABLE_GPU` | `false` | Attach GPUs to job containers |
+| `GRIDIX_GPU_DEVICES` | — (all visible) | GPU device UUIDs/indices this agent may use, e.g. `GPU-abc,GPU-def` or `0,1` |
 | `GRIDIX_RELAY_URL` | — | Relay tunnel for NAT'd providers (poll-only if unset) |
 | `GRIDIX_POLL_INTERVAL` | `1` | Seconds between polls |
 | `GRIDIX_HEARTBEAT_INTERVAL` | `15` | Seconds between in-flight heartbeats |
 | `GRIDIX_AGENT_WORKDIR` | `/tmp/gridix-agent` | Per-job scratch (input/output) |
 | `GRIDIX_CACHE_DIR` / `GRIDIX_CACHE_MAX_BYTES` | `/tmp/gridix-cache` / 20 GiB | Content-addressed artifact cache |
+
+## Multi-GPU boxes
+
+The agent runs one job at a time, so on a box with several GPUs run **one agent per GPU**, each
+pinned to a distinct device — that way two jobs never share a card:
+
+```bash
+GRIDIX_ENABLE_GPU=true GRIDIX_GPU_DEVICES=GPU-<uuid-0> ... python3 agent.py   # agent 0
+GRIDIX_ENABLE_GPU=true GRIDIX_GPU_DEVICES=GPU-<uuid-1> ... python3 agent.py   # agent 1
+```
+
+`docker run --gpus device=<ids>` exposes ONLY those GPUs to the container — the job cannot see or
+touch the others. Without `GRIDIX_GPU_DEVICES` a GPU job gets all visible GPUs (fine for a single
+agent). Note: plain Docker can't hard-cap a container's VRAM (that needs MIG), so the safe model is
+one job per card — the coordinator only matches a job to a provider whose VRAM covers the request.
 
 ## GPU benchmark (onboarding)
 
