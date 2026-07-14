@@ -60,6 +60,31 @@ coordinator runs on the *same* host, add `--network host` so the agent can reach
 | `GRIDIX_AGENT_WORKDIR` | `/tmp/gridix-agent` | Per-job scratch (input/output) |
 | `GRIDIX_CACHE_DIR` / `GRIDIX_CACHE_MAX_BYTES` | `/tmp/gridix-cache` / 20 GiB | Content-addressed artifact cache |
 
+## GPU benchmark (onboarding)
+
+Before a provider can be trusted with GPU jobs, it must submit a **measured** benchmark — the
+coordinator scores real numbers, not a self-declared spec. `gpu_benchmark.py` reads the actual
+card via `nvidia-smi` (model, VRAM, UUID→hardware fingerprint) and measures throughput by running
+a containerized GEMM, then signs and submits the result to `/agent/benchmark`.
+
+```bash
+# Build the reference benchmark image once (or supply your own that prints GRIDIX_TFLOPS=<float>).
+docker build -t gridix/bench:1 agent/bench
+
+# Measure + submit (run on the provider box, at onboarding).
+GRIDIX_COORDINATOR_URL=https://coordinator.example \
+GRIDIX_PROVIDER_KEY=<provider key> \
+GRIDIX_BENCH_IMAGE=gridix/bench:1 \
+GRIDIX_CPU_CORES=8 GRIDIX_MEMORY_MB=32768 \
+python3 gpu_benchmark.py
+```
+
+The coordinator rejects the provider (disables it) when the measured card contradicts the declared
+one — a box declaring an A100 whose `nvidia-smi` shows a T4, a VRAM claim above what's measured, or
+a GPU fingerprint already registered by another "node" (one physical card advertised many times).
+Without `GRIDIX_BENCH_IMAGE`, identity/VRAM/fingerprint are still measured but throughput reports 0
+(never faked) — set the image to prove throughput too.
+
 ## Uninstall
 
 ```bash
