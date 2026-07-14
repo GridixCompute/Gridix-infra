@@ -37,6 +37,16 @@ def validate_benchmark(metrics: dict, declared_gpu_model: str | None) -> tuple[b
     Returns ``(ok, reason)``. A provider claiming a GPU it can't benchmark to is rejected.
     """
     if declared_gpu_model:
+        # Ground truth first: the agent's harness reports the MEASURED card family (from
+        # nvidia-smi). If it's present and contradicts the declaration, reject outright — a
+        # measured identity beats any throughput heuristic (Session 11.7). ``None`` means the
+        # box reported no GPU at all, which the throughput check below then catches.
+        measured_model = metrics.get("gpu_model")
+        if measured_model is not None and measured_model != declared_gpu_model:
+            return False, (
+                f"declared {declared_gpu_model} but measured hardware is {measured_model}"
+            )
+
         reference = GPU_REFERENCE_TFLOPS.get(declared_gpu_model)
         measured = metrics.get("gpu_tflops")
         if reference is not None:
