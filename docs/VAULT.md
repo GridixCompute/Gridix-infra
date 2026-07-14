@@ -98,6 +98,17 @@ settlement stalls:
 If step 4 fails, roll back to the previous Vault version and investigate — the old role is still
 active, so nothing is stuck.
 
+**This procedure has been run for real (2026-07-14), not just documented.** On the Sepolia production
+contracts the coordinator was rotated from the ownerless `0xB54C…5532` to our Vault-managed
+`0xBbBe…774E9`: granted on both contracts (step 2), stored in Vault (step 3), and — because those
+instances are bound to an unobtainable token (Circle Sepolia USDC, see `contracts/EVIDENCE.md`) —
+step 4's *on those instances* was substituted by proving the identical bytecode + the same
+Vault-sourced key on the MockUSDC exercise pair (a live Vault-signed `debit` + `settleBatch`), then
+the old key was revoked (step 5). Verified on-chain: `0xB54C…5532` no longer holds the role;
+`0xBbBe…774E9` does. Tx hashes in `contracts/EVIDENCE.md`. The lesson: when the deployed instances
+can't be exercised (token-gated), prove the mechanism on an equivalent fundable deployment before
+revoking — never revoke on faith.
+
 ## Rotating the AppRole credential
 
 The `secret_id` is short-TTL; mint a fresh one (`vault write -f
