@@ -747,6 +747,54 @@
         }
       }
     },
+    "/events": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "Job Events",
+        "description": "Stream job-status changes for the authenticated developer as SSE.\n\nThe client establishes its baseline with a normal `GET /jobs` and then\nconnects here for deltas; on reconnect it refetches to close any gap.",
+        "operationId": "job_events_events_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/providers/me": {
       "get": {
         "tags": [
