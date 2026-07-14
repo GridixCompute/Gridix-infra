@@ -9,6 +9,7 @@
 
 type RawEnv = {
   NEXT_PUBLIC_API_URL: string | undefined;
+  NEXT_PUBLIC_RPC_URL: string | undefined;
   NEXT_PUBLIC_CHAIN_ID: string | undefined;
   NEXT_PUBLIC_ESCROW_ADDRESS: string | undefined;
   NEXT_PUBLIC_STAKING_ADDRESS: string | undefined;
@@ -18,6 +19,7 @@ type RawEnv = {
 // Next.js inlines NEXT_PUBLIC_* by literal reference, so we must name each one.
 const raw: RawEnv = {
   NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  NEXT_PUBLIC_RPC_URL: process.env.NEXT_PUBLIC_RPC_URL,
   NEXT_PUBLIC_CHAIN_ID: process.env.NEXT_PUBLIC_CHAIN_ID,
   NEXT_PUBLIC_ESCROW_ADDRESS: process.env.NEXT_PUBLIC_ESCROW_ADDRESS,
   NEXT_PUBLIC_STAKING_ADDRESS: process.env.NEXT_PUBLIC_STAKING_ADDRESS,
@@ -64,6 +66,7 @@ function requireChainId(fallback = "11155111"): number {
 // Sepolia defaults so `npm run dev` works out of the box; override via env.
 export const env = {
   apiUrl: requireUrl("NEXT_PUBLIC_API_URL", "http://localhost:8000"),
+  rpcUrl: requireUrl("NEXT_PUBLIC_RPC_URL", "https://ethereum-sepolia-rpc.publicnode.com"),
   chainId: requireChainId(),
   contracts: {
     escrow: requireAddress(
