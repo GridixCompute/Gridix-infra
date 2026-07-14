@@ -297,3 +297,36 @@ maxFeePerGas` and the node rejects the tx ("max priority fee higher than max fee
 mainnet (gas >> 1 gwei), fatal on a quiet testnet. Fixed: cap the tip at the current price and give
 maxFee headroom (`tip = min(1 gwei, gas_price)`, `maxFeePerGas = gas_price + tip`). Same fix applied
 to the standalone smoke drivers.
+
+---
+
+# PRODUCTION contracts — FINAL state (2026-07-14)
+
+**Dead-key role revoked.** `COORDINATOR_ROLE` was revoked from the ownerless `0xB54C…5532` (a key
+held nowhere in this project) on both production contracts. Verified on-chain: `hasRole(COORDINATOR,
+0xB54C…5532)` == **false** on escrow AND staking; `hasRole(COORDINATOR, 0xBbBe…774E9)` (our
+Vault-managed key) == **true** on both. A dangling role held by a lost key was a latent risk (usable
+if that key ever leaked); it is now closed.
+
+| Revoke | Tx | Block |
+|---|---|---|
+| escrow `revokeRole(COORDINATOR_ROLE, 0xB54C…5532)` | `0xa0abb843…8925d78e` | 11269502 |
+| staking `revokeRole(COORDINATOR_ROLE, 0xB54C…5532)` | `0x0b22677d…c1249f91` | 11269503 |
+
+**Write-path — UNREACHABLE on these instances (not a code gap).** `GridixEscrow`/`GridixStaking` bind
+their token as `immutable` (set in the constructor, no setter), and the production instances are bound
+to Circle's Sepolia USDC `0x1c7D…7238`. That token is verifiably unobtainable by us: it is Circle's
+real gated FiatToken (`isMinter(us)` == false, `mint()` reverts, no public faucet/drip, total supply
+~10.75 across the whole token so no DEX liquidity), sourced only from Circle's account-gated faucet.
+A real `debit`/`settleBatch` requires moving that token, so it **cannot be demonstrated on
+`0xd930…`/`0x7208…`** — a property of the deployment's token binding, not the settlement code.
+
+**What IS proven, and why that suffices.** The full settlement system — the SAME contract bytecode
+(100% coverage), the real `SettlementEngine`, and the coordinator key sourced live from Vault — is
+proven operational end-to-end against the throwaway MockUSDC exercise pair: a Vault-signed `debit`
+(tx `0xad142f63…`) and `settleBatch` (tx `0xa9cdc5d8…`) moved real token balances. Mainnet will use
+Circle's *mainnet* USDC (`0xA0b8…`, a different token) via a fresh deployment, so the Circle-Sepolia
+binding carries no forward value regardless. The production Sepolia instances are therefore recorded
+as **deployed + role-hardened (coordinator = our Vault key, dead key revoked), but token-gated out of
+a live write-proof — superseded by the eventual mainnet deployment.** Chasing a write-proof on them
+would re-prove, on an unfundable token, what the exercise-pair run already established.
