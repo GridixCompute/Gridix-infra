@@ -44,7 +44,7 @@ function LoginForm() {
     <Card>
       <CardBody className="space-y-5">
         <div>
-          <h1 className="font-[var(--font-display)] text-xl font-bold text-[var(--color-ink)]">
+          <h1 className="text-xl font-[var(--font-display)] font-bold text-[var(--color-ink)]">
             Sign in
           </h1>
           <p className="mt-1 text-sm text-[var(--color-ink-faint)]">

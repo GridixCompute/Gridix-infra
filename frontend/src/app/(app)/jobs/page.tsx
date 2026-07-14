@@ -1,26 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useJobs } from "@/lib/hooks/useJobs";
 import { JobsList } from "@/components/app/JobsList";
 import { Button } from "@/components/ui/Button";
-import { isTerminal } from "@/lib/api/types";
 
-export default function DashboardPage() {
-  const { data: jobs } = useJobs({ limit: 50 });
-  const active = jobs?.filter((j) => !isTerminal(j.status)).length ?? 0;
-
+export default function JobsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-[var(--font-display)] font-bold text-[var(--color-ink)]">
-            Jobs
+            All jobs
           </h1>
           <p className="mt-1 text-sm text-[var(--color-ink-faint)]">
-            {active > 0
-              ? `${active} active · updating live`
-              : "Everything you've run on the network."}
+            Everything you&apos;ve run on the network.
           </p>
         </div>
         <Link href="/jobs/new">
