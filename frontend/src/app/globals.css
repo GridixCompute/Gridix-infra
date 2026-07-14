@@ -117,8 +117,7 @@
 @layer utilities {
   /* Subtle hexagonal grid backdrop used behind hero/dashboards. */
   .bg-grid {
-    background-image:
-      linear-gradient(var(--color-hairline) 1px, transparent 1px),
+    background-image: linear-gradient(var(--color-hairline) 1px, transparent 1px),
       linear-gradient(90deg, var(--color-hairline) 1px, transparent 1px);
     background-size: 44px 44px;
     -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);

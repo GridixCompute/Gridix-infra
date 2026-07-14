@@ -22,7 +22,7 @@ export function Logo({
         className="drop-shadow-[0_0_12px_var(--color-signal-glow)]"
       />
       {withWordmark && (
-        <span className="font-[var(--font-display)] text-lg font-bold tracking-[0.14em] text-[var(--color-ink)]">
+        <span className="text-lg font-[var(--font-display)] font-bold tracking-[0.14em] text-[var(--color-ink)]">
           GRIDIX
         </span>
       )}

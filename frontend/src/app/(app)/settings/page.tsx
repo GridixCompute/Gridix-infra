@@ -9,7 +9,7 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="font-[var(--font-display)] text-2xl font-bold text-[var(--color-ink)]">
+      <h1 className="text-2xl font-[var(--font-display)] font-bold text-[var(--color-ink)]">
         Settings
       </h1>
 
@@ -19,7 +19,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardBody className="space-y-1">
           <div className="text-sm text-[var(--color-ink-faint)]">Signed in as</div>
-          <div className="font-[var(--font-display)] text-lg text-[var(--color-ink)]">
+          <div className="text-lg font-[var(--font-display)] text-[var(--color-ink)]">
             {name ?? "Developer"}
           </div>
         </CardBody>

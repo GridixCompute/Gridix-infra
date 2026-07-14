@@ -64,11 +64,7 @@ export class ApiClient {
     throw lastError ?? new ApiError({ kind: "unknown", status: 0, message: "Request failed." });
   }
 
-  private async attempt<T>(
-    path: string,
-    method: string,
-    opts: RequestOptions,
-  ): Promise<T> {
+  private async attempt<T>(path: string, method: string, opts: RequestOptions): Promise<T> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     const onExternalAbort = () => controller.abort();

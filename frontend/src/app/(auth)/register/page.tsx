@@ -44,7 +44,7 @@ export default function RegisterPage() {
       <Card>
         <CardBody className="space-y-5">
           <div>
-            <h1 className="font-[var(--font-display)] text-xl font-bold text-[var(--color-ink)]">
+            <h1 className="text-xl font-[var(--font-display)] font-bold text-[var(--color-ink)]">
               Save your API key
             </h1>
             <p className="mt-1 text-sm text-[var(--color-ink-faint)]">
@@ -53,7 +53,7 @@ export default function RegisterPage() {
             </p>
           </div>
           <div className="flex items-start justify-between gap-3 rounded-[var(--radius-sm)] border border-[var(--color-signal-dim)] bg-[var(--color-signal-glow)] px-3 py-3">
-            <code className="break-all font-[var(--font-mono)] text-sm text-[var(--color-signal-bright)]">
+            <code className="text-sm font-[var(--font-mono)] break-all text-[var(--color-signal-bright)]">
               {apiKey}
             </code>
             <CopyButton value={apiKey} />
@@ -67,11 +67,7 @@ export default function RegisterPage() {
             />
             I have saved my API key somewhere secure.
           </label>
-          <Button
-            className="w-full"
-            disabled={!saved}
-            onClick={() => router.replace("/dashboard")}
-          >
+          <Button className="w-full" disabled={!saved} onClick={() => router.replace("/dashboard")}>
             Continue to dashboard
           </Button>
         </CardBody>
@@ -84,7 +80,7 @@ export default function RegisterPage() {
     <Card>
       <CardBody className="space-y-5">
         <div>
-          <h1 className="font-[var(--font-display)] text-xl font-bold text-[var(--color-ink)]">
+          <h1 className="text-xl font-[var(--font-display)] font-bold text-[var(--color-ink)]">
             Create your account
           </h1>
           <p className="mt-1 text-sm text-[var(--color-ink-faint)]">

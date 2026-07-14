@@ -35,7 +35,7 @@ export function USDCAmount({
   };
 
   return (
-    <span className={cn("font-[var(--font-mono)] tabular font-medium", tones[tone], className)}>
+    <span className={cn("tabular font-[var(--font-mono)] font-medium", tones[tone], className)}>
       {text}
     </span>
   );

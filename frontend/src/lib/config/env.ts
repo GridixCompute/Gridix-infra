@@ -74,10 +74,7 @@ export const env = {
       "NEXT_PUBLIC_STAKING_ADDRESS",
       "0x72089171441d05ad2a64777177fF2864a9703822",
     ),
-    usdc: requireAddress(
-      "NEXT_PUBLIC_USDC_ADDRESS",
-      "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
-    ),
+    usdc: requireAddress("NEXT_PUBLIC_USDC_ADDRESS", "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"),
   },
 } as const;
 

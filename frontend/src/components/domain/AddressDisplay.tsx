@@ -37,7 +37,7 @@ export function AddressDisplay({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 font-[var(--font-mono)] text-sm text-[var(--color-ink-soft)]",
+        "inline-flex items-center gap-1.5 text-sm font-[var(--font-mono)] text-[var(--color-ink-soft)]",
         className,
       )}
     >

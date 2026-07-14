@@ -24,10 +24,26 @@ const FEATURES = [
 ];
 
 const STEPS = [
-  { n: "01", title: "Deposit USDC", body: "Fund your escrow on-chain. No balance, no compute — enforced by the contract." },
-  { n: "02", title: "Submit a job", body: "Image, resources, timeout. See the cost estimate before you commit." },
-  { n: "03", title: "Watch it run", body: "Live status from queued → assigned → running, pushed in real time." },
-  { n: "04", title: "Collect & settle", body: "Download the verified result. The ledger settles to the exact cent." },
+  {
+    n: "01",
+    title: "Deposit USDC",
+    body: "Fund your escrow on-chain. No balance, no compute — enforced by the contract.",
+  },
+  {
+    n: "02",
+    title: "Submit a job",
+    body: "Image, resources, timeout. See the cost estimate before you commit.",
+  },
+  {
+    n: "03",
+    title: "Watch it run",
+    body: "Live status from queued → assigned → running, pushed in real time.",
+  },
+  {
+    n: "04",
+    title: "Collect & settle",
+    body: "Download the verified result. The ledger settles to the exact cent.",
+  },
 ];
 
 export default function LandingPage() {
@@ -68,13 +84,13 @@ function Hero() {
       <div className="relative mx-auto max-w-6xl px-5 py-24 sm:py-32 lg:py-40">
         <div className="max-w-2xl">
           <span className="inline-flex items-center gap-2 rounded-full border border-[var(--color-signal-dim)] bg-[var(--color-signal-glow)] px-3 py-1 text-xs font-medium tracking-wide text-[var(--color-signal-bright)]">
-            <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-[var(--color-signal)]" />
+            <span className="animate-pulse-dot h-1.5 w-1.5 rounded-full bg-[var(--color-signal)]" />
             Live on Sepolia · settlement on-chain
           </span>
-          <h1 className="mt-6 font-[var(--font-display)] text-5xl font-bold leading-[1.05] tracking-tight text-[var(--color-ink)] sm:text-6xl lg:text-7xl">
+          <h1 className="mt-6 text-5xl leading-[1.05] font-[var(--font-display)] font-bold tracking-tight text-[var(--color-ink)] sm:text-6xl lg:text-7xl">
             Compute for
             <br />
-            everything <span className="text-[var(--color-signal)] text-glow">AI</span>
+            everything <span className="text-glow text-[var(--color-signal)]">AI</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg text-[var(--color-ink-soft)]">
             A decentralized compute network for the next generation of AI infrastructure. Run
@@ -90,7 +106,7 @@ function Hero() {
               </Button>
             </Link>
           </div>
-          <p className="mt-8 font-[var(--font-mono)] text-xs uppercase tracking-[0.3em] text-[var(--color-signal-dim)]">
+          <p className="mt-8 text-xs font-[var(--font-mono)] tracking-[0.3em] text-[var(--color-signal-dim)] uppercase">
             Decentralized · Scalable · Limitless
           </p>
         </div>
@@ -103,14 +119,14 @@ function UseCaseStrip() {
   return (
     <section className="border-b border-[var(--color-hairline)] bg-[var(--color-abyss)]">
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-5 py-8 sm:flex-row sm:justify-between">
-        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-ink-faint)]">
+        <span className="text-xs font-semibold tracking-[0.2em] text-[var(--color-ink-faint)] uppercase">
           Powering the AI economy
         </span>
         <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
           {USE_CASES.map((u) => (
             <span
               key={u}
-              className="font-[var(--font-display)] text-sm font-medium tracking-wide text-[var(--color-ink-soft)]"
+              className="text-sm font-[var(--font-display)] font-medium tracking-wide text-[var(--color-ink-soft)]"
             >
               {u}
             </span>
@@ -140,7 +156,7 @@ function Product() {
               <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-signal-dim)] bg-[var(--color-signal-glow)]">
                 <span className="h-3 w-3 rounded-sm bg-[var(--color-signal)] transition-transform group-hover:scale-125" />
               </div>
-              <h3 className="font-[var(--font-display)] text-lg font-semibold text-[var(--color-ink)]">
+              <h3 className="text-lg font-[var(--font-display)] font-semibold text-[var(--color-ink)]">
                 {f.title}
               </h3>
               <p className="mt-3 text-sm leading-relaxed text-[var(--color-ink-faint)]">{f.body}</p>
@@ -164,10 +180,10 @@ function HowItWorks() {
         <div className="mt-14 grid gap-px overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-hairline)] bg-[var(--color-hairline)] sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((s) => (
             <div key={s.n} className="bg-[var(--color-panel)] p-7">
-              <span className="font-[var(--font-mono)] text-sm text-[var(--color-signal)]">
+              <span className="text-sm font-[var(--font-mono)] text-[var(--color-signal)]">
                 {s.n}
               </span>
-              <h3 className="mt-4 font-[var(--font-display)] text-base font-semibold text-[var(--color-ink)]">
+              <h3 className="mt-4 text-base font-[var(--font-display)] font-semibold text-[var(--color-ink)]">
                 {s.title}
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-[var(--color-ink-faint)]">{s.body}</p>
@@ -181,7 +197,10 @@ function HowItWorks() {
 
 function Proof() {
   return (
-    <section id="proof" className="relative overflow-hidden border-b border-[var(--color-hairline)]">
+    <section
+      id="proof"
+      className="relative overflow-hidden border-b border-[var(--color-hairline)]"
+    >
       <Image
         src="/assets/assets 4.png"
         alt=""
@@ -198,8 +217,16 @@ function Proof() {
           body="Escrow, staking, and batch settlement are deployed and exercised on Sepolia. The contracts are public — verify them yourself."
         />
         <div className="mt-12 grid gap-5 md:grid-cols-2">
-          <ContractCard label="GridixEscrow" description="Developer USDC escrow — deposit, debit, withdraw." address={env.contracts.escrow} />
-          <ContractCard label="GridixStaking" description="Provider stake, slashing, and batch settlement." address={env.contracts.staking} />
+          <ContractCard
+            label="GridixEscrow"
+            description="Developer USDC escrow — deposit, debit, withdraw."
+            address={env.contracts.escrow}
+          />
+          <ContractCard
+            label="GridixStaking"
+            description="Provider stake, slashing, and batch settlement."
+            address={env.contracts.staking}
+          />
         </div>
         <div className="mt-8 grid grid-cols-2 gap-5 sm:grid-cols-4">
           <Stat value="6" label="Job states, one state machine" />
@@ -224,7 +251,7 @@ function ContractCard({
   return (
     <div className="rounded-[var(--radius-lg)] border border-[var(--color-hairline)] bg-[var(--color-panel)]/90 p-6 backdrop-blur">
       <div className="flex items-center justify-between">
-        <h3 className="font-[var(--font-display)] text-base font-semibold text-[var(--color-ink)]">
+        <h3 className="text-base font-[var(--font-display)] font-semibold text-[var(--color-ink)]">
           {label}
         </h3>
         <AddressDisplay value={address} kind="address" />
@@ -237,7 +264,7 @@ function ContractCard({
 function Stat({ value, label }: { value: string; label: string }) {
   return (
     <div>
-      <div className="font-[var(--font-mono)] text-3xl font-bold text-[var(--color-signal)] tabular">
+      <div className="tabular text-3xl font-[var(--font-mono)] font-bold text-[var(--color-signal)]">
         {value}
       </div>
       <div className="mt-1 text-xs leading-snug text-[var(--color-ink-faint)]">{label}</div>
@@ -249,7 +276,7 @@ function CtaBand() {
   return (
     <section className="bg-[var(--color-abyss)]">
       <div className="mx-auto max-w-6xl px-5 py-24 text-center">
-        <h2 className="mx-auto max-w-2xl font-[var(--font-display)] text-4xl font-bold tracking-tight text-[var(--color-ink)] sm:text-5xl">
+        <h2 className="mx-auto max-w-2xl text-4xl font-[var(--font-display)] font-bold tracking-tight text-[var(--color-ink)] sm:text-5xl">
           Building the foundation of intelligence.
         </h2>
         <p className="mx-auto mt-5 max-w-xl text-[var(--color-ink-soft)]">
@@ -281,10 +308,10 @@ function SectionHeading({
 }) {
   return (
     <div className="max-w-2xl">
-      <span className="font-[var(--font-mono)] text-xs uppercase tracking-[0.25em] text-[var(--color-signal-dim)]">
+      <span className="text-xs font-[var(--font-mono)] tracking-[0.25em] text-[var(--color-signal-dim)] uppercase">
         {eyebrow}
       </span>
-      <h2 className="mt-3 font-[var(--font-display)] text-3xl font-bold tracking-tight text-[var(--color-ink)] sm:text-4xl">
+      <h2 className="mt-3 text-3xl font-[var(--font-display)] font-bold tracking-tight text-[var(--color-ink)] sm:text-4xl">
         {title}
       </h2>
       <p className="mt-4 text-[var(--color-ink-soft)]">{body}</p>

@@ -7,7 +7,10 @@ import { cn } from "@/lib/utils/cn";
  * arbitrary (Sesi 2.4): green = live/done, red = failed, amber = timeout,
  * blue = dispatched, grey = waiting. Backend defines exactly 6 statuses.
  */
-const CONFIG: Record<JobStatus, { label: string; tone: Parameters<typeof Badge>[0]["tone"]; dot: string; live?: boolean }> = {
+const CONFIG: Record<
+  JobStatus,
+  { label: string; tone: Parameters<typeof Badge>[0]["tone"]; dot: string; live?: boolean }
+> = {
   queued: { label: "Queued", tone: "neutral", dot: "var(--color-status-queued)" },
   assigned: { label: "Assigned", tone: "info", dot: "var(--color-status-assigned)" },
   running: { label: "Running", tone: "signal", dot: "var(--color-status-running)", live: true },

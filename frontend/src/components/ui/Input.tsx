@@ -33,7 +33,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           aria-describedby={describedBy}
           className={cn(
             "h-11 w-full rounded-[var(--radius-sm)] border bg-[var(--color-abyss)] px-3 text-sm text-[var(--color-ink)] " +
-              "placeholder:text-[var(--color-ink-disabled)] transition-colors " +
+              "transition-colors placeholder:text-[var(--color-ink-disabled)]" +
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-signal)]",
             mono && "font-[var(--font-mono)]",
             error

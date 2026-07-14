@@ -4,8 +4,10 @@ import { cn } from "@/lib/utils/cn";
 type Tone = "neutral" | "signal" | "success" | "danger" | "warning" | "info";
 
 const tones: Record<Tone, string> = {
-  neutral: "bg-[var(--color-panel-raised)] text-[var(--color-ink-soft)] border-[var(--color-hairline-strong)]",
-  signal: "bg-[var(--color-signal-glow)] text-[var(--color-signal-bright)] border-[var(--color-signal-dim)]",
+  neutral:
+    "bg-[var(--color-panel-raised)] text-[var(--color-ink-soft)] border-[var(--color-hairline-strong)]",
+  signal:
+    "bg-[var(--color-signal-glow)] text-[var(--color-signal-bright)] border-[var(--color-signal-dim)]",
   success: "bg-[#35c88a1a] text-[var(--color-success)] border-[#35c88a55]",
   danger: "bg-[#ff5c5c1a] text-[var(--color-danger)] border-[#ff5c5c55]",
   warning: "bg-[#ffab3d1a] text-[var(--color-warning)] border-[#ffab3d55]",
@@ -22,7 +24,7 @@ export function Badge({ tone = "neutral", mono, className, ...props }: BadgeProp
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
-        mono && "font-[var(--font-mono)] tabular",
+        mono && "tabular font-[var(--font-mono)]",
         tones[tone],
         className,
       )}

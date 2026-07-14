@@ -7,9 +7,7 @@
   "paths": {
     "/health": {
       "get": {
-        "tags": [
-          "health"
-        ],
+        "tags": ["health"],
         "summary": "Health",
         "description": "Return 200 only when both Postgres and Redis are reachable, else 503.",
         "operationId": "health_health_get",
@@ -29,9 +27,7 @@
     },
     "/developers": {
       "post": {
-        "tags": [
-          "registration"
-        ],
+        "tags": ["registration"],
         "summary": "Register Developer",
         "description": "Create a developer and return its API key exactly once.",
         "operationId": "register_developer_developers_post",
@@ -71,9 +67,7 @@
     },
     "/providers": {
       "post": {
-        "tags": [
-          "registration"
-        ],
+        "tags": ["registration"],
         "summary": "Register Provider",
         "description": "Create a provider and return its API key exactly once.",
         "operationId": "register_provider_providers_post",
@@ -113,9 +107,7 @@
     },
     "/blobs": {
       "post": {
-        "tags": [
-          "blobs"
-        ],
+        "tags": ["blobs"],
         "summary": "Upload Blob",
         "description": "Store an input blob and return its ref for use as a job's ``input_ref``.",
         "operationId": "upload_blob_blobs_post",
@@ -173,9 +165,7 @@
     },
     "/uploads": {
       "post": {
-        "tags": [
-          "uploads"
-        ],
+        "tags": ["uploads"],
         "summary": "Create Upload",
         "description": "Begin a resumable upload.",
         "operationId": "create_upload_uploads_post",
@@ -233,9 +223,7 @@
     },
     "/uploads/{upload_id}": {
       "get": {
-        "tags": [
-          "uploads"
-        ],
+        "tags": ["uploads"],
         "summary": "Get Upload",
         "description": "Return the current offset (bytes received) so the client can resume.",
         "operationId": "get_upload_uploads__upload_id__get",
@@ -291,9 +279,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "uploads"
-        ],
+        "tags": ["uploads"],
         "summary": "Append Chunk",
         "description": "Append a chunk at ``Upload-Offset``. A mismatched offset is a 409 (retry after GET).",
         "operationId": "append_chunk_uploads__upload_id__patch",
@@ -360,9 +346,7 @@
     },
     "/uploads/{upload_id}/complete": {
       "post": {
-        "tags": [
-          "uploads"
-        ],
+        "tags": ["uploads"],
         "summary": "Complete Upload",
         "description": "Assemble the staged chunks, verify the declared digest, and promote to a blob.",
         "operationId": "complete_upload_uploads__upload_id__complete_post",
@@ -420,9 +404,7 @@
     },
     "/jobs": {
       "post": {
-        "tags": [
-          "jobs"
-        ],
+        "tags": ["jobs"],
         "summary": "Submit Job",
         "description": "Validate, escrow funds for, and enqueue a job.\n\nThe job lands in ``queued`` and its id goes on the queue; the scheduler (Session 3)\nmatches it to a provider. Worst-case cost is escrowed now and reconciled at\nsettlement. Re-submitting with the same ``Idempotency-Key`` returns the original job\ninstead of creating a duplicate.",
         "operationId": "submit_job_jobs_post",
@@ -494,9 +476,7 @@
         }
       },
       "get": {
-        "tags": [
-          "jobs"
-        ],
+        "tags": ["jobs"],
         "summary": "List Jobs",
         "description": "List the caller's own jobs, newest first.",
         "operationId": "list_jobs_jobs_get",
@@ -571,9 +551,7 @@
     },
     "/jobs/{job_id}": {
       "get": {
-        "tags": [
-          "jobs"
-        ],
+        "tags": ["jobs"],
         "summary": "Get Job",
         "description": "Read one of the caller's own jobs.",
         "operationId": "get_job_jobs__job_id__get",
@@ -631,9 +609,7 @@
     },
     "/jobs/{job_id}/result": {
       "get": {
-        "tags": [
-          "jobs"
-        ],
+        "tags": ["jobs"],
         "summary": "Download Result",
         "description": "Stream the result blob of a completed job the caller owns.",
         "operationId": "download_result_jobs__job_id__result_get",
@@ -689,9 +665,7 @@
     },
     "/jobs/{job_id}/audit": {
       "get": {
-        "tags": [
-          "jobs"
-        ],
+        "tags": ["jobs"],
         "summary": "Job Audit",
         "description": "Return the full audit trail for a job: attempts and ledger movements.",
         "operationId": "job_audit_jobs__job_id__audit_get",
@@ -749,9 +723,7 @@
     },
     "/providers/me": {
       "get": {
-        "tags": [
-          "providers"
-        ],
+        "tags": ["providers"],
         "summary": "Get Me",
         "description": "Return the authenticated provider's current record.",
         "operationId": "get_me_providers_me_get",
@@ -797,9 +769,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "providers"
-        ],
+        "tags": ["providers"],
         "summary": "Update Me",
         "description": "Partially update declared capabilities. Only provided fields change.",
         "operationId": "update_me_providers_me_patch",
@@ -857,9 +827,7 @@
     },
     "/providers/me/bandwidth": {
       "get": {
-        "tags": [
-          "providers"
-        ],
+        "tags": ["providers"],
         "summary": "My Bandwidth",
         "description": "Return this provider's byte counters \u2014 lifetime and for the current session.",
         "operationId": "my_bandwidth_providers_me_bandwidth_get",
@@ -907,9 +875,7 @@
     },
     "/providers/me/benchmark": {
       "get": {
-        "tags": [
-          "providers"
-        ],
+        "tags": ["providers"],
         "summary": "My Benchmark",
         "description": "Return the provider's latest benchmark report, or null if none submitted.",
         "operationId": "my_benchmark_providers_me_benchmark_get",
@@ -965,9 +931,7 @@
     },
     "/providers/me/trust": {
       "get": {
-        "tags": [
-          "providers"
-        ],
+        "tags": ["providers"],
         "summary": "My Trust",
         "description": "Report the provider's trust source (Session 11.3): attested / benchmark / self_report.",
         "operationId": "my_trust_providers_me_trust_get",
@@ -1017,9 +981,7 @@
     },
     "/agent/poll": {
       "post": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Poll",
         "description": "Long-poll for work: return immediately if a job is assigned, else hold the\nconnection open up to ``poll_hold_seconds`` before returning empty.\n\nHolding the request open keeps the control channel warm across idle periods while\nstill surfacing new work within a poll tick of it being assigned.",
         "operationId": "poll_agent_poll_post",
@@ -1067,9 +1029,7 @@
     },
     "/agent/ping": {
       "post": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Ping",
         "description": "Idle keepalive: refresh presence so the coordinator knows the agent is alive.",
         "operationId": "ping_agent_ping_post",
@@ -1117,9 +1077,7 @@
     },
     "/agent/path": {
       "post": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Report Path",
         "description": "Negotiate the reachability path from the agent's NAT report.\n\nA direct P2P path is chosen when the NAT topology allows it (open / restricted cone);\na symmetric NAT can't be punched, so the session uses the relay. The choice is\nrecorded on the provider and logged. Actual hole punching happens out of band; a\ndirect send that fails still falls back to relay transparently (ProviderChannel).",
         "operationId": "report_path_agent_path_post",
@@ -1177,9 +1135,7 @@
     },
     "/agent/cache": {
       "post": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Report Cache",
         "description": "Sync the provider's cached artifact digests (Session 8.5 locality hint).\n\nReplaces the recorded set so it tracks the agent's LRU cache; the scheduler then\nsoft-prefers this provider for jobs whose input it already holds.",
         "operationId": "report_cache_agent_cache_post",
@@ -1230,9 +1186,7 @@
     },
     "/agent/artifacts/{digest}/peers": {
       "get": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Artifact Peers",
         "description": "Return where to fetch an artifact from (Session 8.7). Origin unless peer\ndistribution is enabled and another provider already seeds the digest.",
         "operationId": "artifact_peers_agent_artifacts__digest__peers_get",
@@ -1289,9 +1243,7 @@
     },
     "/agent/heartbeat": {
       "post": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Heartbeat",
         "description": "Extend the lease on an in-flight job so the reaper does not reclaim it.",
         "operationId": "heartbeat_agent_heartbeat_post",
@@ -1349,9 +1301,7 @@
     },
     "/agent/jobs/{job_id}/status": {
       "post": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Report Status",
         "description": "Agent reports it has begun executing: ``assigned \u2192 running``.\n\nFor a redundant job the first provider to report moves the job to ``running``; the\nothers find it already there and only advance their own attempt \u2014 the per-attempt state\nis what matters, the job status is shared.",
         "operationId": "report_status_agent_jobs__job_id__status_post",
@@ -1419,9 +1369,7 @@
     },
     "/agent/benchmark": {
       "post": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Submit Benchmark",
         "description": "Store a signed onboarding benchmark and validate it against declared hardware.\n\nThe report is attributed to the authenticated provider; validation (Session 11.2)\ncatches a machine claiming hardware it can't benchmark to.",
         "operationId": "submit_benchmark_agent_benchmark_post",
@@ -1479,9 +1427,7 @@
     },
     "/agent/health": {
       "post": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Report Health",
         "description": "Ingest a telemetry sample and flag the provider degraded if a signal crosses a\nthreshold (Session 11.4). Recovery telemetry clears the flag.",
         "operationId": "report_health_agent_health_post",
@@ -1539,9 +1485,7 @@
     },
     "/agent/attest": {
       "post": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Submit Attestation",
         "description": "Verify a TEE attestation quote and set the provider's attested flag (Session 9.5).\n\nA valid quote grants ``tee_attested`` (enabling confidential-tee assignment and key\nrelease); a tampered or absent quote clears it and is rejected (400).",
         "operationId": "submit_attestation_agent_attest_post",
@@ -1599,9 +1543,7 @@
     },
     "/agent/jobs/{job_id}/key": {
       "get": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Get Job Key",
         "description": "Release the job's data key to its assigned agent (Session 9.3).\n\nOnly the provider the job is assigned to receives it, and only while the job is in\nflight \u2014 the key is job-scoped and expires with the job.",
         "operationId": "get_job_key_agent_jobs__job_id__key_get",
@@ -1659,9 +1601,7 @@
     },
     "/agent/jobs/{job_id}/secrets": {
       "get": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Get Job Secrets",
         "description": "Mint short-lived, job-scoped secrets for the assigned agent (Session 9.6).\n\nValues are never persisted and never logged (only their names); they expire on their\nown and are unavailable once the job ends.",
         "operationId": "get_job_secrets_agent_jobs__job_id__secrets_get",
@@ -1719,9 +1659,7 @@
     },
     "/agent/jobs/{job_id}/input": {
       "get": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Download Input",
         "description": "Stream the input blob for a job assigned to this provider.",
         "operationId": "download_input_agent_jobs__job_id__input_get",
@@ -1777,9 +1715,7 @@
     },
     "/agent/blobs": {
       "post": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Upload Result Blob",
         "description": "Store a result blob and return its (content-addressed) ref for the result call.",
         "operationId": "upload_result_blob_agent_blobs_post",
@@ -1837,9 +1773,7 @@
     },
     "/agent/jobs/{job_id}/result": {
       "post": {
-        "tags": [
-          "agent"
-        ],
+        "tags": ["agent"],
         "summary": "Submit Result",
         "description": "Accept a result + proof and move the job to its terminal state.\n\nThe result is verified (proof, exit/timeout, canary match) and, once enough attempts\nare in, the job finalizes by quorum \u2014 settling the winner and slashing cheats.",
         "operationId": "submit_result_agent_jobs__job_id__result_post",
@@ -1907,9 +1841,7 @@
     },
     "/disputes/me": {
       "get": {
-        "tags": [
-          "disputes"
-        ],
+        "tags": ["disputes"],
         "summary": "My Disputes",
         "description": "List the calling provider's disputes, newest first.",
         "operationId": "my_disputes_disputes_me_get",
@@ -1961,9 +1893,7 @@
     },
     "/disputes/review-queue": {
       "get": {
-        "tags": [
-          "disputes"
-        ],
+        "tags": ["disputes"],
         "summary": "Review Queue",
         "description": "Operator view: disputes awaiting manual adjudication, oldest first (10.4).\n\nDeclared before ``/disputes/{dispute_id}`` so the literal path isn't captured as an id.",
         "operationId": "review_queue_disputes_review_queue_get",
@@ -2015,9 +1945,7 @@
     },
     "/disputes/{dispute_id}": {
       "get": {
-        "tags": [
-          "disputes"
-        ],
+        "tags": ["disputes"],
         "summary": "Get Dispute",
         "description": "Return one of the provider's disputes with the full evidence that triggered it.",
         "operationId": "get_dispute_disputes__dispute_id__get",
@@ -2075,9 +2003,7 @@
     },
     "/disputes/{dispute_id}/contest": {
       "post": {
-        "tags": [
-          "disputes"
-        ],
+        "tags": ["disputes"],
         "summary": "Contest",
         "description": "Contest an open slash within its window \u2192 moves it to review.",
         "operationId": "contest_disputes__dispute_id__contest_post",
@@ -2135,9 +2061,7 @@
     },
     "/disputes/{dispute_id}/rule": {
       "post": {
-        "tags": [
-          "disputes"
-        ],
+        "tags": ["disputes"],
         "summary": "Rule On Dispute",
         "description": "Operator records a ruling on an under-review dispute, with an audit-logged reason.",
         "operationId": "rule_on_dispute_disputes__dispute_id__rule_post",
@@ -2205,9 +2129,7 @@
     },
     "/jobs/{job_id}/endpoint": {
       "get": {
-        "tags": [
-          "endpoints"
-        ],
+        "tags": ["endpoints"],
         "summary": "Get Endpoint",
         "description": "Return the routed URL + capability token for an endpoint job the caller owns.",
         "operationId": "get_endpoint_jobs__job_id__endpoint_get",
@@ -2265,9 +2187,7 @@
     },
     "/metrics": {
       "get": {
-        "tags": [
-          "metrics"
-        ],
+        "tags": ["metrics"],
         "summary": "Metrics",
         "description": "Expose current metrics in Prometheus text format.",
         "operationId": "metrics_metrics_get",
@@ -2298,10 +2218,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "job_id",
-          "status"
-        ],
+        "required": ["job_id", "status"],
         "title": "Ack",
         "description": "Generic acknowledgement with the resulting job status."
       },
@@ -2395,11 +2312,7 @@
         "properties": {
           "nat_type": {
             "type": "string",
-            "enum": [
-              "open",
-              "restricted",
-              "symmetric"
-            ],
+            "enum": ["open", "restricted", "symmetric"],
             "title": "Nat Type"
           },
           "candidates": {
@@ -2412,9 +2325,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "nat_type"
-        ],
+        "required": ["nat_type"],
         "title": "AgentPathReport",
         "description": "Agent reports its NAT classification + candidates so the coordinator can decide\nwhether a direct path is possible or the relay must be used."
       },
@@ -2464,10 +2375,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "exit_code",
-          "proof"
-        ],
+        "required": ["exit_code", "proof"],
         "title": "AgentResultRequest",
         "description": "Agent submits a terminal result (Session 4)."
       },
@@ -2480,9 +2388,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "status"
-        ],
+        "required": ["status"],
         "title": "AgentStatusRequest",
         "description": "Agent reports it has started executing (``running``)."
       },
@@ -2570,10 +2476,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "measurement",
-          "signature"
-        ],
+        "required": ["measurement", "signature"],
         "title": "AttestationQuote",
         "description": "A TEE attestation quote submitted by the agent (Session 9.5)."
       },
@@ -2585,9 +2488,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "attested"
-        ],
+        "required": ["attested"],
         "title": "AttestationResult",
         "description": "Whether the submitted attestation was accepted."
       },
@@ -2657,14 +2558,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "id",
-          "provider_id",
-          "metrics",
-          "signature",
-          "validated",
-          "created_at"
-        ],
+        "required": ["id", "provider_id", "metrics", "signature", "validated", "created_at"],
         "title": "BenchmarkResponse",
         "description": "A stored benchmark report."
       },
@@ -2683,10 +2577,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "metrics",
-          "signature"
-        ],
+        "required": ["metrics", "signature"],
         "title": "BenchmarkSubmit",
         "description": "A signed benchmark report submitted at onboarding (Session 11.1)."
       },
@@ -2702,10 +2593,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "ref",
-          "size"
-        ],
+        "required": ["ref", "size"],
         "title": "BlobRef",
         "description": "A stored blob's content-addressed ref and size."
       },
@@ -2718,9 +2606,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "file"
-        ],
+        "required": ["file"],
         "title": "Body_upload_blob_blobs_post"
       },
       "Body_upload_result_blob_agent_blobs_post": {
@@ -2732,9 +2618,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "file"
-        ],
+        "required": ["file"],
         "title": "Body_upload_result_blob_agent_blobs_post"
       },
       "CacheReport": {
@@ -2760,9 +2644,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "data_key"
-        ],
+        "required": ["data_key"],
         "title": "DataKeyResponse",
         "description": "The brokered per-job data key released to the assigned agent (Session 9.3)."
       },
@@ -2885,10 +2767,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "upheld",
-          "reason"
-        ],
+        "required": ["upheld", "reason"],
         "title": "DisputeRuling",
         "description": "An operator's manual decision on a dispute (Session 10.4)."
       },
@@ -2908,11 +2787,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "url",
-          "token",
-          "port"
-        ],
+        "required": ["url", "token", "port"],
         "title": "EndpointInfo",
         "description": "The coordinator-issued routed URL + capability token for an endpoint job."
       },
@@ -2974,10 +2849,7 @@
         "properties": {
           "status": {
             "type": "string",
-            "enum": [
-              "ok",
-              "degraded"
-            ],
+            "enum": ["ok", "degraded"],
             "title": "Status"
           },
           "database": {
@@ -2990,11 +2862,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "status",
-          "database",
-          "redis"
-        ],
+        "required": ["status", "database", "redis"],
         "title": "HealthResponse",
         "description": "Result of the liveness/readiness probe."
       },
@@ -3010,10 +2878,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "degraded",
-          "reason"
-        ],
+        "required": ["degraded", "reason"],
         "title": "HealthResult",
         "description": "The evaluated health verdict for a reported sample."
       },
@@ -3026,9 +2891,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "job_id"
-        ],
+        "required": ["job_id"],
         "title": "HeartbeatRequest",
         "description": "Extend the lease on an in-flight job."
       },
@@ -3046,10 +2909,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "job_id",
-          "lease_expires_at"
-        ],
+        "required": ["job_id", "lease_expires_at"],
         "title": "HeartbeatResponse",
         "description": "The renewed lease deadline."
       },
@@ -3068,20 +2928,13 @@
           },
           "kind": {
             "type": "string",
-            "enum": [
-              "host",
-              "srflx",
-              "relay"
-            ],
+            "enum": ["host", "srflx", "relay"],
             "title": "Kind",
             "default": "host"
           }
         },
         "type": "object",
-        "required": [
-          "address",
-          "port"
-        ],
+        "required": ["address", "port"],
         "title": "IceCandidate",
         "description": "A single ICE-style connectivity candidate advertised by the agent."
       },
@@ -3142,20 +2995,13 @@
           }
         },
         "type": "object",
-        "required": [
-          "job",
-          "attempts",
-          "ledger"
-        ],
+        "required": ["job", "attempts", "ledger"],
         "title": "JobAudit",
         "description": "The full audit trail for one job: lifecycle, attempts, and money movements."
       },
       "JobKind": {
         "type": "string",
-        "enum": [
-          "standard",
-          "canary"
-        ],
+        "enum": ["standard", "canary"],
         "title": "JobKind",
         "description": "Job classification. Canaries are indistinguishable from real work to providers."
       },
@@ -3342,23 +3188,13 @@
           }
         },
         "type": "object",
-        "required": [
-          "secrets",
-          "expires_at"
-        ],
+        "required": ["secrets", "expires_at"],
         "title": "JobSecretsResponse",
         "description": "Short-lived, job-scoped secrets injected into the container (Session 9.6)."
       },
       "JobStatus": {
         "type": "string",
-        "enum": [
-          "queued",
-          "assigned",
-          "running",
-          "completed",
-          "failed",
-          "timeout"
-        ],
+        "enum": ["queued", "assigned", "running", "completed", "failed", "timeout"],
         "title": "JobStatus",
         "description": "States in the job lifecycle. Transitions are enforced by ``app.state_machine``."
       },
@@ -3399,14 +3235,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "account",
-          "account_ref",
-          "direction",
-          "amount",
-          "reason",
-          "created_at"
-        ],
+        "required": ["account", "account_ref", "direction", "amount", "reason", "created_at"],
         "title": "LedgerRecord",
         "description": "One ledger row in a job's audit trail."
       },
@@ -3414,17 +3243,12 @@
         "properties": {
           "path_type": {
             "type": "string",
-            "enum": [
-              "direct",
-              "relay"
-            ],
+            "enum": ["direct", "relay"],
             "title": "Path Type"
           }
         },
         "type": "object",
-        "required": [
-          "path_type"
-        ],
+        "required": ["path_type"],
         "title": "PathResponse",
         "description": "The negotiated path for the provider's current session."
       },
@@ -3436,10 +3260,7 @@
           },
           "kind": {
             "type": "string",
-            "enum": [
-              "origin",
-              "peer"
-            ],
+            "enum": ["origin", "peer"],
             "title": "Kind"
           },
           "provider_id": {
@@ -3464,10 +3285,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "enabled",
-          "kind"
-        ],
+        "required": ["enabled", "kind"],
         "title": "PeerFetchPlan",
         "description": "Where a provider should fetch an artifact from (Session 8.7)."
       },
@@ -3503,11 +3321,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "connected",
-          "connected_at",
-          "last_seen"
-        ],
+        "required": ["connected", "connected_at", "last_seen"],
         "title": "PingResponse",
         "description": "Presence status returned to an agent keepalive (Session 7.1)."
       },
@@ -3724,9 +3538,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "name"
-        ],
+        "required": ["name"],
         "title": "RegisterDeveloperRequest",
         "description": "Register a new developer account."
       },
@@ -3752,9 +3564,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "name"
-        ],
+        "required": ["name"],
         "title": "RegisterProviderRequest",
         "description": "Register a new provider account."
       },
@@ -3776,11 +3586,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "id",
-          "name",
-          "api_key"
-        ],
+        "required": ["id", "name", "api_key"],
         "title": "RegisteredPrincipal",
         "description": "Response to a successful registration. ``api_key`` is returned exactly once."
       },
@@ -3890,11 +3696,7 @@
           },
           "data_tier": {
             "type": "string",
-            "enum": [
-              "public",
-              "encrypted_at_rest",
-              "confidential_tee"
-            ],
+            "enum": ["public", "encrypted_at_rest", "confidential_tee"],
             "title": "Data Tier",
             "default": "public"
           },
@@ -3913,9 +3715,7 @@
         },
         "additionalProperties": false,
         "type": "object",
-        "required": [
-          "image_ref"
-        ],
+        "required": ["image_ref"],
         "title": "SubmitJobRequest",
         "description": "Submit a job for execution."
       },
@@ -3963,10 +3763,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "upload_id",
-          "received"
-        ],
+        "required": ["upload_id", "received"],
         "title": "UploadSessionResponse",
         "description": "An upload session's state, including bytes received (the resume offset)."
       },
@@ -4003,11 +3800,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
+        "required": ["loc", "msg", "type"],
         "title": "ValidationError"
       }
     }

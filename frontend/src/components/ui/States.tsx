@@ -16,7 +16,7 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
       {icon && <div className="text-[var(--color-signal-dim)]">{icon}</div>}
-      <h3 className="font-[var(--font-display)] text-lg font-semibold text-[var(--color-ink)]">
+      <h3 className="text-lg font-[var(--font-display)] font-semibold text-[var(--color-ink)]">
         {title}
       </h3>
       <p className="max-w-sm text-sm text-[var(--color-ink-faint)]">{description}</p>
@@ -52,7 +52,7 @@ export function ErrorState({
       >
         !
       </div>
-      <h3 className="font-[var(--font-display)] text-lg font-semibold text-[var(--color-ink)]">
+      <h3 className="text-lg font-[var(--font-display)] font-semibold text-[var(--color-ink)]">
         {title}
       </h3>
       <p className="max-w-sm text-sm text-[var(--color-ink-faint)]">{message}</p>
