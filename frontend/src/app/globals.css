@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+/*
+ * GRIDIX design tokens.
+ * Brand: near-black canvas, lime/chartreuse signal green, hexagon motif.
+ * Data (hashes, addresses, USDC amounts) render in a mono utility face —
+ * GRIDIX is a technical product and its numbers must be unambiguous.
+ * Every color/size below is a token; components must never hardcode a hex.
+ */
+@theme {
+  /* --- Surfaces (near-black, layered) --- */
+  --color-void: #05070a; /* page background */
+  --color-abyss: #0a0e13; /* app shell / sections */
+  --color-panel: #111820; /* cards, panels */
+  --color-panel-raised: #17212b; /* raised / hover surfaces */
+  --color-hairline: #212c38; /* borders, dividers */
+  --color-hairline-strong: #2f3d4d;
+
+  /* --- Signal green (the brand) --- */
+  --color-signal: #a6e610; /* primary lime — CTAs, focus, active */
+  --color-signal-bright: #c4ff2e; /* hover / emphasis */
+  --color-signal-dim: #6f9a0b; /* muted green, secondary */
+  --color-signal-glow: #a6e61033; /* translucent glow / rings */
+
+  /* --- Text --- */
+  --color-ink: #eef3f7; /* primary text */
+  --color-ink-soft: #aeb9c4; /* secondary text */
+  --color-ink-faint: #6b7885; /* tertiary / captions */
+  --color-ink-disabled: #45525f;
+
+  /* --- Semantic status (job lifecycle + tx) --- */
+  --color-status-queued: #7c8896; /* neutral, waiting */
+  --color-status-assigned: #4aa3ff; /* blue, dispatched */
+  --color-status-running: #a6e610; /* live, green pulse */
+  --color-status-completed: #35c88a; /* success teal-green */
+  --color-status-failed: #ff5c5c; /* red */
+  --color-status-timeout: #ffab3d; /* amber */
+  --color-status-cancelled: #6b7885; /* muted */
+
+  --color-danger: #ff5c5c;
+  --color-warning: #ffab3d;
+  --color-success: #35c88a;
+  --color-info: #4aa3ff;
+
+  /* --- Typography (families injected by next/font on <html>) --- */
+  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* --- Radius --- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  /* --- Shadow / glow --- */
+  --shadow-panel: 0 1px 0 0 #ffffff08 inset, 0 8px 24px -12px #00000099;
+  --shadow-glow: 0 0 0 1px var(--color-signal-glow), 0 0 32px -8px var(--color-signal-glow);
+
+  /* --- Motion --- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 360ms;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    background-color: var(--color-void);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  /* Tabular figures everywhere numbers matter. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Visible keyboard focus — required across the whole app (Sesi 2.3). */
+  :focus-visible {
+    outline: 2px solid var(--color-signal);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+  }
+
+  ::selection {
+    background: var(--color-signal);
+    color: var(--color-void);
+  }
+
+  /* Honor reduced-motion globally (Sesi 2.3 / 13.2). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Subtle hexagonal grid backdrop used behind hero/dashboards. */
+  .bg-grid {
+    background-image:
+      linear-gradient(var(--color-hairline) 1px, transparent 1px),
+      linear-gradient(90deg, var(--color-hairline) 1px, transparent 1px);
+    background-size: 44px 44px;
+    -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 24px var(--color-signal-glow);
+  }
+
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+  .animate-pulse-dot {
+    animation: pulse-dot 1.6s var(--ease-out) infinite;
+  }
+}
