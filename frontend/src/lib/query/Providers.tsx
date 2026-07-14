@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
+import { WagmiProvider } from "wagmi";
+import { wagmiConfig } from "@/lib/chain/config";
 import { isApiError } from "@/lib/api/errors";
 
 /**
@@ -43,5 +45,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     });
   });
 
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    </WagmiProvider>
+  );
 }
