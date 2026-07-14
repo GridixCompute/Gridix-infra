@@ -7,8 +7,10 @@
  *  - returns generated OpenAPI types (never hand-written).
  *
  * Auth note: the browser must not read the API key (Sesi 4.2 — httpOnly cookie).
- * So on the client we call our own Next route handlers under `/api/*`, which
- * attach the key server-side. `apiKey` here is for that server context.
+ * So the browser instance points at our own same-origin route handlers under
+ * `/api/gw/*`, which read the httpOnly cookie and attach `Authorization: Bearer`
+ * server-side. No credential ever touches browser JS. See src/lib/api/server.ts
+ * for the server→backend client.
  */
 import type { paths } from "./schema";
 import { ApiError, toApiError, toNetworkError } from "./errors";
@@ -32,17 +34,13 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 
 export type ApiClientConfig = {
   baseUrl: string;
-  /** Attached as `X-API-Key`. Server-side only. */
-  apiKey?: string;
 };
 
 export class ApiClient {
   private readonly baseUrl: string;
-  private readonly apiKey?: string;
 
   constructor(config: ApiClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, "");
-    this.apiKey = config.apiKey;
   }
 
   async request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
@@ -86,8 +84,6 @@ export class ApiClient {
         payload = JSON.stringify(opts.body);
       }
     }
-    if (this.apiKey) headers["X-API-Key"] = this.apiKey;
-
     try {
       const res = await fetch(`${this.baseUrl}${path}`, {
         method,
@@ -95,6 +91,7 @@ export class ApiClient {
         body: payload,
         signal: controller.signal,
         cache: "no-store",
+        credentials: "same-origin", // send the httpOnly session cookie to /api/gw
       });
       if (!res.ok) throw await toApiError(res);
       if (res.status === 204) return undefined as T;
