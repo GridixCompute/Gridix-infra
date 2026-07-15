@@ -27,7 +27,15 @@ function LoginForm() {
         body: JSON.stringify({ apiKey }),
       });
       if (res.ok) {
-        router.replace(next);
+        const data = (await res.json().catch(() => ({}))) as { role?: string };
+        // Honour an explicit redirect target; otherwise send each role home.
+        const dest =
+          next && next !== "/dashboard"
+            ? next
+            : data.role === "provider"
+              ? "/provider"
+              : "/dashboard";
+        router.replace(dest);
         router.refresh();
         return;
       }
@@ -48,8 +56,8 @@ function LoginForm() {
             Sign in
           </h1>
           <p className="mt-1 text-sm text-[var(--color-ink-faint)]">
-            Paste your developer API key. It&apos;s stored in a secure httpOnly cookie — never
-            exposed to the browser.
+            Paste your developer or provider API key — we detect which. It&apos;s stored in a secure
+            httpOnly cookie, never exposed to the browser.
           </p>
         </div>
         <form onSubmit={onSubmit} className="space-y-4">
@@ -72,6 +80,13 @@ function LoginForm() {
           No account yet?{" "}
           <Link href="/register" className="text-[var(--color-signal-bright)] hover:underline">
             Create one
+          </Link>{" "}
+          ·{" "}
+          <Link
+            href="/provider-register"
+            className="text-[var(--color-signal-bright)] hover:underline"
+          >
+            Run a node
           </Link>
         </p>
       </CardBody>
