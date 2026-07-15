@@ -18,6 +18,7 @@ import hashlib
 import os
 import random
 import signal
+import stat
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -77,6 +78,58 @@ CONTAINER_OUTPUT_FILE = f"{CONTAINER_OUTPUT_DIR}/result"
 
 # Unprivileged uid:gid the container process runs as (nobody:nogroup).
 _NONROOT = "65534:65534"
+
+# Cap on the job result the agent will read back from the shared output dir. A job that
+# writes gigabytes can't OOM the agent; anything larger is treated as no result.
+_MAX_OUTPUT_BYTES = 2 * 1024**3  # 2 GiB
+
+
+def read_job_output(output_file: Path) -> bytes:
+    """Read a job's ``result`` file WITHOUT following symlinks (pentest H3).
+
+    The job container is untrusted and shares the output directory with the host via the
+    ``:rw`` bind mount, so a malicious job can drop ``result`` as a *symlink* to a host file
+    it should never see — ``/etc/passwd``, the agent's own ``.env``, the provider key — and
+    have the agent read it and upload it as the job's "output" (arbitrary host-file read /
+    exfiltration). Defence: open the final component with ``O_NOFOLLOW`` so a symlink is
+    refused outright, and require a regular file. A missing/symlinked/oversized/special file
+    yields ``b""`` (no output), never the target's contents. Fail-closed.
+
+    ``O_NONBLOCK`` is essential: without it, a job that plants a *named pipe* at ``result``
+    would make this ``open()`` block forever waiting for a writer — a trivial DoS. With it the
+    open returns immediately and the non-regular file is rejected by the ``S_ISREG`` check.
+    """
+    try:
+        fd = os.open(output_file, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return b""
+    except OSError as exc:
+        # ELOOP: the final component is a symlink → refuse it. (Also any other open error.)
+        logger.warning(
+            "refusing to read job output {} (symlink or unreadable): {}", output_file, exc
+        )
+        return b""
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            logger.warning("job output {} is not a regular file; ignoring", output_file)
+            return b""
+        if st.st_size > _MAX_OUTPUT_BYTES:
+            logger.warning(
+                "job output {} exceeds {} bytes; ignoring", output_file, _MAX_OUTPUT_BYTES
+            )
+            return b""
+        chunks: list[bytes] = []
+        while True:
+            block = os.read(fd, 1024 * 1024)
+            if not block:
+                break
+            chunks.append(block)
+        return b"".join(chunks)
+    except OSError:
+        return b""
+    finally:
+        os.close(fd)
 
 
 class ArtifactCache:
@@ -539,8 +592,8 @@ class Agent:
         )
         logger.info("job {} finished in {:.1f}s", job_id, time.monotonic() - started)
 
-        output_file = out_dir / "result"
-        output = output_file.read_bytes() if output_file.exists() else b""
+        # H3: never follow a symlink the untrusted job may have planted at out_dir/result.
+        output = read_job_output(out_dir / "result")
         return RunResult(exit_code=exit_code, timed_out=timed_out, output=output)
 
     async def _fetch_input(self, job_id: str, job_dir: Path, input_ref: str | None) -> Path | None:
