@@ -21,19 +21,9 @@ const nextConfig: NextConfig = {
     };
     return config;
   },
-  async headers() {
-    // Baseline security headers (Sesi 4.5 / 14.5 harden these further).
-    const securityHeaders = [
-      { key: "X-Content-Type-Options", value: "nosniff" },
-      { key: "X-Frame-Options", value: "DENY" },
-      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-      {
-        key: "Permissions-Policy",
-        value: "camera=(), microphone=(), geolocation=()",
-      },
-    ];
-    return [{ source: "/:path*", headers: securityHeaders }];
-  },
+  // Security headers are set in middleware.ts so they apply uniformly to static,
+  // dynamic, and cached responses (next.config headers() drops CSP/HSTS on
+  // full-route-cache hits).
 };
 
 export default nextConfig;
