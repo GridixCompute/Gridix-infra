@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Couldn't create your account. Try again." }, { status });
   }
 
-  await setSession(data.api_key, data.name);
+  await setSession(data.api_key, data.name, "developer");
   // Return the key once so the page can show it. Not persisted anywhere else.
   return NextResponse.json({ id: data.id, name: data.name, apiKey: data.api_key });
 }

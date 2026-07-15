@@ -8,6 +8,9 @@ import { cookies } from "next/headers";
  */
 export const SESSION_COOKIE = "gridix_session";
 export const NAME_COOKIE = "gridix_dev";
+export const ROLE_COOKIE = "gridix_role";
+
+export type Role = "developer" | "provider";
 
 const COMMON = {
   path: "/",
@@ -20,15 +23,18 @@ export async function getSessionKey(): Promise<string | undefined> {
   return (await cookies()).get(SESSION_COOKIE)?.value;
 }
 
-export async function setSession(apiKey: string, name: string): Promise<void> {
+export async function setSession(apiKey: string, name: string, role: Role): Promise<void> {
   const jar = await cookies();
   jar.set(SESSION_COOKIE, apiKey, { ...COMMON, httpOnly: true });
-  // Display-only; readable by the client so the UI can greet the developer.
+  // Display-only, readable by the client so the UI can greet the principal and
+  // branch on role. Neither is sensitive; the key alone stays httpOnly.
   jar.set(NAME_COOKIE, name, { ...COMMON, httpOnly: false });
+  jar.set(ROLE_COOKIE, role, { ...COMMON, httpOnly: false });
 }
 
 export async function clearSession(): Promise<void> {
   const jar = await cookies();
   jar.delete(SESSION_COOKIE);
   jar.delete(NAME_COOKIE);
+  jar.delete(ROLE_COOKIE);
 }
