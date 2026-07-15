@@ -92,6 +92,17 @@ def auth(api_key: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {api_key}"}
 
 
+# The operator secret in the hermetic env: operator_secret is unset and env=dev, so
+# operator_key falls back to GRIDIX_SECRET_KEY above. Operator-gated endpoints (dispute
+# rulings, /metrics) accept this bearer.
+OPERATOR_SECRET = "test-secret-key-deterministic"
+
+
+def operator_auth() -> dict[str, str]:
+    """Build the Authorization header for the operator secret."""
+    return {"Authorization": f"Bearer {OPERATOR_SECRET}"}
+
+
 # Well-formed 64-hex sha256 stand-ins for result refs/hashes in tests. Real proofs must be
 # a valid sha256 (security wave 0 / C1), so tests use these instead of short placeholders;
 # the rejection of malformed hashes is proven in test_pentest_wave0.py.

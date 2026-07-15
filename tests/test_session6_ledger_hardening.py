@@ -7,7 +7,7 @@ import pytest
 from app.config import get_settings
 from app.pricing import compute_cost, escrow_estimate, protocol_fee
 from app.ratelimit import check_rate_limit
-from conftest import auth, register
+from conftest import auth, operator_auth, register
 from httpx import AsyncClient
 
 pytestmark = pytest.mark.usefixtures("_no_redis")
@@ -82,7 +82,7 @@ async def test_rate_limit_fails_closed_when_redis_down() -> None:
 async def test_metrics_exposes_counts(client: AsyncClient) -> None:
     _dev, key = await register(client, "developer", "Acme")
     await client.post("/jobs", headers=auth(key), json={"image_ref": "img"})
-    resp = await client.get("/metrics")
+    resp = await client.get("/metrics", headers=operator_auth())
     assert resp.status_code == 200
     body = resp.text
     assert "gridix_jobs" in body
