@@ -21,6 +21,7 @@ with the shared internal secret; the relay bridges it onto the target tunnel.
 
 import asyncio
 import hmac
+import json
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -36,6 +37,19 @@ from app.models import ApiKey, OwnerType, Provider
 from app.security import hash_api_key
 
 Authenticator = Callable[[str], Awaitable[uuid.UUID | None]]
+
+# Per-frame size cap on the relay WebSocket (security wave 3) — bound memory so a
+# provider (or an attacker who obtained a provider key) can't OOM the relay with a
+# giant frame.
+_MAX_FRAME_BYTES = 1_048_576  # 1 MiB
+
+
+async def _receive_json_bounded(ws: WebSocket) -> Any:
+    """Receive one JSON text frame, rejecting anything over the size cap."""
+    text = await ws.receive_text()
+    if len(text.encode("utf-8", errors="ignore")) > _MAX_FRAME_BYTES:
+        raise ValueError("relay frame exceeds size limit")
+    return json.loads(text)
 
 
 class TunnelClosedError(ConnectionError):
@@ -207,7 +221,7 @@ def create_relay_app(authenticate: Authenticator | None = None) -> FastAPI:
     async def relay_agent(ws: WebSocket) -> None:
         await ws.accept()
         try:
-            frame = await ws.receive_json()
+            frame = await _receive_json_bounded(ws)
         except (WebSocketDisconnect, ValueError):
             await ws.close(code=1008)
             return
@@ -233,10 +247,13 @@ def create_relay_app(authenticate: Authenticator | None = None) -> FastAPI:
 
         try:
             while True:
-                msg = await ws.receive_json()
+                msg = await _receive_json_bounded(ws)
                 await tunnel.handle_incoming(msg)
         except WebSocketDisconnect:
             pass
+        except ValueError:
+            # Oversized or malformed frame → drop the tunnel (1009 = message too big).
+            await ws.close(code=1009)
         finally:
             tunnel.fail_all(TunnelClosedError("tunnel closed"))
             await registry.unregister(provider_id, tunnel)
