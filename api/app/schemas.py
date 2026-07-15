@@ -178,6 +178,39 @@ class BandwidthResponse(BaseModel):
     session_egress_bytes: int
 
 
+class ProviderJobAttempt(BaseModel):
+    """One execution this provider ran, for the provider job-history view (Session 11.6).
+
+    Joins the attempt to its parent job so a provider sees what it worked on, how it
+    turned out, and how long it took — without exposing another developer's job payload.
+    """
+
+    attempt_id: uuid.UUID
+    job_id: uuid.UUID
+    attempt_number: int
+    outcome: str
+    job_status: JobStatus
+    image_ref: str
+    is_high_value: bool
+    redundancy: int
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    duration_seconds: float | None
+
+
+class ReputationEventResponse(ORMModel):
+    """One entry in a provider's reputation ledger — why the score moved (Session 11.6)."""
+
+    id: uuid.UUID
+    job_id: uuid.UUID | None
+    kind: str
+    delta: float
+    score_after: float
+    meta: dict[str, Any] | None
+    created_at: datetime
+
+
 # ── Path negotiation (Session 7.4) ──────────────────────────────────────────────
 class IceCandidate(BaseModel):
     """A single ICE-style connectivity candidate advertised by the agent."""

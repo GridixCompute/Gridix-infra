@@ -1011,6 +1011,160 @@
         }
       }
     },
+    "/providers/me/jobs": {
+      "get": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "My Jobs",
+        "description": "Return this provider's execution history \u2014 one row per attempt, newest first.",
+        "operationId": "my_jobs_providers_me_jobs_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderJobAttempt"
+                  },
+                  "title": "Response My Jobs Providers Me Jobs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/providers/me/reputation": {
+      "get": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "My Reputation",
+        "description": "Return this provider's reputation events \u2014 why the score moved, newest first.",
+        "operationId": "my_reputation_providers_me_reputation_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReputationEventResponse"
+                  },
+                  "title": "Response My Reputation Providers Me Reputation Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/providers/me/trust": {
       "get": {
         "tags": [
@@ -3639,6 +3793,100 @@
         "title": "ProviderCapabilities",
         "description": "Capabilities a provider declares. All fields optional on PATCH (partial update)."
       },
+      "ProviderJobAttempt": {
+        "properties": {
+          "attempt_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Attempt Id"
+          },
+          "job_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Job Id"
+          },
+          "attempt_number": {
+            "type": "integer",
+            "title": "Attempt Number"
+          },
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          },
+          "job_status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "image_ref": {
+            "type": "string",
+            "title": "Image Ref"
+          },
+          "is_high_value": {
+            "type": "boolean",
+            "title": "Is High Value"
+          },
+          "redundancy": {
+            "type": "integer",
+            "title": "Redundancy"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "attempt_id",
+          "job_id",
+          "attempt_number",
+          "outcome",
+          "job_status",
+          "image_ref",
+          "is_high_value",
+          "redundancy",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "duration_seconds"
+        ],
+        "title": "ProviderJobAttempt",
+        "description": "One execution this provider ran, for the provider job-history view (Session 11.6).\n\nJoins the attempt to its parent job so a provider sees what it worked on, how it\nturned out, and how long it took \u2014 without exposing another developer's job payload."
+      },
       "ProviderResponse": {
         "properties": {
           "id": {
@@ -3831,6 +4079,68 @@
         ],
         "title": "RegisteredPrincipal",
         "description": "Response to a successful registration. ``api_key`` is returned exactly once."
+      },
+      "ReputationEventResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "delta": {
+            "type": "number",
+            "title": "Delta"
+          },
+          "score_after": {
+            "type": "number",
+            "title": "Score After"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "job_id",
+          "kind",
+          "delta",
+          "score_after",
+          "meta",
+          "created_at"
+        ],
+        "title": "ReputationEventResponse",
+        "description": "One entry in a provider's reputation ledger \u2014 why the score moved (Session 11.6)."
       },
       "ResourceSpec": {
         "properties": {
