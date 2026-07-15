@@ -111,6 +111,133 @@
         }
       }
     },
+    "/billing/ledger": {
+      "get": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "My Ledger",
+        "description": "Every ledger leg across this developer's jobs, newest first.\n\nOrdered by group so the two (or more) legs of a transaction stay adjacent.",
+        "operationId": "my_ledger_billing_ledger_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BillingLedgerEntry"
+                  },
+                  "title": "Response My Ledger Billing Ledger Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/billing/summary": {
+      "get": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "My Summary",
+        "description": "Authoritative period totals derived from the developer's ledger.",
+        "operationId": "my_summary_billing_summary_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/blobs": {
       "post": {
         "tags": [
@@ -2891,6 +3018,120 @@
         ],
         "title": "BenchmarkSubmit",
         "description": "A signed benchmark report submitted at onboarding (Session 11.1)."
+      },
+      "BillingLedgerEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "entry_group": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entry Group"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account"
+          },
+          "direction": {
+            "type": "string",
+            "title": "Direction"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "entry_group",
+          "job_id",
+          "account",
+          "direction",
+          "amount",
+          "reason",
+          "created_at"
+        ],
+        "title": "BillingLedgerEntry",
+        "description": "One double-entry ledger row across the developer's jobs (Session 10.1).\n\nEvery leg is returned raw \u2014 the frontend groups by ``entry_group`` to show that\neach transaction balances (sum of debits == sum of credits). Numbers are never\n\"tidied\" client-side; a mismatch is a bug to surface, not to hide."
+      },
+      "BillingSummary": {
+        "properties": {
+          "total_spent": {
+            "type": "number",
+            "title": "Total Spent"
+          },
+          "provider_paid": {
+            "type": "number",
+            "title": "Provider Paid"
+          },
+          "protocol_fees": {
+            "type": "number",
+            "title": "Protocol Fees"
+          },
+          "data_costs": {
+            "type": "number",
+            "title": "Data Costs"
+          },
+          "total_refunded": {
+            "type": "number",
+            "title": "Total Refunded"
+          },
+          "total_held": {
+            "type": "number",
+            "title": "Total Held"
+          },
+          "total_escrowed": {
+            "type": "number",
+            "title": "Total Escrowed"
+          },
+          "job_count": {
+            "type": "integer",
+            "title": "Job Count"
+          },
+          "balanced": {
+            "type": "boolean",
+            "title": "Balanced"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_spent",
+          "provider_paid",
+          "protocol_fees",
+          "data_costs",
+          "total_refunded",
+          "total_held",
+          "total_escrowed",
+          "job_count",
+          "balanced"
+        ],
+        "title": "BillingSummary",
+        "description": "Authoritative period totals derived from the ledger (Session 10.3).\n\n``total_spent == provider_paid + protocol_fees + data_costs``. All values are\ncomputed on the backend so the UI shows exact, auditable figures."
       },
       "BlobRef": {
         "properties": {
