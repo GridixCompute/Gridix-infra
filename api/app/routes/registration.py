@@ -29,7 +29,7 @@ async def register_developer(
         ApiKey(
             owner_type=OwnerType.developer,
             developer_id=developer.id,
-            key_hash=hash_api_key(plaintext, settings.secret_key),
+            key_hash=hash_api_key(plaintext, settings.api_hmac_key),
             prefix=key_prefix(plaintext),
         )
     )
@@ -51,7 +51,7 @@ async def register_provider(
         ApiKey(
             owner_type=OwnerType.provider,
             provider_id=provider.id,
-            key_hash=hash_api_key(plaintext, settings.secret_key),
+            key_hash=hash_api_key(plaintext, settings.api_hmac_key),
             prefix=key_prefix(plaintext),
         )
     )
