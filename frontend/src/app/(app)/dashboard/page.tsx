@@ -1,14 +1,24 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useJobs } from "@/lib/hooks/useJobs";
 import { JobsList } from "@/components/app/JobsList";
 import { Button } from "@/components/ui/Button";
 import { isTerminal } from "@/lib/api/types";
 
+// First-run only, and it reads on-chain escrow — keep its wallet code off the
+// hot dashboard bundle for returning users (Sesi 13.4 / 14.2).
+const GettingStarted = dynamic(
+  () => import("@/components/app/GettingStarted").then((m) => m.GettingStarted),
+  { ssr: false },
+);
+
 export default function DashboardPage() {
   const { data: jobs } = useJobs({ limit: 50 });
   const active = jobs?.filter((j) => !isTerminal(j.status)).length ?? 0;
+  // First run: the developer is loaded but has never submitted a job.
+  const firstRun = jobs?.length === 0;
 
   return (
     <div className="space-y-6">
@@ -27,6 +37,7 @@ export default function DashboardPage() {
           <Button>New job</Button>
         </Link>
       </div>
+      {firstRun && <GettingStarted />}
       <JobsList />
     </div>
   );

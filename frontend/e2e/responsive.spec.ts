@@ -24,7 +24,7 @@ async function expectNoOverflow(page: import("@playwright/test").Page, path: str
 
 test.describe("responsive @ 375px", () => {
   test("public pages don't overflow horizontally", async ({ page }) => {
-    for (const path of ["/", "/login", "/register", "/provider-register"]) {
+    for (const path of ["/", "/docs", "/login", "/register", "/provider-register"]) {
       await expectNoOverflow(page, path);
     }
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -10,6 +10,7 @@ import { USDCAmount } from "@/components/domain/USDCAmount";
 import { useSubmitJob } from "@/lib/hooks/useSubmitJob";
 import { estimateCost } from "@/lib/pricing";
 import { isApiError } from "@/lib/api/errors";
+import { track } from "@/lib/observability/report";
 import type { SubmitJobRequest } from "@/lib/api/types";
 
 type EnvRow = { key: string; value: string };
@@ -28,6 +29,17 @@ export default function NewJobPage() {
   const [allowEgress, setAllowEgress] = useState(false);
   const [command, setCommand] = useState("");
   const [envRows, setEnvRows] = useState<EnvRow[]>([{ key: "", value: "" }]);
+
+  // First-run sample (Sesi 14.2): /jobs/new?sample=1 prefills a tiny public
+  // container a new developer can submit as-is to see the full flow.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("sample") === "1") {
+      setImageRef("docker.io/library/hello-world");
+      setCpuCores(1);
+      setMemoryMb(512);
+      setTimeoutSeconds(120);
+    }
+  }, []);
 
   const estimate = useMemo(
     () => estimateCost({ cpuCores, gpu, timeoutSeconds }),
@@ -83,6 +95,7 @@ export default function NewJobPage() {
 
     try {
       const job = await submit.mutateAsync(body);
+      track("job_submitted", { gpu, redundancy });
       router.push(`/jobs/${job.id}`);
     } catch {
       /* error surfaced via submit.error / fieldError */

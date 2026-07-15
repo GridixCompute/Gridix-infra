@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { track } from "@/lib/observability/report";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -30,6 +31,7 @@ export default function RegisterPage() {
         setError(data.message ?? "Couldn't create your account. Try again.");
         return;
       }
+      track("developer_registered");
       setApiKey(data.apiKey);
     } catch {
       setError("Can't reach GRIDIX. Check your connection and try again.");
