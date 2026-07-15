@@ -19,6 +19,11 @@ from app.secret_manager import (
 
 _REAL = {
     "secret_key": "a-real-32-char-minimum-secret-value",
+    # The four separated secrets (security wave 1) — all distinct in prod.
+    "hmac_key": "real-hmac-key-distinct-value-000",
+    "operator_secret": "real-operator-secret-distinct-01",
+    "relay_secret": "real-relay-secret-distinct-value2",
+    "endpoint_key": "real-endpoint-key-distinct-value3",
     "kek": "real-kek",
     "attestation_secret": "real-att",
 }
@@ -44,11 +49,21 @@ def test_dev_allows_insecure_defaults() -> None:
 
 def test_prod_rejects_insecure_defaults() -> None:
     """A non-dev deployment on dev defaults/empties fails fast, naming every problem."""
-    settings = _settings(secret_key="dev-insecure-secret-change-me", kek="", attestation_secret="")
+    settings = _settings(
+        hmac_key="",
+        operator_secret="",
+        relay_secret="",
+        endpoint_key="",
+        kek="",
+        attestation_secret="",
+    )
     with pytest.raises(SecretConfigurationError) as exc:
         validate_secret_config(settings)
     msg = str(exc.value)
-    assert "GRIDIX_SECRET_KEY" in msg
+    assert "GRIDIX_HMAC_KEY" in msg
+    assert "GRIDIX_OPERATOR_SECRET" in msg
+    assert "GRIDIX_RELAY_SECRET" in msg
+    assert "GRIDIX_ENDPOINT_KEY" in msg
     assert "GRIDIX_KEK" in msg
     assert "GRIDIX_ATTESTATION_SECRET" in msg
 
@@ -78,19 +93,22 @@ def test_file_secret_manager_reads_and_strips(tmp_path) -> None:
 def test_file_backend_overlays_secrets_and_validates(tmp_path) -> None:
     """init_secrets with the file backend loads mounted secrets onto settings, then passes
     validation using those values — not the (empty) env defaults it started with."""
-    (tmp_path / "GRIDIX_SECRET_KEY").write_text("file-sourced-secret-key-value")
+    (tmp_path / "GRIDIX_HMAC_KEY").write_text("file-hmac-distinct-0")
+    (tmp_path / "GRIDIX_OPERATOR_SECRET").write_text("file-operator-distinct-1")
+    (tmp_path / "GRIDIX_RELAY_SECRET").write_text("file-relay-distinct-2")
+    (tmp_path / "GRIDIX_ENDPOINT_KEY").write_text("file-endpoint-distinct-3")
     (tmp_path / "GRIDIX_KEK").write_text("file-sourced-kek")
     (tmp_path / "GRIDIX_ATTESTATION_SECRET").write_text("file-sourced-att")
     settings = Settings(
         env="prod",
         secret_backend="file",
         secret_dir=str(tmp_path),
-        secret_key="dev-insecure-secret-change-me",  # would fail validation if not overlaid
         kek="",
         attestation_secret="",
     )
     init_secrets(settings)  # must not raise
-    assert settings.secret_key == "file-sourced-secret-key-value"
+    assert settings.hmac_key == "file-hmac-distinct-0"
+    assert settings.operator_secret == "file-operator-distinct-1"
     assert settings.kek == "file-sourced-kek"
     assert settings.attestation_secret == "file-sourced-att"
 
@@ -117,6 +135,10 @@ from app.secret_manager import VaultSecretManager  # noqa: E402
 _COORD_KEY = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 _VAULT_DATA = {
     "GRIDIX_SECRET_KEY": "vault-sourced-secret-key-value",
+    "GRIDIX_HMAC_KEY": "vault-hmac-distinct-0",
+    "GRIDIX_OPERATOR_SECRET": "vault-operator-distinct-1",
+    "GRIDIX_RELAY_SECRET": "vault-relay-distinct-2",
+    "GRIDIX_ENDPOINT_KEY": "vault-endpoint-distinct-3",
     "GRIDIX_KEK": "vault-sourced-kek",
     "GRIDIX_ATTESTATION_SECRET": "vault-sourced-att",
     "GRIDIX_COORDINATOR_PRIVATE_KEY": _COORD_KEY,

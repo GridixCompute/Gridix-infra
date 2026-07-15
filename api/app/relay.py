@@ -20,6 +20,7 @@ with the shared internal secret; the relay bridges it onto the target tunnel.
 """
 
 import asyncio
+import hmac
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -128,7 +129,7 @@ registry = ConnectionRegistry()
 async def resolve_provider(token: str) -> uuid.UUID | None:
     """Validate a provider API key against the database; return its provider id or None."""
     settings = get_settings()
-    digest = hash_api_key(token, settings.secret_key)
+    digest = hash_api_key(token, settings.api_hmac_key)
     async with get_sessionmaker()() as session:
         key = await session.scalar(select(ApiKey).where(ApiKey.key_hash == digest))
         if key is None or key.revoked or key.owner_type is not OwnerType.provider:
@@ -155,10 +156,13 @@ class RelayResponse(BaseModel):
 
 
 async def require_internal(authorization: str | None = Header(default=None)) -> None:
-    """Gate the coordinator→relay endpoint with the shared internal secret."""
+    """Gate the coordinator→relay endpoint with the dedicated relay secret.
+
+    Uses ``relay_key`` (not the API-key HMAC secret), compared in constant time.
+    """
     settings = get_settings()
-    expected = f"Bearer {settings.secret_key}"
-    if authorization != expected:
+    scheme, _, token = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not hmac.compare_digest(token.strip(), settings.relay_key):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="internal only")
 
 

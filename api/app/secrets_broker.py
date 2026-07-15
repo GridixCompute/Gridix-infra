@@ -44,7 +44,7 @@ def mint_job_secrets(
     window = now // ttl
     secrets = {
         "GRIDIX_JOB_ID": str(job.id),
-        "GRIDIX_JOB_TOKEN": _job_token(job.id, window, settings.secret_key),
+        "GRIDIX_JOB_TOKEN": _job_token(job.id, window, settings.endpoint_signing_key),
     }
     if job.data_tier is not DataTier.public:
         secrets["GRIDIX_DATA_TIER"] = str(job.data_tier)
