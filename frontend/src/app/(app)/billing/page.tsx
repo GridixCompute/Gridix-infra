@@ -1,12 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useAccount } from "wagmi";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { USDCAmount } from "@/components/domain/USDCAmount";
 import { ConnectWallet } from "@/components/chain/ConnectWallet";
 import { NetworkGuard } from "@/components/chain/NetworkGuard";
-import { DepositWithdraw } from "@/components/chain/DepositWithdraw";
+
+// Lazy-load the wallet write path (wagmi/actions) so it ships only when a
+// signed-in developer opens the deposit/withdraw panel (Sesi 13.4).
+const DepositWithdraw = dynamic(
+  () => import("@/components/chain/DepositWithdraw").then((m) => m.DepositWithdraw),
+  { ssr: false, loading: () => <Skeleton className="h-56" /> },
+);
 import { PeriodSummary } from "@/components/billing/PeriodSummary";
 import { Reconciliation } from "@/components/billing/Reconciliation";
 import { LedgerHistory } from "@/components/billing/LedgerHistory";
