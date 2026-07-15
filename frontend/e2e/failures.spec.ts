@@ -37,6 +37,13 @@ test.describe("failure paths", () => {
     await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
   });
 
+  test("a full backend outage shows an honest connectivity banner", async ({ page }) => {
+    await mockApi(page, { jobsError: { status: 500, detail: "down" } });
+
+    await page.goto("/dashboard");
+    await expect(page.getByText(/Can't reach GRIDIX right now/)).toBeVisible();
+  });
+
   test("an expired session redirects to login", async ({ page }) => {
     await mockApi(page, { jobsError: { status: 401, detail: "Not signed in." } });
 
