@@ -103,7 +103,7 @@ export default function RegisterPage() {
         </form>
         <p className="text-center text-sm text-[var(--color-ink-faint)]">
           Already have a key?{" "}
-          <Link href="/login" className="text-[var(--color-signal-bright)] hover:underline">
+          <Link href="/login" className="text-[var(--color-signal-bright)] underline">
             Sign in
           </Link>
         </p>

@@ -1,10 +1,21 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Card, CardBody, CardTitle } from "@/components/ui/Card";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { ConnectWallet } from "@/components/chain/ConnectWallet";
 import { NetworkGuard } from "@/components/chain/NetworkGuard";
-import { StakePanel } from "@/components/provider/StakePanel";
-import { EarningsPanel } from "@/components/provider/EarningsPanel";
+
+// Lazy-load the on-chain staking/earnings write paths (wagmi/actions) so the
+// wallet code ships only when this page's panels mount (Sesi 13.4).
+const StakePanel = dynamic(
+  () => import("@/components/provider/StakePanel").then((m) => m.StakePanel),
+  { ssr: false, loading: () => <Skeleton className="h-72" /> },
+);
+const EarningsPanel = dynamic(
+  () => import("@/components/provider/EarningsPanel").then((m) => m.EarningsPanel),
+  { ssr: false, loading: () => <Skeleton className="h-40" /> },
+);
 
 /**
  * Provider economics (Sesi 11.4 / 11.5). Stake, earnings and withdraw all live
