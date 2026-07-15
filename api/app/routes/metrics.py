@@ -13,7 +13,7 @@ from fastapi import APIRouter, Response
 from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Gauge, generate_latest
 from sqlalchemy import func, select
 
-from app.deps import SessionDep, SettingsDep
+from app.deps import InternalDep, SessionDep, SettingsDep
 from app.ledger import verify_ledger_integrity
 from app.models import Job, JobStatus, LedgerDirection, LedgerEntry, Provider
 from app.redis_client import queue_depth
@@ -41,8 +41,13 @@ def _as_utc(dt: datetime) -> datetime:
 
 
 @router.get("/metrics")
-async def metrics(session: SessionDep, settings: SettingsDep) -> Response:
-    """Expose current metrics in Prometheus text format."""
+async def metrics(session: SessionDep, settings: SettingsDep, _: InternalDep) -> Response:
+    """Expose current metrics in Prometheus text format.
+
+    Gated behind the operator secret (M7): the scrape leaks ledger totals, provider counts,
+    and queue depth, so it is not world-readable. Prometheus scrapes it with the operator
+    bearer; an unauthenticated request gets 401.
+    """
     reg = CollectorRegistry()
     g_jobs = Gauge("gridix_jobs", "Jobs by status", ["status"], registry=reg)
     g_prov = Gauge("gridix_providers_total", "Registered providers", registry=reg)
