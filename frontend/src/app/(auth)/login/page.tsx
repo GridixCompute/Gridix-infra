@@ -78,14 +78,11 @@ function LoginForm() {
         </form>
         <p className="text-center text-sm text-[var(--color-ink-faint)]">
           No account yet?{" "}
-          <Link href="/register" className="text-[var(--color-signal-bright)] hover:underline">
+          <Link href="/register" className="text-[var(--color-signal-bright)] underline">
             Create one
           </Link>{" "}
           ·{" "}
-          <Link
-            href="/provider-register"
-            className="text-[var(--color-signal-bright)] hover:underline"
-          >
+          <Link href="/provider-register" className="text-[var(--color-signal-bright)] underline">
             Run a node
           </Link>
         </p>
