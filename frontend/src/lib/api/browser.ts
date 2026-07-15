@@ -1,7 +1,13 @@
 "use client";
 
 import { ApiClient } from "./client";
-import type { Job, SubmitJobRequest, JobAudit } from "./types";
+import type {
+  Job,
+  SubmitJobRequest,
+  JobAudit,
+  BillingSummary,
+  BillingLedgerEntry,
+} from "./types";
 import type { JobFilters } from "@/lib/query/keys";
 
 /**
@@ -31,5 +37,11 @@ export const api = {
   },
   submitJob(body: SubmitJobRequest): Promise<Job> {
     return gw.post<Job>("/jobs", body);
+  },
+  billingSummary(signal?: AbortSignal): Promise<BillingSummary> {
+    return gw.get<BillingSummary>("/billing/summary", { signal, retries: 2 });
+  },
+  billingLedger(limit = 200, signal?: AbortSignal): Promise<BillingLedgerEntry[]> {
+    return gw.get<BillingLedgerEntry[]>(`/billing/ledger?limit=${limit}`, { signal, retries: 2 });
   },
 };
