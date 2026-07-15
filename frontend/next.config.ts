@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Emit a minimal self-contained server (.next/standalone) for the Docker image
+  // (Sesi 14.3). Vercel ignores this and builds its own way.
+  output: "standalone",
   webpack: (config) => {
     // @wagmi/connectors imports optional wallet SDKs (porto, etc.) we don't use.
     // Alias them to false so the bundle doesn't try to resolve them.
