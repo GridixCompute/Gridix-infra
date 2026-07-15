@@ -7,7 +7,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: gridix
-      POSTGRES_PASSWORD: gridix
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gridix}
       POSTGRES_DB: gridix
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -32,7 +32,7 @@ services:
     command: ["api"]
     environment:
       GRIDIX_ENV: dev
-      GRIDIX_DATABASE_URL: postgresql+asyncpg://gridix:gridix@postgres:5432/gridix
+      GRIDIX_DATABASE_URL: postgresql+asyncpg://gridix:${POSTGRES_PASSWORD:-gridix}@postgres:5432/gridix
       GRIDIX_REDIS_URL: redis://redis:6379/0
       GRIDIX_SECRET_KEY: dev-insecure-secret-change-me
       GRIDIX_STORAGE_LOCAL_PATH: /data/blobs
@@ -55,7 +55,7 @@ services:
     command: ["scheduler"]
     environment:
       GRIDIX_ENV: dev
-      GRIDIX_DATABASE_URL: postgresql+asyncpg://gridix:gridix@postgres:5432/gridix
+      GRIDIX_DATABASE_URL: postgresql+asyncpg://gridix:${POSTGRES_PASSWORD:-gridix}@postgres:5432/gridix
       GRIDIX_REDIS_URL: redis://redis:6379/0
       GRIDIX_SECRET_KEY: dev-insecure-secret-change-me
       GRIDIX_CANARY_RATE: "0"  # no canary injection during the smoke run (image not published)
