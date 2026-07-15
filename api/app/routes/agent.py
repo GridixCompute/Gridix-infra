@@ -61,6 +61,7 @@ from app.schemas import (
 from app.secrets_broker import SecretReleaseError, mint_job_secrets
 from app.state_machine import IllegalTransitionError, transition
 from app.storage import get_storage
+from app.verification import is_sha256_hex
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -445,13 +446,15 @@ async def submit_result(
     job = await _owned_active_job(session, provider, job_id)
     if job.status not in (JobStatus.assigned, JobStatus.running):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Job is not in flight.")
-    # The proof's output hash must match the content-addressed ref we stored.
+    # The proof's output hash must be a real sha256 that equals the content-addressed ref
+    # (C1). Validate the format BEFORE comparing — an empty/None/short/non-hex claim can
+    # never slip through (e.g. "".startswith("") == True used to accept a forged proof).
     if body.result_ref is not None:
         claimed = body.proof.get("output_sha256")
-        if claimed is not None and not body.result_ref.startswith(claimed):
+        if not is_sha256_hex(claimed) or body.result_ref[:64] != claimed:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="proof.output_sha256 does not match result_ref.",
+                detail="proof.output_sha256 must be the sha256 (64 hex chars) of result_ref.",
             )
     final = await record_result(session, job, provider, body, settings)
     return Ack(job_id=job.id, status=final)

@@ -1,4 +1,8 @@
 import type { Metadata, Viewport } from "next";
+
+// Nonce-based CSP (C2/H13) needs per-request rendering so Next stamps the nonce onto
+// its inline scripts; static prerender would serve no-nonce HTML under a nonce CSP.
+export const dynamic = "force-dynamic";
 import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
