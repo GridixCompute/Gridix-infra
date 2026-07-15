@@ -441,3 +441,40 @@ class JobAudit(BaseModel):
     job: JobResponse
     attempts: list[AttemptRecord]
     ledger: list[LedgerRecord]
+
+
+# ── Billing (Session 10) ────────────────────────────────────────────────────────
+class BillingLedgerEntry(ORMModel):
+    """One double-entry ledger row across the developer's jobs (Session 10.1).
+
+    Every leg is returned raw — the frontend groups by ``entry_group`` to show that
+    each transaction balances (sum of debits == sum of credits). Numbers are never
+    "tidied" client-side; a mismatch is a bug to surface, not to hide.
+    """
+
+    id: uuid.UUID
+    entry_group: uuid.UUID
+    job_id: uuid.UUID | None
+    account: str
+    direction: str
+    amount: float
+    reason: str
+    created_at: datetime
+
+
+class BillingSummary(BaseModel):
+    """Authoritative period totals derived from the ledger (Session 10.3).
+
+    ``total_spent == provider_paid + protocol_fees + data_costs``. All values are
+    computed on the backend so the UI shows exact, auditable figures.
+    """
+
+    total_spent: float
+    provider_paid: float
+    protocol_fees: float
+    data_costs: float
+    total_refunded: float
+    total_held: float
+    total_escrowed: float
+    job_count: int
+    balanced: bool

@@ -14,6 +14,7 @@ from app.ratelimit import RateLimitMiddleware, RequestSizeLimitMiddleware
 from app.redis_client import close_redis
 from app.routes import (
     agent,
+    billing,
     blobs,
     disputes,
     endpoints,
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(registration.router)
+    app.include_router(billing.router)
     app.include_router(blobs.router)
     app.include_router(uploads.router)
     app.include_router(jobs.router)

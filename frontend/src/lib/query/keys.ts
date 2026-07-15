@@ -15,6 +15,10 @@ export const queryKeys = {
   session: {
     current: ["session"] as const,
   },
+  billing: {
+    summary: ["billing", "summary"] as const,
+    ledger: (limit = 200) => ["billing", "ledger", limit] as const,
+  },
   provider: {
     me: ["provider", "me"] as const,
     benchmark: ["provider", "benchmark"] as const,
