@@ -1,13 +1,7 @@
 "use client";
 
 import { ApiClient } from "./client";
-import type {
-  Job,
-  SubmitJobRequest,
-  JobAudit,
-  BillingSummary,
-  BillingLedgerEntry,
-} from "./types";
+import type { Job, SubmitJobRequest, JobAudit, BillingSummary, BillingLedgerEntry } from "./types";
 import type { JobFilters } from "@/lib/query/keys";
 
 /**
