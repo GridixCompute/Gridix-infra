@@ -47,6 +47,93 @@ export const escrowAbi = [
   },
 ] as const;
 
+export const stakingAbi = [
+  {
+    type: "function",
+    name: "stakeOf",
+    stateMutability: "view",
+    inputs: [{ name: "provider", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "earningsOf",
+    stateMutability: "view",
+    inputs: [{ name: "provider", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "unstakingOf",
+    stateMutability: "view",
+    inputs: [{ name: "provider", type: "address" }],
+    outputs: [
+      { name: "amount", type: "uint256" },
+      { name: "unlockAt", type: "uint256" },
+    ],
+  },
+  {
+    type: "function",
+    name: "disputeOf",
+    stateMutability: "view",
+    inputs: [{ name: "provider", type: "address" }],
+    outputs: [
+      { name: "amount", type: "uint256" },
+      { name: "evidenceHash", type: "bytes32" },
+      { name: "open", type: "bool" },
+    ],
+  },
+  {
+    type: "function",
+    name: "minStake",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "cooldownPeriod",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "hasMinimumStake",
+    stateMutability: "view",
+    inputs: [{ name: "provider", type: "address" }],
+    outputs: [{ type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "stake",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "amount", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "unstake",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "amount", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "completeUnstake",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "withdraw",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
+] as const;
+
 export const erc20Abi = [
   {
     type: "function",

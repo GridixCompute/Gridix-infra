@@ -17,9 +17,10 @@ export const wagmiConfig = createConfig({
   ssr: true,
 });
 
-// Contracts the app transacts against (escrow + its USDC token).
+// Contracts the app transacts against (escrow + staking + their USDC token).
 export const contracts = {
   escrow: env.contracts.escrow,
+  staking: env.contracts.staking,
   usdc: env.contracts.usdc,
 } as const;
 
