@@ -25,7 +25,7 @@
   /* --- Text --- */
   --color-ink: #eef3f7; /* primary text */
   --color-ink-soft: #aeb9c4; /* secondary text */
-  --color-ink-faint: #6b7885; /* tertiary / captions */
+  --color-ink-faint: #7e8c98; /* tertiary / captions — AA (>=4.5:1) on panel bg */
   --color-ink-disabled: #45525f;
 
   /* --- Semantic status (job lifecycle + tx) --- */
