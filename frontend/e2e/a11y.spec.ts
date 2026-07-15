@@ -16,7 +16,7 @@ async function scan(page: import("@playwright/test").Page) {
 
 test.describe("accessibility", () => {
   test("public pages have no axe violations", async ({ page }) => {
-    for (const path of ["/", "/login", "/register", "/provider-register"]) {
+    for (const path of ["/", "/docs", "/login", "/register", "/provider-register"]) {
       await page.goto(path);
       const violations = await scan(page);
       expect(violations, `${path}: ${violations.map((v) => v.id).join(", ")}`).toEqual([]);
