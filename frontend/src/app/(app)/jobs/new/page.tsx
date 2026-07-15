@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -28,6 +28,17 @@ export default function NewJobPage() {
   const [allowEgress, setAllowEgress] = useState(false);
   const [command, setCommand] = useState("");
   const [envRows, setEnvRows] = useState<EnvRow[]>([{ key: "", value: "" }]);
+
+  // First-run sample (Sesi 14.2): /jobs/new?sample=1 prefills a tiny public
+  // container a new developer can submit as-is to see the full flow.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("sample") === "1") {
+      setImageRef("docker.io/library/hello-world");
+      setCpuCores(1);
+      setMemoryMb(512);
+      setTimeoutSeconds(120);
+    }
+  }, []);
 
   const estimate = useMemo(
     () => estimateCost({ cpuCores, gpu, timeoutSeconds }),
