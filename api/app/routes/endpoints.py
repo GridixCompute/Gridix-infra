@@ -25,6 +25,26 @@ router = APIRouter(tags=["endpoints"])
 _METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]
 
 
+def _safe_forward_path(path: str) -> str:
+    """Normalise the client-supplied sub-path to a container-local path (SSRF wave 2).
+
+    The gateway forwards this to the job's container. Reject anything that could turn it
+    into a request to a different host — an embedded scheme/userinfo, a backslash, path
+    traversal, or leading slashes that would make ``/{port}//host`` protocol-relative — so
+    it can never be coerced toward internal services (cloud metadata, Redis/Postgres, etc.).
+    """
+    if "://" in path or "@" in path or "\\" in path or "\x00" in path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Illegal endpoint path."
+        )
+    normalized = "/" + path.lstrip("/")
+    if ".." in normalized.split("/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Illegal endpoint path."
+        )
+    return normalized
+
+
 @router.get("/jobs/{job_id}/endpoint", response_model=EndpointInfo)
 async def get_endpoint(
     job_id: uuid.UUID, developer: DeveloperDep, session: SessionDep, settings: SettingsDep
@@ -71,7 +91,7 @@ async def endpoint_gateway(
     payload = {
         "kind": "endpoint",
         "port": job.exposed_port,
-        "path": "/" + path,
+        "path": _safe_forward_path(path),
         "query": str(request.url.query),
         "method": request.method,
         "body": body.decode("utf-8", errors="replace"),

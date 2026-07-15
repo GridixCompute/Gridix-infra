@@ -65,9 +65,17 @@ async def test_rate_limit_blocks_after_threshold() -> None:
     assert results == [True, True, True, False]
 
 
-async def test_rate_limit_fails_open_when_redis_down() -> None:
+async def test_rate_limit_fails_closed_when_redis_down() -> None:
+    # Security wave 2: a Redis outage must NOT drop the limit (was fail-open). The
+    # local fallback keeps enforcing — a flood is still blocked, not waved through.
+    import app.ratelimit as ratelimit
+
+    ratelimit._local_windows.clear()
     with patch("app.ratelimit.get_redis", side_effect=RuntimeError("no redis")):
-        assert await check_rate_limit("id", limit=1) is True
+        results = [await check_rate_limit("down-id", limit=2) for _ in range(5)]
+    ratelimit._local_windows.clear()
+    assert results[:2] == [True, True]
+    assert all(r is False for r in results[2:])
 
 
 # ── metrics ─────────────────────────────────────────────────────────────────────
