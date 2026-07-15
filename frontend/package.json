@@ -13,7 +13,9 @@
     "format:check": "prettier --check .",
     "gen:types": "openapi-typescript ./openapi.snapshot.json -o ./src/lib/api/schema.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "@tanstack/react-query": "5.101.2",
@@ -26,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.2.0",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "4.3.2",
     "@testing-library/jest-dom": "6",
     "@testing-library/react": "16",
