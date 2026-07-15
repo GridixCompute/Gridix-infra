@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 /**
  * Provider registration (Sesi 11.1). Creates a provider account and reveals the
  * agent API key exactly once — the operator pastes it into their node's
- * environment (GRIDIX_API_KEY) during onboarding.
+ * environment (GRIDIX_PROVIDER_KEY) during onboarding.
  */
 export default function ProviderRegisterPage() {
   const router = useRouter();
@@ -55,8 +55,8 @@ export default function ProviderRegisterPage() {
             </h1>
             <p className="mt-1 text-sm text-[var(--color-ink-faint)]">
               This is the only time it will be shown. Your node&apos;s agent authenticates with it
-              as <code className="font-[var(--font-mono)]">GRIDIX_API_KEY</code> — the onboarding
-              page walks you through the install.
+              as <code className="font-[var(--font-mono)]">GRIDIX_PROVIDER_KEY</code> — the
+              onboarding page walks you through the install.
             </p>
           </div>
           <div className="flex items-start justify-between gap-3 rounded-[var(--radius-sm)] border border-[var(--color-signal-dim)] bg-[var(--color-signal-glow)] px-3 py-3">
