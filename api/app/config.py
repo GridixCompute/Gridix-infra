@@ -98,6 +98,15 @@ class Settings(BaseSettings):
         ]
 
     @property
+    def relay_allowed_origins_list(self) -> list[str]:
+        """Browser Origins allowed on the relay WebSocket. Never returns the wildcard '*'."""
+        return [
+            o.strip()
+            for o in self.relay_allowed_origins.split(",")
+            if o.strip() and o.strip() != "*"
+        ]
+
+    @property
     def all_keks(self) -> list[str]:
         """Active KEK first, then any retired ones still valid during rotation."""
         retired = [k.strip() for k in self.kek_previous.split(",") if k.strip()]
@@ -148,6 +157,10 @@ class Settings(BaseSettings):
 
     # Port the scheduler worker serves its Prometheus metrics on (12.7 observability).
     scheduler_metrics_port: int = Field(default=9100, ge=1, le=65535)
+    # Interface the scheduler metrics exporter binds to (pentest M7). Defaults to loopback so the
+    # exporter — which leaks ledger totals, provider counts, queue depth — is NOT world-reachable.
+    # Widen it explicitly (e.g. "0.0.0.0") only behind a network policy / scrape-only sidecar.
+    scheduler_metrics_addr: str = "127.0.0.1"
 
     # Control channel / presence (Session 7.1)
     poll_hold_seconds: float = Field(default=25.0, ge=0.0)
@@ -160,6 +173,11 @@ class Settings(BaseSettings):
 
     # Relay / tunnel (Session 7.2-7.3)
     relay_request_timeout: float = Field(default=30.0, gt=0.0)
+    # Browser Origins allowed on the relay agent WebSocket (pentest H7 / CSWSH). The agent is
+    # a non-browser process and sends NO Origin, so it always passes; a browser page that tries
+    # to open the tunnel sends an Origin and is rejected unless it is in this (normally empty)
+    # allowlist. Comma-separated exact origins; NEVER "*".
+    relay_allowed_origins: str = ""
     # Internal URL the API uses to reach the relay's bridge endpoint (Session 7.5).
     relay_internal_url: str = "http://localhost:8100"
     # Public base the coordinator advertises for endpoint URLs.

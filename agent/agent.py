@@ -22,11 +22,53 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 from loguru import logger
 
 __version__ = "0.1.1"
+
+# Pentest wave 1 (H1/H2): the agent sends its provider key over the relay WebSocket and a
+# bearer on every API call. Sending either over cleartext to a remote host leaks the key on
+# the wire. So the agent REFUSES to dial a non-loopback host over http/ws (fail-closed),
+# unless the operator explicitly opts into insecure transport for a trusted local network.
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", ""})
+_SECURE_SCHEMES = frozenset({"https", "wss"})
+
+
+def _allow_insecure_transport() -> bool:
+    return os.environ.get("GRIDIX_ALLOW_INSECURE_TRANSPORT", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _require_secure_transport(url: str, *, kind: str) -> None:
+    """Reject a cleartext URL to a non-loopback host (H1/H2). Loopback and an explicit
+    opt-out are the only exemptions — everything else must be TLS or the agent won't start."""
+    parts = urlsplit(url)
+    host = (parts.hostname or "").lower()
+    scheme = (parts.scheme or "").lower()
+    if scheme in _SECURE_SCHEMES or host in _LOOPBACK_HOSTS or host.endswith(".localhost"):
+        return
+    if _allow_insecure_transport():
+        logger.warning(
+            "{} {!r} is cleartext to {} — allowed only because "
+            "GRIDIX_ALLOW_INSECURE_TRANSPORT is set; the provider key is exposed on the wire",
+            kind,
+            url,
+            host,
+        )
+        return
+    raise RuntimeError(
+        f"{kind} {url!r} would send the provider key/bearer over cleartext to a remote host. "
+        f"Use {'wss://' if kind == 'GRIDIX_RELAY_URL' else 'https://'}, or set "
+        "GRIDIX_ALLOW_INSECURE_TRANSPORT=true if this is a trusted local network."
+    )
+
 
 # Mount points inside the container (stable contract with job images).
 CONTAINER_INPUT = "/gridix/input"
@@ -110,6 +152,11 @@ class AgentConfig:
         key = os.environ.get("GRIDIX_PROVIDER_KEY", "")
         if not key:
             raise RuntimeError("GRIDIX_PROVIDER_KEY is required")
+        # Fail closed before we ever send the key: reject cleartext to a remote host (H1/H2).
+        _require_secure_transport(api_url, kind="GRIDIX_API_URL")
+        relay_url = os.environ.get("GRIDIX_RELAY_URL", "")
+        if relay_url:
+            _require_secure_transport(relay_url, kind="GRIDIX_RELAY_URL")
         return cls(
             api_url=api_url,
             provider_key=key,
@@ -124,7 +171,7 @@ class AgentConfig:
             # device on a multi-GPU box (a distinct set each) so jobs never share a card.
             gpu_devices=os.environ.get("GRIDIX_GPU_DEVICES", "").strip(),
             # Optional NAT-traversal tunnel. Empty → agent runs poll-only (batch).
-            relay_url=os.environ.get("GRIDIX_RELAY_URL", ""),
+            relay_url=relay_url,
             relay_ping_interval=float(os.environ.get("GRIDIX_RELAY_PING_INTERVAL", "20")),
             cache_dir=os.environ.get("GRIDIX_CACHE_DIR", "/tmp/gridix-cache"),
             cache_max_bytes=int(os.environ.get("GRIDIX_CACHE_MAX_BYTES", str(20 * 1024**3))),

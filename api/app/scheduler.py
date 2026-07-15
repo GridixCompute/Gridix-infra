@@ -194,9 +194,15 @@ async def main() -> None:
     # Install the chain layer (no-op when disabled). The scheduler is the coordinator, so it
     # also runs the watcher / settlement / reconciliation loops.
     install_chain(settings)
-    # Serve worker metrics (its own Prometheus scrape target).
-    start_http_server(settings.scheduler_metrics_port)
-    logger.info("GRIDIX scheduler starting (metrics on :{})", settings.scheduler_metrics_port)
+    # Serve worker metrics (its own Prometheus scrape target). Bind to loopback by default
+    # (M7) so the exporter isn't exposed to the internet; the operator widens the addr only
+    # behind a network policy.
+    start_http_server(settings.scheduler_metrics_port, addr=settings.scheduler_metrics_addr)
+    logger.info(
+        "GRIDIX scheduler starting (metrics on {}:{})",
+        settings.scheduler_metrics_addr,
+        settings.scheduler_metrics_port,
+    )
     # Production uses reputation-weighted, stake-gated matching.
     set_matcher(ReputationMatcher())
     stop = asyncio.Event()

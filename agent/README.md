@@ -73,11 +73,12 @@ endpoints → 403, the runner path still works).
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `GRIDIX_API_URL` | `http://localhost:8000` | Coordinator base URL |
+| `GRIDIX_API_URL` | `http://localhost:8000` | Coordinator base URL (must be `https://` to a remote host — the agent refuses cleartext to a non-loopback host so the key isn't leaked on the wire) |
 | `GRIDIX_PROVIDER_KEY` | — (required) | Provider API key |
+| `GRIDIX_ALLOW_INSECURE_TRANSPORT` | `false` | Escape hatch to permit cleartext `http://`/`ws://` to a remote host on a trusted local network. Leave unset in production — it exposes the provider key. |
 | `GRIDIX_ENABLE_GPU` | `false` | Attach GPUs to job containers |
 | `GRIDIX_GPU_DEVICES` | — (all visible) | GPU device UUIDs/indices this agent may use, e.g. `GPU-abc,GPU-def` or `0,1` |
-| `GRIDIX_RELAY_URL` | — | Relay tunnel for NAT'd providers (poll-only if unset) |
+| `GRIDIX_RELAY_URL` | — | Relay tunnel for NAT'd providers (poll-only if unset; must be `wss://` to a remote host) |
 | `GRIDIX_POLL_INTERVAL` | `1` | Seconds between polls |
 | `GRIDIX_HEARTBEAT_INTERVAL` | `15` | Seconds between in-flight heartbeats |
 | `GRIDIX_AGENT_WORKDIR` | `/tmp/gridix-agent` | Per-job scratch (input/output) |
