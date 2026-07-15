@@ -15,4 +15,13 @@ export const queryKeys = {
   session: {
     current: ["session"] as const,
   },
+  provider: {
+    me: ["provider", "me"] as const,
+    benchmark: ["provider", "benchmark"] as const,
+    trust: ["provider", "trust"] as const,
+    bandwidth: ["provider", "bandwidth"] as const,
+    jobs: (limit = 50) => ["provider", "jobs", limit] as const,
+    reputation: (limit = 50) => ["provider", "reputation", limit] as const,
+    disputes: ["provider", "disputes"] as const,
+  },
 } as const;
