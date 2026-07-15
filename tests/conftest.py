@@ -90,3 +90,10 @@ async def register(client: AsyncClient, role: str, name: str) -> tuple[str, str]
 def auth(api_key: str) -> dict[str, str]:
     """Build the Authorization header for an API key."""
     return {"Authorization": f"Bearer {api_key}"}
+
+
+# Well-formed 64-hex sha256 stand-ins for result refs/hashes in tests. Real proofs must be
+# a valid sha256 (security wave 0 / C1), so tests use these instead of short placeholders;
+# the rejection of malformed hashes is proven in test_pentest_wave0.py.
+HASH_A = "a" * 64
+HASH_B = "b" * 64

@@ -31,13 +31,18 @@ function rpcOrigin(): string {
   }
 }
 
-function withSecurityHeaders(res: NextResponse): NextResponse {
+function buildCsp(nonce: string): string {
   // Self-contained app: no third-party scripts, all backend traffic proxied
   // same-origin; the only cross-origin connection is the wallet's chain RPC.
-  const csp = [
+  //
+  // C2/H13: NO script 'unsafe-inline'. Inline scripts run only with the per-request
+  // nonce; 'strict-dynamic' lets those trusted scripts load the app's chunks. So an
+  // injected <script> from an XSS can't execute — it has no valid nonce.
+  return [
     "default-src 'self'",
-    // Next injects inline hydration scripts without a nonce → 'unsafe-inline'.
-    "script-src 'self' 'unsafe-inline'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    // Styles still need inline (Tailwind/next-font inject <style>); style injection
+    // can't steal a session cookie the way script execution can.
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
@@ -48,7 +53,9 @@ function withSecurityHeaders(res: NextResponse): NextResponse {
     "object-src 'none'",
     "worker-src 'self' blob:",
   ].join("; ");
+}
 
+function setSecurityHeaders(res: NextResponse, csp: string): NextResponse {
   const h = res.headers;
   h.set("Content-Security-Policy", csp);
   h.set("X-Content-Type-Options", "nosniff");
@@ -61,26 +68,36 @@ function withSecurityHeaders(res: NextResponse): NextResponse {
 
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
+  // Fresh nonce per request; Next applies it to its own inline scripts when it sees
+  // the nonce in the request's CSP header.
+  const nonce = btoa(crypto.randomUUID());
+  const csp = buildCsp(nonce);
+
   const isProviderArea = matches(pathname, PROVIDER_HOME);
   const isDeveloperArea = DEVELOPER_AREAS.some((p) => matches(pathname, p));
 
-  // Auth routing for private areas.
+  // Auth routing for private areas (redirects carry no HTML, so no nonce needed).
   if (isProviderArea || isDeveloperArea) {
     if (!req.cookies.has(SESSION_COOKIE)) {
       const loginUrl = new URL("/login", req.url);
       loginUrl.searchParams.set("next", pathname + search);
-      return withSecurityHeaders(NextResponse.redirect(loginUrl));
+      return setSecurityHeaders(NextResponse.redirect(loginUrl), csp);
     }
     const role = req.cookies.get(ROLE_COOKIE)?.value;
     if (isProviderArea && role === "developer") {
-      return withSecurityHeaders(NextResponse.redirect(new URL(DEVELOPER_HOME, req.url)));
+      return setSecurityHeaders(NextResponse.redirect(new URL(DEVELOPER_HOME, req.url)), csp);
     }
     if (isDeveloperArea && role === "provider") {
-      return withSecurityHeaders(NextResponse.redirect(new URL(PROVIDER_HOME, req.url)));
+      return setSecurityHeaders(NextResponse.redirect(new URL(PROVIDER_HOME, req.url)), csp);
     }
   }
 
-  return withSecurityHeaders(NextResponse.next());
+  // Forward the nonce + CSP on the REQUEST so Next nonces its hydration scripts.
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("content-security-policy", csp);
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
+  return setSecurityHeaders(res, csp);
 }
 
 export const config = {

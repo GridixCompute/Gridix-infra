@@ -13,7 +13,7 @@ from app.matcher import CapabilityMatcher, ReputationMatcher, set_matcher
 from app.models import Dispute, DisputeState, Job, Provider
 from app.results import record_result
 from app.schemas import AgentResultRequest
-from conftest import auth, make_provider, register
+from conftest import HASH_A, HASH_B, auth, make_provider, register
 from sqlalchemy import select
 
 pytestmark = pytest.mark.usefixtures("_no_redis", "_rep_matcher")
@@ -60,7 +60,11 @@ async def test_revote_upholds_dissenter(client, session, settings) -> None:
 
     providers = await assign_providers(session, job_id, settings)
     job = await session.get(Job, job_id)
-    votes = {str(providers[0].id): "AAA", str(providers[1].id): "AAA", str(providers[2].id): "BBB"}
+    votes = {
+        str(providers[0].id): HASH_A,
+        str(providers[1].id): HASH_A,
+        str(providers[2].id): HASH_B,
+    }
     dissenter = providers[2]
     for provider in providers:
         p = await session.get(Provider, provider.id)
@@ -103,7 +107,7 @@ async def test_revote_overturns_when_matches_majority(client, session, settings)
         job,
         p,
         AgentResultRequest(
-            result_ref="AAA", exit_code=0, proof={"output_sha256": "AAA", "exit_code": 0}
+            result_ref=HASH_A, exit_code=0, proof={"output_sha256": HASH_A, "exit_code": 0}
         ),
         settings,
     )

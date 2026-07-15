@@ -32,11 +32,20 @@ The app is self-contained — no third-party scripts, all backend traffic proxie
 same-origin — so the policy is tight. The only cross-origin connection is the
 wallet's chain RPC, scoped in `connect-src`.
 
-- `script-src 'self' 'unsafe-inline'` — Next injects inline hydration bootstrap
-  scripts without a nonce. Tightening to nonce-based CSP (dropping `unsafe-inline`)
-  requires wiring a per-request nonce through middleware; tracked as a follow-up.
-- `object-src 'none'`, `base-uri 'self'`, `form-action 'self'` close common
-  injection vectors.
+- `script-src 'self' 'nonce-<per-request>' 'strict-dynamic'` — **no `'unsafe-inline'`
+  for scripts** (pentest C2/H13). Middleware mints a fresh nonce per request and Next
+  stamps it onto its inline hydration scripts; `strict-dynamic` lets those trusted
+  scripts load the app's chunks. An injected inline `<script>` from an XSS has no valid
+  nonce, so it cannot execute. This requires per-request rendering, so the root layout
+  sets `export const dynamic = "force-dynamic"` — a deliberate trade of static caching
+  for real XSS protection on a money-handling app.
+- `style-src 'self' 'unsafe-inline'` — inline styles are still allowed (Tailwind /
+  next-font inject `<style>`); style injection can't exfiltrate a session the way script
+  execution can, and the session cookie is httpOnly regardless.
+- `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, `frame-ancestors 'none'`
+  close common injection/clickjacking vectors.
+- Verified on real responses (not just the config) by an E2E gate that also asserts the
+  nonce is actually stamped onto every script tag.
 
 ## Dependency audit
 

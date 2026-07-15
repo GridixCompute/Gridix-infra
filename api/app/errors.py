@@ -31,10 +31,17 @@ def install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _validation_exc(request: Request, exc: RequestValidationError) -> JSONResponse:
+        # Return only JSON-safe fields. Pydantic's error `ctx` can hold the raw exception
+        # object (e.g. from a custom validator raising ValueError), which is not
+        # serializable and would otherwise crash the handler — and could leak internals.
+        detail = [
+            {"type": e.get("type"), "loc": list(e.get("loc", [])), "msg": e.get("msg")}
+            for e in exc.errors()
+        ]
         return _error(
             "validation_error",
             "Request failed validation.",
-            detail=exc.errors(),
+            detail=detail,
             status_code=422,
         )
 
