@@ -1,18 +1,21 @@
 "use client";
 
-import { useAccount, useChainId, useSwitchChain } from "wagmi";
+import { useAccount, useBlockNumber, useChainId, useSwitchChain } from "wagmi";
 import { activeChain } from "@/lib/chain/config";
 import { Button } from "@/components/ui/Button";
 
 /**
- * Network guard (Sesi 5.2). If the wallet is on the wrong chain, show a banner
- * and block on-chain actions until the user switches. Children render only when
- * connected AND on the right chain.
+ * Network guard (Sesi 5.2 / 13.5). Blocks on-chain actions with a clear reason
+ * when the wallet is on the wrong chain, and warns — without breaking — when the
+ * chain RPC is unreachable, so on-chain reads/writes can't silently misbehave.
+ * Children render only when connected AND on the right chain.
  */
 export function NetworkGuard({ children }: { children: React.ReactNode }) {
   const { isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain, isPending } = useSwitchChain();
+  // A lightweight liveness probe against the configured RPC.
+  const block = useBlockNumber({ query: { enabled: isConnected, retry: 1 } });
 
   if (!isConnected) return <>{children}</>;
 
@@ -40,5 +43,21 @@ export function NetworkGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <div className="space-y-3">
+      {block.isError && (
+        <div
+          role="status"
+          className="rounded-[var(--radius-md)] border border-[#ff5c5c55] bg-[#ff5c5c14] p-3 text-sm text-[var(--color-ink-soft)]"
+        >
+          <span className="font-medium text-[var(--color-danger)]">
+            Can&apos;t reach the {activeChain.name} RPC.
+          </span>{" "}
+          On-chain balances may be stale and transactions could fail. Check your wallet&apos;s
+          network connection before depositing or withdrawing.
+        </div>
+      )}
+      {children}
+    </div>
+  );
 }
