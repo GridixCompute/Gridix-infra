@@ -64,6 +64,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/billing/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Ledger
+         * @description Every ledger leg across this developer's jobs, newest first.
+         *
+         *     Ordered by group so the two (or more) legs of a transaction stay adjacent.
+         */
+        get: operations["my_ledger_billing_ledger_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Summary
+         * @description Authoritative period totals derived from the developer's ledger.
+         */
+        get: operations["my_summary_billing_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/blobs": {
         parameters: {
             query?: never;
@@ -1052,6 +1094,68 @@ export interface components {
             signature: string;
         };
         /**
+         * BillingLedgerEntry
+         * @description One double-entry ledger row across the developer's jobs (Session 10.1).
+         *
+         *     Every leg is returned raw — the frontend groups by ``entry_group`` to show that
+         *     each transaction balances (sum of debits == sum of credits). Numbers are never
+         *     "tidied" client-side; a mismatch is a bug to surface, not to hide.
+         */
+        BillingLedgerEntry: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Entry Group
+             * Format: uuid
+             */
+            entry_group: string;
+            /** Job Id */
+            job_id: string | null;
+            /** Account */
+            account: string;
+            /** Direction */
+            direction: string;
+            /** Amount */
+            amount: number;
+            /** Reason */
+            reason: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * BillingSummary
+         * @description Authoritative period totals derived from the ledger (Session 10.3).
+         *
+         *     ``total_spent == provider_paid + protocol_fees + data_costs``. All values are
+         *     computed on the backend so the UI shows exact, auditable figures.
+         */
+        BillingSummary: {
+            /** Total Spent */
+            total_spent: number;
+            /** Provider Paid */
+            provider_paid: number;
+            /** Protocol Fees */
+            protocol_fees: number;
+            /** Data Costs */
+            data_costs: number;
+            /** Total Refunded */
+            total_refunded: number;
+            /** Total Held */
+            total_held: number;
+            /** Total Escrowed */
+            total_escrowed: number;
+            /** Job Count */
+            job_count: number;
+            /** Balanced */
+            balanced: boolean;
+        };
+        /**
          * BlobRef
          * @description A stored blob's content-addressed ref and size.
          */
@@ -1760,6 +1864,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegisteredPrincipal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_ledger_billing_ledger_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingLedgerEntry"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_summary_billing_summary_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingSummary"];
                 };
             };
             /** @description Validation Error */
