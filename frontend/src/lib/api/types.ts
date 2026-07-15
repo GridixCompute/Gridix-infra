@@ -27,6 +27,8 @@ export type HealthResponse = S["HealthResponse"];
 export type BenchmarkResponse = S["BenchmarkResponse"];
 export type BandwidthResponse = S["BandwidthResponse"];
 export type DisputeResponse = S["DisputeResponse"];
+export type BillingLedgerEntry = S["BillingLedgerEntry"];
+export type BillingSummary = S["BillingSummary"];
 
 /** All job statuses in lifecycle order — the single source for UI ordering. */
 export const JOB_STATUSES: readonly JobStatus[] = [
