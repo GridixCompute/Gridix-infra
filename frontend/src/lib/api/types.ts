@@ -18,10 +18,14 @@ export type AttemptRecord = S["AttemptRecord"];
 export type LedgerRecord = S["LedgerRecord"];
 export type Provider = S["ProviderResponse"];
 export type ProviderCapabilities = S["ProviderCapabilities"];
+export type ProviderJobAttempt = S["ProviderJobAttempt"];
+export type ReputationEvent = S["ReputationEventResponse"];
 export type RegisterDeveloperRequest = S["RegisterDeveloperRequest"];
+export type RegisterProviderRequest = S["RegisterProviderRequest"];
 export type RegisteredPrincipal = S["RegisteredPrincipal"];
 export type HealthResponse = S["HealthResponse"];
 export type BenchmarkResponse = S["BenchmarkResponse"];
+export type BandwidthResponse = S["BandwidthResponse"];
 export type DisputeResponse = S["DisputeResponse"];
 
 /** All job statuses in lifecycle order — the single source for UI ordering. */

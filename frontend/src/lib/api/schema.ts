@@ -324,6 +324,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/providers/me/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Jobs
+         * @description Return this provider's execution history — one row per attempt, newest first.
+         */
+        get: operations["my_jobs_providers_me_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/providers/me/reputation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Reputation
+         * @description Return this provider's reputation events — why the score moved, newest first.
+         */
+        get: operations["my_reputation_providers_me_reputation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/providers/me/trust": {
         parameters: {
             query?: never;
@@ -1388,6 +1428,47 @@ export interface components {
             max_concurrent?: number | null;
         };
         /**
+         * ProviderJobAttempt
+         * @description One execution this provider ran, for the provider job-history view (Session 11.6).
+         *
+         *     Joins the attempt to its parent job so a provider sees what it worked on, how it
+         *     turned out, and how long it took — without exposing another developer's job payload.
+         */
+        ProviderJobAttempt: {
+            /**
+             * Attempt Id
+             * Format: uuid
+             */
+            attempt_id: string;
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /** Attempt Number */
+            attempt_number: number;
+            /** Outcome */
+            outcome: string;
+            job_status: components["schemas"]["JobStatus"];
+            /** Image Ref */
+            image_ref: string;
+            /** Is High Value */
+            is_high_value: boolean;
+            /** Redundancy */
+            redundancy: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Duration Seconds */
+            duration_seconds: number | null;
+        };
+        /**
          * ProviderResponse
          * @description A provider's own view of itself.
          */
@@ -1464,6 +1545,34 @@ export interface components {
              * @description Store this now — it is never shown again.
              */
             api_key: string;
+        };
+        /**
+         * ReputationEventResponse
+         * @description One entry in a provider's reputation ledger — why the score moved (Session 11.6).
+         */
+        ReputationEventResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Id */
+            job_id: string | null;
+            /** Kind */
+            kind: string;
+            /** Delta */
+            delta: number;
+            /** Score After */
+            score_after: number;
+            /** Meta */
+            meta: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /**
          * ResourceSpec
@@ -2149,6 +2258,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BenchmarkResponse"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_jobs_providers_me_jobs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderJobAttempt"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_reputation_providers_me_reputation_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReputationEventResponse"][];
                 };
             };
             /** @description Validation Error */

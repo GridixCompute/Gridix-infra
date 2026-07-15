@@ -1,12 +1,26 @@
 import { NextResponse } from "next/server";
 import { backendFetch } from "@/lib/api/server";
-import { setSession, clearSession } from "@/lib/auth/session";
+import { setSession, clearSession, type Role } from "@/lib/auth/session";
 
 /**
- * Login (Sesi 4.2): validate an API key against the backend, then store it in
- * an httpOnly cookie. There is no developer whoami endpoint, so we validate by
- * calling an authenticated developer route (GET /jobs) — 200 = valid key.
+ * Login (Sesi 4.2 / 11.1): validate an API key against the backend, then store
+ * it in an httpOnly cookie. There is no whoami endpoint, so we validate by
+ * calling an authenticated route and infer the role from which one accepts the
+ * key: developers own GET /jobs, providers own GET /providers/me. A 403 on the
+ * developer route means the key is valid but belongs to a provider, so we try
+ * the provider route before rejecting.
  */
+async function detectRole(apiKey: string): Promise<Role | "invalid" | "error"> {
+  const asDev = await backendFetch("/jobs?limit=1", { apiKey });
+  if (asDev.status === 200) return "developer";
+  if (asDev.status !== 401 && asDev.status !== 403) return "error";
+
+  const asProvider = await backendFetch("/providers/me", { apiKey });
+  if (asProvider.status === 200) return "provider";
+  if (asProvider.status === 401 || asProvider.status === 403) return "invalid";
+  return "error";
+}
+
 export async function POST(req: Request) {
   let apiKey = "";
   try {
@@ -20,15 +34,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Paste your API key." }, { status: 422 });
   }
 
-  const res = await backendFetch("/jobs?limit=1", { apiKey });
-  if (res.status === 200) {
-    await setSession(apiKey, "Developer");
-    return NextResponse.json({ ok: true });
-  }
-  if (res.status === 401 || res.status === 403) {
+  const role = await detectRole(apiKey);
+  if (role === "invalid") {
     return NextResponse.json({ message: "That API key isn't valid." }, { status: 401 });
   }
-  return NextResponse.json({ message: "Couldn't verify your key. Try again." }, { status: 502 });
+  if (role === "error") {
+    return NextResponse.json({ message: "Couldn't verify your key. Try again." }, { status: 502 });
+  }
+
+  await setSession(apiKey, role === "provider" ? "Provider" : "Developer", role);
+  return NextResponse.json({ ok: true, role });
 }
 
 /** Logout (Sesi 4.2): clear the session cookies. */
