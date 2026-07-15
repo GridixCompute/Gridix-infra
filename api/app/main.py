@@ -47,6 +47,19 @@ def create_app() -> FastAPI:
     """Build and configure the FastAPI application."""
     app = FastAPI(title="GRIDIX Control Plane", version="0.1.0", lifespan=lifespan)
     # Outer-most first: reject oversized bodies before counting them against rate limits.
+    # CORS (security wave 3): only explicitly allowlisted origins, never "*". Empty by
+    # default — the frontend calls the API through a same-origin proxy, so it needs none.
+    origins = get_settings().cors_origins_list
+    if origins:
+        from fastapi.middleware.cors import CORSMiddleware
+
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "PATCH", "DELETE"],
+            allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
+        )
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware)
     install_error_handlers(app)

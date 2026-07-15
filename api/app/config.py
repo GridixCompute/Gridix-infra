@@ -24,6 +24,11 @@ class Settings(BaseSettings):
 
     env: Literal["dev", "staging", "prod"] = "dev"
 
+    # Cross-origin allowlist (security wave 3): comma-separated EXACT origins that may
+    # call the API from a browser. Empty = no cross-origin access (the frontend uses a
+    # same-origin proxy, so it needs none). NEVER "*".
+    cors_allow_origins: str = ""
+
     database_url: str = "postgresql+asyncpg://gridix:gridix@localhost:5432/gridix"
     redis_url: str = "redis://localhost:6379/0"
 
@@ -84,6 +89,13 @@ class Settings(BaseSettings):
     def endpoint_signing_key(self) -> str:
         """Key for signing endpoint + job capability tokens."""
         return self.endpoint_key or self.secret_key
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Parsed CORS allowlist. Never returns the wildcard '*'."""
+        return [
+            o.strip() for o in self.cors_allow_origins.split(",") if o.strip() and o.strip() != "*"
+        ]
 
     @property
     def all_keks(self) -> list[str]:
