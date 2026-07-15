@@ -10,6 +10,7 @@ import { USDCAmount } from "@/components/domain/USDCAmount";
 import { useSubmitJob } from "@/lib/hooks/useSubmitJob";
 import { estimateCost } from "@/lib/pricing";
 import { isApiError } from "@/lib/api/errors";
+import { track } from "@/lib/observability/report";
 import type { SubmitJobRequest } from "@/lib/api/types";
 
 type EnvRow = { key: string; value: string };
@@ -94,6 +95,7 @@ export default function NewJobPage() {
 
     try {
       const job = await submit.mutateAsync(body);
+      track("job_submitted", { gpu, redundancy });
       router.push(`/jobs/${job.id}`);
     } catch {
       /* error surfaced via submit.error / fieldError */
