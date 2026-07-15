@@ -219,6 +219,15 @@ def create_relay_app(authenticate: Authenticator | None = None) -> FastAPI:
 
     @app.websocket("/relay/agent")
     async def relay_agent(ws: WebSocket) -> None:
+        # CSWSH guard (H7): the agent is a non-browser client and sends no Origin. A browser
+        # page always sends one, so a cross-site page that tries to open the tunnel is rejected
+        # here (before accept, so it never reaches auth) unless its Origin is explicitly
+        # allowlisted. Fail-closed: any present-but-unlisted Origin is refused.
+        origin = ws.headers.get("origin")
+        if origin is not None and origin not in get_settings().relay_allowed_origins_list:
+            logger.warning("relay tunnel rejected: disallowed Origin {!r}", origin)
+            await ws.close(code=1008)
+            return
         await ws.accept()
         try:
             frame = await _receive_json_bounded(ws)

@@ -2598,14 +2598,42 @@
           "metrics"
         ],
         "summary": "Metrics",
-        "description": "Expose current metrics in Prometheus text format.",
+        "description": "Expose current metrics in Prometheus text format.\n\nGated behind the operator secret (M7): the scrape leaks ledger totals, provider counts,\nand queue depth, so it is not world-readable. Prometheus scrapes it with the operator\nbearer; an unauthenticated request gets 401.",
         "operationId": "metrics_metrics_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }

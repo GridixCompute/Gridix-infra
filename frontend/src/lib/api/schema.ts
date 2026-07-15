@@ -891,6 +891,10 @@ export interface paths {
         /**
          * Metrics
          * @description Expose current metrics in Prometheus text format.
+         *
+         *     Gated behind the operator secret (M7): the scrape leaks ledger totals, provider counts,
+         *     and queue depth, so it is not world-readable. Prometheus scrapes it with the operator
+         *     bearer; an unauthenticated request gets 401.
          */
         get: operations["metrics_metrics_get"];
         put?: never;
@@ -3253,7 +3257,9 @@ export interface operations {
     metrics_metrics_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -3266,6 +3272,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

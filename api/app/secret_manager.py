@@ -27,6 +27,7 @@ from typing import Protocol
 from loguru import logger
 
 from app.config import Settings
+from app.net_security import validate_tls_config
 
 # The env default that is safe ONLY for local dev and must never reach a real deployment.
 _INSECURE_SECRET_KEY = "dev-insecure-secret-change-me"
@@ -257,6 +258,9 @@ def init_secrets(settings: Settings) -> None:
     set_secret_manager(manager)
     _overlay_managed_secrets(settings, manager)
     validate_secret_config(settings)
+    # Wave 1 (TLS everywhere): refuse to boot if any remote hop would carry a secret or
+    # user data over cleartext. Fail-closed, alongside the secret validation above.
+    validate_tls_config(settings)
     logger.info("secrets initialized (backend={}, env={})", settings.secret_backend, settings.env)
 
 
