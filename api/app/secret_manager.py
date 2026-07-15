@@ -34,9 +34,22 @@ _INSECURE_SECRET_KEY = "dev-insecure-secret-change-me"
 # Secret settings sourced through the manager, mapped to their env/file lookup name.
 _MANAGED_SECRETS = {
     "secret_key": "GRIDIX_SECRET_KEY",
+    # Per-function secrets (security wave 1) — one leak must not forge everything.
+    "hmac_key": "GRIDIX_HMAC_KEY",
+    "operator_secret": "GRIDIX_OPERATOR_SECRET",
+    "relay_secret": "GRIDIX_RELAY_SECRET",
+    "endpoint_key": "GRIDIX_ENDPOINT_KEY",
     "kek": "GRIDIX_KEK",
     "kek_previous": "GRIDIX_KEK_PREVIOUS",
     "attestation_secret": "GRIDIX_ATTESTATION_SECRET",
+}
+
+# The four function secrets that must be set, distinct, and non-default in production.
+_SEPARATED_SECRETS = {
+    "GRIDIX_HMAC_KEY": "hmac_key",
+    "GRIDIX_OPERATOR_SECRET": "operator_secret",
+    "GRIDIX_RELAY_SECRET": "relay_secret",
+    "GRIDIX_ENDPOINT_KEY": "endpoint_key",
 }
 
 
@@ -203,8 +216,26 @@ def validate_secret_config(settings: Settings) -> None:
     if settings.env == "dev":
         return
     problems: list[str] = []
-    if not settings.secret_key or settings.secret_key == _INSECURE_SECRET_KEY:
-        problems.append("GRIDIX_SECRET_KEY is unset or the insecure dev default")
+
+    # Each function's secret must be set and not the dev default. The legacy
+    # secret_key fallback (Settings.api_hmac_key etc.) must never fire in prod.
+    for env_name, field in _SEPARATED_SECRETS.items():
+        value = getattr(settings, field)
+        if not value or value == _INSECURE_SECRET_KEY:
+            problems.append(f"{env_name} is unset or the insecure dev default")
+
+    # Zero cross-use: the four secrets must be pairwise distinct, and none may
+    # reuse the legacy secret_key — otherwise one leak forges multiple functions.
+    seen: dict[str, str] = {settings.secret_key: "GRIDIX_SECRET_KEY"}
+    for env_name, field in _SEPARATED_SECRETS.items():
+        value = getattr(settings, field)
+        if not value or value == _INSECURE_SECRET_KEY:
+            continue  # already reported as unset
+        if value in seen:
+            problems.append(f"{env_name} reuses {seen[value]}; each secret must be distinct")
+        else:
+            seen[value] = env_name
+
     if not settings.kek:
         problems.append("GRIDIX_KEK is unset (required for per-job data-key brokering)")
     if not settings.attestation_secret:

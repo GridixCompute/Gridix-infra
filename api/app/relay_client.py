@@ -35,7 +35,7 @@ async def call_provider(
     try:
         async with httpx.AsyncClient(timeout=settings.relay_request_timeout + 5) as client:
             resp = await client.post(
-                url, headers={"Authorization": f"Bearer {settings.secret_key}"}, json=body
+                url, headers={"Authorization": f"Bearer {settings.relay_key}"}, json=body
             )
     except httpx.HTTPError as exc:
         raise RelayUnavailableError(f"relay unreachable: {exc}") from exc

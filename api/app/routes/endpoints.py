@@ -37,7 +37,7 @@ async def get_endpoint(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Job does not expose a port."
         )
-    token = endpoint_token(str(job.id), settings.secret_key)
+    token = endpoint_token(str(job.id), settings.endpoint_signing_key)
     url = f"{settings.public_base_url.rstrip('/')}/endpoints/{job.id}/"
     return EndpointInfo(url=url, token=token, port=job.exposed_port)
 
@@ -56,7 +56,7 @@ async def endpoint_gateway(
 ) -> Response:
     """Forward an authenticated request to the job's container port through the tunnel."""
     token = request.headers.get("x-endpoint-token") or request.query_params.get("token")
-    if not token or not verify_endpoint_token(str(job_id), token, settings.secret_key):
+    if not token or not verify_endpoint_token(str(job_id), token, settings.endpoint_signing_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid endpoint token."
         )

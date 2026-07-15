@@ -47,11 +47,43 @@ class Settings(BaseSettings):
     # Token auth (alternative): a periodic/TTL token — NEVER the root token.
     vault_token: str = ""
 
+    # Legacy single secret. Retained ONLY as the dev fallback for the four
+    # per-function secrets below; in production those must be set explicitly and
+    # this value is never used (validate_secret_config enforces it).
     secret_key: str = "dev-insecure-secret-change-me"
+    # Secret separation (security wave 1). One leaked secret must not forge every
+    # signature, so each function has its own key with ZERO cross-use:
+    hmac_key: str = ""  # signs/looks up developer & provider API keys
+    operator_secret: str = ""  # authenticates operator-only endpoints
+    relay_secret: str = ""  # authenticates the coordinator↔relay bridge
+    endpoint_key: str = ""  # signs endpoint + job capability tokens
     # Coordinator key-encryption key (Fernet) for brokering per-job data keys (9.3).
     kek: str = ""
     # Retired KEKs (comma-separated) still accepted during rotation (12.1, zero-downtime).
     kek_previous: str = ""
+
+    # Each resolver returns the function's own secret, falling back to the legacy
+    # secret_key ONLY in dev (validate_secret_config requires the explicit secrets
+    # outside dev, so the fallback can never fire in production).
+    @property
+    def api_hmac_key(self) -> str:
+        """Key for HMAC-hashing API keys (registration, lookup, relay resolve)."""
+        return self.hmac_key or self.secret_key
+
+    @property
+    def operator_key(self) -> str:
+        """Secret for operator-only endpoint authentication."""
+        return self.operator_secret or self.secret_key
+
+    @property
+    def relay_key(self) -> str:
+        """Secret for the coordinator↔relay internal bridge."""
+        return self.relay_secret or self.secret_key
+
+    @property
+    def endpoint_signing_key(self) -> str:
+        """Key for signing endpoint + job capability tokens."""
+        return self.endpoint_key or self.secret_key
 
     @property
     def all_keks(self) -> list[str]:
