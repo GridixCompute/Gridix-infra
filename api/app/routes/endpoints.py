@@ -75,7 +75,9 @@ async def endpoint_gateway(
     settings: SettingsDep,
 ) -> Response:
     """Forward an authenticated request to the job's container port through the tunnel."""
-    token = request.headers.get("x-endpoint-token") or request.query_params.get("token")
+    # Header only (security wave 3): a query-param token leaks into access logs,
+    # proxies, and browser history.
+    token = request.headers.get("x-endpoint-token")
     if not token or not verify_endpoint_token(str(job_id), token, settings.endpoint_signing_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid endpoint token."

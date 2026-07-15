@@ -464,9 +464,15 @@ class Agent:
         job_dir = self._cfg.workdir / job_id
         out_dir = job_dir / "output"
         out_dir.mkdir(parents=True, exist_ok=True)
-        # The container runs as a non-root user (uid 65534); make the bind-mounted output
-        # directory writable by it regardless of the agent's own uid.
-        out_dir.chmod(0o777)
+        # The job container runs as uid 65534, so the bind-mounted output dir must be
+        # writable by it. Prefer to hand it to exactly that uid with 0o700 (security wave
+        # 3 — no world access); only if we can't chown (agent not privileged) fall back to
+        # the permissive mode that keeps the write path working.
+        try:
+            os.chown(out_dir, 65534, 65534)
+            out_dir.chmod(0o700)
+        except (PermissionError, OSError):
+            out_dir.chmod(0o777)
 
         input_path = await self._fetch_input(job_id, job_dir, job.get("input_ref"))
         argv = build_run_argv(
