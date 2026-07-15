@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { TxStatus, type TxState } from "@/components/domain/TxStatus";
 import { USDCAmount } from "@/components/domain/USDCAmount";
 import { parseUsdc } from "@/lib/format/usdc";
+import { track } from "@/lib/observability/report";
 
 type Mode = "deposit" | "withdraw";
 
@@ -96,6 +97,7 @@ export function DepositWithdraw({ mode }: { mode: Mode }) {
         await waitForTransactionReceipt(wagmiConfig, { hash: wHash });
       }
       setTx("confirmed");
+      if (mode === "deposit") track("escrow_deposited");
       setStep(null);
       setAmount("");
       void escrow.refetch();

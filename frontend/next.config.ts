@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Emit a minimal self-contained server (.next/standalone) for the Docker image
+  // (Sesi 14.3). Vercel ignores this and builds its own way.
+  output: "standalone",
   webpack: (config) => {
     // @wagmi/connectors imports optional wallet SDKs (porto, etc.) we don't use.
     // Alias them to false so the bundle doesn't try to resolve them.
@@ -21,19 +24,9 @@ const nextConfig: NextConfig = {
     };
     return config;
   },
-  async headers() {
-    // Baseline security headers (Sesi 4.5 / 14.5 harden these further).
-    const securityHeaders = [
-      { key: "X-Content-Type-Options", value: "nosniff" },
-      { key: "X-Frame-Options", value: "DENY" },
-      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-      {
-        key: "Permissions-Policy",
-        value: "camera=(), microphone=(), geolocation=()",
-      },
-    ];
-    return [{ source: "/:path*", headers: securityHeaders }];
-  },
+  // Security headers are set in middleware.ts so they apply uniformly to static,
+  // dynamic, and cached responses (next.config headers() drops CSP/HSTS on
+  // full-route-cache hits).
 };
 
 export default nextConfig;

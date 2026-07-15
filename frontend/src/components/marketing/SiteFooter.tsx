@@ -15,22 +15,22 @@ export function SiteFooter() {
           title="Product"
           links={[
             { label: "Submit a job", href: "/jobs/new" },
-            { label: "Pricing", href: "/#product" },
-            { label: "Provider network", href: "/providers" },
+            { label: "Pricing", href: "/docs#pricing" },
+            { label: "Run a node", href: "/provider-register" },
           ]}
         />
         <FooterCol
           title="Developers"
           links={[
             { label: "Documentation", href: "/docs" },
-            { label: "Quickstart", href: "/docs/quickstart" },
-            { label: "API reference", href: "/docs/api" },
+            { label: "Quickstart", href: "/docs#quickstart" },
+            { label: "API reference", href: "/docs#api" },
           ]}
         />
         <FooterCol
           title="Network"
           links={[
-            { label: "Status", href: "/status" },
+            { label: "FAQ", href: "/docs#faq" },
             { label: "On-chain contracts", href: "/#proof" },
           ]}
         />
