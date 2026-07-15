@@ -17,24 +17,26 @@ import {
   useProviderBandwidth,
 } from "@/lib/hooks/useProvider";
 
-const TRUST: Record<string, { label: string; tone: "success" | "info" | "neutral"; blurb: string }> =
-  {
-    attested: {
-      label: "TEE-attested",
-      tone: "success",
-      blurb: "Your hardware is verified by a trusted execution environment — the strongest tier.",
-    },
-    benchmark: {
-      label: "Benchmarked",
-      tone: "info",
-      blurb: "A signed benchmark measured your GPU. Jobs trust your declared throughput.",
-    },
-    self_report: {
-      label: "Self-reported",
-      tone: "neutral",
-      blurb: "Nothing has measured your hardware yet. Run the agent benchmark to raise trust.",
-    },
-  };
+const TRUST: Record<
+  string,
+  { label: string; tone: "success" | "info" | "neutral"; blurb: string }
+> = {
+  attested: {
+    label: "TEE-attested",
+    tone: "success",
+    blurb: "Your hardware is verified by a trusted execution environment — the strongest tier.",
+  },
+  benchmark: {
+    label: "Benchmarked",
+    tone: "info",
+    blurb: "A signed benchmark measured your GPU. Jobs trust your declared throughput.",
+  },
+  self_report: {
+    label: "Self-reported",
+    tone: "neutral",
+    blurb: "Nothing has measured your hardware yet. Run the agent benchmark to raise trust.",
+  },
+};
 
 export default function HardwarePage() {
   const { data: provider, isLoading, isError, refetch } = useProviderMe();
@@ -97,13 +99,12 @@ export default function HardwarePage() {
               <ProviderStat label="GPU" value={provider.gpu_model ?? "None"} />
               <ProviderStat
                 label="GPU VRAM"
-                value={provider.gpu_vram_mb ? `${(provider.gpu_vram_mb / 1024).toFixed(0)} GB` : "—"}
+                value={
+                  provider.gpu_vram_mb ? `${(provider.gpu_vram_mb / 1024).toFixed(0)} GB` : "—"
+                }
               />
               <ProviderStat label="CPU cores" value={provider.cpu_cores} />
-              <ProviderStat
-                label="Memory"
-                value={`${(provider.memory_mb / 1024).toFixed(1)} GB`}
-              />
+              <ProviderStat label="Memory" value={`${(provider.memory_mb / 1024).toFixed(1)} GB`} />
               <ProviderStat label="Max concurrent" value={provider.max_concurrent} />
               <ProviderStat label="Region" value={provider.region ?? "—"} />
             </div>
