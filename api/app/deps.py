@@ -4,6 +4,7 @@ Callers present their API key as ``Authorization: Bearer <key>``. The key is has
 looked up; the row's ``owner_type`` gates access to developer- vs provider-only routes.
 """
 
+import hmac
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
@@ -40,7 +41,7 @@ async def _resolve_key(
 ) -> ApiKey:
     """Resolve and validate the presented key, returning the live ApiKey row."""
     token = _extract_bearer(authorization)
-    digest = hash_api_key(token, settings.secret_key)
+    digest = hash_api_key(token, settings.api_hmac_key)
     key = await session.scalar(select(ApiKey).where(ApiKey.key_hash == digest))
     if key is None or key.revoked:
         raise _UNAUTHORIZED
@@ -89,8 +90,15 @@ async def require_internal(
     settings: SettingsDep,
     authorization: Annotated[str | None, Header()] = None,
 ) -> None:
-    """Gate operator-only endpoints (dispute rulings) with the shared internal secret."""
-    if authorization != f"Bearer {settings.secret_key}":
+    """Gate operator-only endpoints (dispute rulings) with the operator secret.
+
+    Uses ``operator_key`` — NOT the API-key HMAC secret — so a developer or provider
+    who holds a valid API key can never present it (or anything derived from the
+    HMAC secret) as operator credentials. Compared in constant time to avoid a
+    timing side-channel.
+    """
+    scheme, _, token = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not hmac.compare_digest(token.strip(), settings.operator_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Operator credentials required."
         )
