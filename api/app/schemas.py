@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models import JobKind, JobStatus
 
@@ -29,10 +29,24 @@ class HealthResponse(BaseModel):
 
 
 # ── Registration (Session 1) ────────────────────────────────────────────────────
+# The ``__gridix_`` prefix is reserved for internal principals (e.g. the canary-owning
+# system developer). Refusing it at registration means no attacker can register a
+# look-alike name to hijack canaries (security wave 0 / H12).
+_RESERVED_NAME_PREFIX = "__gridix_"
+
+
+def _reject_reserved_name(name: str) -> str:
+    if name.strip().lower().startswith(_RESERVED_NAME_PREFIX):
+        raise ValueError("name uses a reserved system prefix")
+    return name
+
+
 class RegisterDeveloperRequest(BaseModel):
     """Register a new developer account."""
 
     name: str = Field(min_length=1, max_length=200)
+
+    _no_reserved = field_validator("name")(_reject_reserved_name)
 
 
 class RegisterProviderRequest(BaseModel):
@@ -40,6 +54,8 @@ class RegisterProviderRequest(BaseModel):
 
     name: str = Field(min_length=1, max_length=200)
     region: str | None = Field(default=None, max_length=64)
+
+    _no_reserved = field_validator("name")(_reject_reserved_name)
 
 
 class RegisteredPrincipal(BaseModel):

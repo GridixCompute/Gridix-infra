@@ -12,10 +12,23 @@ caught cheat is slashed for more than it could gain. Documented assumptions:
   (for canaries) an exact output-hash match. Approximate/schema checks slot in here.
 """
 
+import re
 from dataclasses import dataclass
 
 from app.models import Job, JobKind
 from app.schemas import AgentResultRequest
+
+_SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+
+
+def is_sha256_hex(value: object) -> bool:
+    """True only for a string of exactly 64 lowercase hex chars (a sha256 digest).
+
+    Security wave 0 / C1: the empty string, short strings, non-hex, and non-strings are all
+    rejected — so ``"".startswith(claimed)`` and similar bypasses can never accept a forged
+    proof. Used both at the route and in :func:`verify` (defence in two places).
+    """
+    return isinstance(value, str) and _SHA256_HEX.fullmatch(value) is not None
 
 
 @dataclass(frozen=True)
@@ -29,10 +42,12 @@ class Verdict:
 
 
 def _proof_well_formed(req: AgentResultRequest) -> bool:
-    """A proof must carry an exit code, and an output hash whenever a result is claimed."""
-    if "exit_code" not in req.proof:
+    """A proof must carry a well-typed exit code, and a valid output hash whenever a result
+    is claimed. Every field is format-checked before it is trusted (C1)."""
+    exit_code = req.proof.get("exit_code")
+    if not isinstance(exit_code, int) or isinstance(exit_code, bool):
         return False
-    return not (req.result_ref is not None and "output_sha256" not in req.proof)
+    return req.result_ref is None or is_sha256_hex(req.proof.get("output_sha256"))
 
 
 def verify(job: Job, req: AgentResultRequest) -> Verdict:
