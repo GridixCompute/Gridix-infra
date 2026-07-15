@@ -44,8 +44,8 @@ docker logs -f gridix-agent`;
           Agent onboarding
         </h1>
         <p className="mt-1 text-sm text-[var(--color-ink-faint)]">
-          Install the GRIDIX agent on a Linux host with Docker. It polls for jobs and runs each
-          one in a hardened, throwaway container.
+          Install the GRIDIX agent on a Linux host with Docker. It polls for jobs and runs each one
+          in a hardened, throwaway container.
         </p>
       </div>
 
@@ -135,8 +135,9 @@ docker logs -f gridix-agent`;
             <code className="font-[var(--font-mono)]">GRIDIX_PROVIDER_KEY</code>.
           </li>
           <li>
-            Connection refused → check <code className="font-[var(--font-mono)]">GRIDIX_API_URL</code>{" "}
-            is reachable from the host.
+            Connection refused → check{" "}
+            <code className="font-[var(--font-mono)]">GRIDIX_API_URL</code> is reachable from the
+            host.
           </li>
           <li>
             Never turns online → the container exited; run{" "}
@@ -145,7 +146,10 @@ docker logs -f gridix-agent`;
         </ul>
         <p>
           Then declare your hardware and run the benchmark on the{" "}
-          <Link href="/provider/hardware" className="text-[var(--color-signal-bright)] hover:underline">
+          <Link
+            href="/provider/hardware"
+            className="text-[var(--color-signal-bright)] hover:underline"
+          >
             Hardware
           </Link>{" "}
           page so the scheduler can match GPU jobs to you.
