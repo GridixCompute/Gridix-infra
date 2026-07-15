@@ -1,0 +1,21 @@
+Host:   fugazi@fugazi — Docker 29.6.1
+Date:   Wed Jul 15 20:34:12 UTC 2026 (UTC)
+Commit: files-synced-from-main
+Command: ./smoke/verify_socket_proxy.sh
+
+==> allowed: version handshake + container/image listing (the runner needs these)
+    /version -> 200 (allowed)
+    /containers/json -> 200 (allowed)
+    /images/json -> 200 (allowed)
+==> DENIED (403): exec start, networks, volumes, build, info, secrets
+    POST /exec/x/start -> 403 (denied)
+    POST /build -> 403 (denied)
+    GET  /networks -> 403 (denied)
+    GET  /volumes -> 403 (denied)
+    GET  /info -> 403 (denied)
+    GET  /secrets -> 403 (denied)
+==> allowed: a job container runs through the proxy (the runner path)
+    hello-world ran via the proxy
+PASS: socket proxy denies the exec-start escape + networks/volumes/build/info; the runner path works.
+
+Exit: 0 (PASS)
