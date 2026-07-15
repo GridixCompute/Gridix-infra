@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/Button";
 import { useSession } from "@/lib/hooks/useSession";
+import { useRealtime } from "@/lib/realtime/RealtimeProvider";
 import { cn } from "@/lib/utils/cn";
 
 const NAV = [
@@ -16,6 +17,7 @@ const NAV = [
 export function AppHeader() {
   const pathname = usePathname();
   const { name, logout } = useSession();
+  const { connected } = useRealtime();
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--color-hairline)] bg-[var(--color-void)]/85 backdrop-blur-md">
@@ -46,6 +48,21 @@ export function AppHeader() {
           </nav>
         </div>
         <div className="flex items-center gap-3">
+          <span
+            className="hidden items-center gap-1.5 text-xs text-[var(--color-ink-faint)] sm:inline-flex"
+            title={connected ? "Live updates connected" : "Reconnecting — using polling"}
+          >
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                connected
+                  ? "animate-pulse-dot bg-[var(--color-success)]"
+                  : "bg-[var(--color-ink-disabled)]",
+              )}
+              aria-hidden="true"
+            />
+            {connected ? "Live" : "Polling"}
+          </span>
           <Link href="/jobs/new" className="hidden sm:block">
             <Button size="sm">New job</Button>
           </Link>
