@@ -1,0 +1,65 @@
+# Hardened agent deployment (security wave 2.1).
+#
+# The agent shells out to the Docker CLI. Instead of handing it the raw
+# /var/run/docker.sock (which is root-equivalent on the host — a container escape
+# from a job = full host control), it talks to a docker-socket-proxy that exposes
+# ONLY the Docker API surface a job runner needs and denies the rest.
+#
+# REQUIRED before ANY third-party provider runs an agent. When the agent runs on a
+# machine you own, the raw-socket install is a documented, accepted risk; for
+# untrusted operators it is not.
+#
+#   docker compose -f agent/docker-socket-proxy.yml up -d
+#
+# Allowed: containers (create/start/stop/logs/remove), image pulls, the version
+# handshake, ping. Denied (stay 0): exec (arbitrary command in a running
+# container — the classic escape), build, networks, volumes, swarm, secrets,
+# configs, services, the raw socket itself.
+
+services:
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    environment:
+      CONTAINERS: 1 # create/start/stop/kill/wait/logs/inspect/remove
+      IMAGES: 1 # pull job images (/images/create)
+      POST: 1 # allow mutating requests (default is read-only)
+      VERSION: 1 # Docker CLI API-version handshake
+      PING: 1
+      # Everything below is explicitly denied.
+      EXEC: 0 # arbitrary exec into containers — container-escape vector
+      BUILD: 0
+      NETWORKS: 0
+      VOLUMES: 0
+      SWARM: 0
+      SECRETS: 0
+      CONFIGS: 0
+      SERVICES: 0
+      TASKS: 0
+      NODES: 0
+      INFO: 0
+      AUTH: 0
+      DISTRIBUTION: 0
+      PLUGINS: 0
+      SYSTEM: 0
+    volumes:
+      # The proxy — and ONLY the proxy — mounts the real socket, read-only.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: always
+    # Do not publish the proxy port to the host; only the agent (same network) reaches it.
+    expose:
+      - "2375"
+
+  gridix-agent:
+    image: ghcr.io/gridixcompute/gridix-agent:v0.1.1
+    environment:
+      # Route the CLI through the filtered proxy instead of the raw socket.
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
+      GRIDIX_API_URL: ${GRIDIX_API_URL:?set GRIDIX_API_URL}
+      GRIDIX_PROVIDER_KEY: ${GRIDIX_PROVIDER_KEY:?set GRIDIX_PROVIDER_KEY}
+      GRIDIX_AGENT_WORKDIR: /var/lib/gridix-agent
+    volumes:
+      # NO docker.sock mount here. Job scratch is bind-mounted at the same host path.
+      - /var/lib/gridix-agent:/var/lib/gridix-agent
+    depends_on:
+      - docker-socket-proxy
+    restart: always

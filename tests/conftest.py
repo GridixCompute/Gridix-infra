@@ -15,6 +15,10 @@ import pytest
 _TMP_DB = Path(tempfile.gettempdir()) / "gridix_test.sqlite3"
 os.environ["GRIDIX_DATABASE_URL"] = f"sqlite+aiosqlite:///{_TMP_DB}"
 os.environ["GRIDIX_REDIS_URL"] = "redis://localhost:6379/15"
+# Rate limiting now fails CLOSED (security wave 2): with no Redis in the hermetic
+# suite it falls back to a local counter, so a high limit keeps the general suite
+# from throttling itself. The dedicated rate-limit tests set their own low limits.
+os.environ["GRIDIX_RATE_LIMIT_PER_MINUTE"] = "100000"
 os.environ["GRIDIX_SECRET_KEY"] = "test-secret-key-deterministic"
 os.environ["GRIDIX_ENV"] = "dev"
 os.environ["GRIDIX_STORAGE_LOCAL_PATH"] = str(Path(tempfile.gettempdir()) / "gridix_blobs")

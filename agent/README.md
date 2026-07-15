@@ -47,6 +47,28 @@ own. The job workdir is bind-mounted at the same path inside the container so th
 output mounts the agent hands the host Docker daemon resolve to real host paths. (If the
 coordinator runs on the *same* host, add `--network host` so the agent can reach it.)
 
+## Security: Docker socket access (required for third-party providers)
+
+The raw-socket install above is **only acceptable on a machine you own** — a container
+escape from a job would gain full host control. This is a documented, accepted risk for
+self-hosting.
+
+**Before any third-party operator runs an agent, the raw socket is FORBIDDEN.** Use the
+hardened stack in [`docker-socket-proxy.yml`](docker-socket-proxy.yml): a
+`docker-socket-proxy` mounts the socket (read-only) and exposes only the API a job runner
+needs — containers, image pulls, the version handshake — while denying `exec` (the classic
+escape), build, networks, volumes, swarm, and the rest. The agent talks to it via
+`DOCKER_HOST=tcp://docker-socket-proxy:2375` and never mounts the socket itself:
+
+```bash
+GRIDIX_API_URL=https://coordinator.example.com \
+GRIDIX_PROVIDER_KEY=grdx_your_key \
+docker compose -f agent/docker-socket-proxy.yml up -d
+```
+
+Verify the restriction on a Docker host with `smoke/verify_socket_proxy.sh` (denied
+endpoints → 403, the runner path still works).
+
 ## Configuration (env)
 
 | Variable | Default | Purpose |

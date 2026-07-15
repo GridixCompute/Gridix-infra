@@ -1,9 +1,10 @@
 """Rate limiting and request-size limiting middleware.
 
 Rate limiting is a per-identity fixed-window counter in Redis (shared across API
-replicas). It fails *open*: if Redis is unreachable the request is allowed, so a Redis
-blip degrades protection rather than availability. The size limiter rejects oversized
-bodies up front via ``Content-Length``.
+replicas). It fails *closed* (security wave 2): if Redis is unreachable it falls back to a
+per-process in-memory counter that STILL enforces the limit, so an attacker cannot remove
+the limit by flooding until Redis tips over. The size limiter rejects oversized bodies up
+front via ``Content-Length``.
 """
 
 import time
@@ -15,6 +16,23 @@ from starlette.responses import JSONResponse, Response
 
 from app.config import get_settings
 from app.redis_client import get_redis
+
+# Per-process fallback counters used ONLY when Redis is unreachable. Keyed by
+# (identity, window); pruned to the current + previous window so it can't grow.
+_local_windows: dict[tuple[str, int], int] = {}
+
+
+def _check_local(identity: str, window: int, limit: int) -> bool:
+    """Fail-closed fallback: a per-process fixed-window counter.
+
+    Bounded by ``limit`` per process per window (at most limit×replicas overall) — never
+    unlimited, so a Redis outage degrades to a stricter local cap, not an open door.
+    """
+    for k in [k for k in _local_windows if k[1] < window - 1]:
+        del _local_windows[k]
+    count = _local_windows.get((identity, window), 0) + 1
+    _local_windows[(identity, window)] = count
+    return count <= limit
 
 
 def _identity(request: Request) -> str:
@@ -29,7 +47,8 @@ def _identity(request: Request) -> str:
 async def check_rate_limit(identity: str, limit: int, window_seconds: int = 60) -> bool:
     """Return True if the request is within the limit for the current window.
 
-    Fixed-window counter keyed by identity and window index. Fails open on Redis errors.
+    Fixed-window counter keyed by identity and window. Fails CLOSED via a local
+    fallback counter when Redis is unreachable.
     """
     window = int(time.time()) // window_seconds
     key = f"gridix:ratelimit:{identity}:{window}"
@@ -39,9 +58,9 @@ async def check_rate_limit(identity: str, limit: int, window_seconds: int = 60) 
         if count == 1:
             await redis.expire(key, window_seconds)
         return count <= limit
-    except Exception as exc:  # noqa: BLE001 - degrade protection, not availability
-        logger.warning("rate limit check failed (allowing): {}", exc)
-        return True
+    except Exception as exc:  # noqa: BLE001 - fail CLOSED: fall back to the local counter
+        logger.warning("rate limit: Redis unavailable, using local fallback: {}", exc)
+        return _check_local(identity, window, limit)
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
