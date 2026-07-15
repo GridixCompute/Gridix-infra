@@ -31,7 +31,7 @@ from app.reputation import REP_MAX, record_reputation
 from app.results import record_result
 from app.schemas import AgentResultRequest
 from app.verification import verify
-from conftest import make_provider, register
+from conftest import HASH_A, HASH_B, make_provider, register
 from httpx import AsyncClient
 
 pytestmark = pytest.mark.usefixtures("_no_redis")
@@ -65,9 +65,9 @@ def _result(
 # ── verify() ────────────────────────────────────────────────────────────────────
 def test_verify_standard_and_failure_paths() -> None:
     job = Job(image_ref="i", kind=JobKind.standard, resource_spec={})
-    assert verify(job, _result(hash_="abc")).valid
-    assert not verify(job, _result(hash_="abc", exit_code=1)).valid
-    assert not verify(job, _result(hash_="abc", timed_out=True)).valid
+    assert verify(job, _result(hash_=HASH_A)).valid
+    assert not verify(job, _result(hash_=HASH_A, exit_code=1)).valid
+    assert not verify(job, _result(hash_=HASH_A, timed_out=True)).valid
     # Malformed: result claimed but no output hash.
     bad = AgentResultRequest(result_ref="x", exit_code=0, proof={"exit_code": 0})
     assert not verify(job, bad).valid
@@ -82,7 +82,7 @@ def test_verify_canary_match() -> None:
     )
     good = verify(job, _result(hash_=CANARY_EXPECTED_HASH))
     assert good.valid and good.is_canary and good.canary_passed
-    bad = verify(job, _result(hash_="deadbeef"))
+    bad = verify(job, _result(hash_=HASH_B))
     assert not bad.valid and bad.canary_passed is False
 
 
@@ -161,7 +161,7 @@ async def test_canary_failure_slashes_and_starves_provider(
     rep_before = provider.reputation
 
     # Provider returns the wrong answer for the canary.
-    final = await record_result(session, job, provider, _result(hash_="deadbeef"), settings)
+    final = await record_result(session, job, provider, _result(hash_=HASH_B), settings)
     await session.commit()
 
     assert final is JobStatus.failed
@@ -233,8 +233,12 @@ async def test_redundant_quorum_slashes_dissenter(client: AsyncClient, session, 
     assert len(providers) == 3
 
     job = await session.get(Job, job_id)
-    # Two providers agree on "AAA"; one dissents with "BBB".
-    votes = {str(providers[0].id): "AAA", str(providers[1].id): "AAA", str(providers[2].id): "BBB"}
+    # Two providers agree on HASH_A; one dissents with HASH_B.
+    votes = {
+        str(providers[0].id): HASH_A,
+        str(providers[1].id): HASH_A,
+        str(providers[2].id): HASH_B,
+    }
     dissenter = providers[2]
     for provider in providers:
         p = await session.get(Provider, provider.id)
@@ -243,6 +247,6 @@ async def test_redundant_quorum_slashes_dissenter(client: AsyncClient, session, 
 
     final = await session.get(Job, job_id)
     assert final.status is JobStatus.completed
-    assert final.proof["output_sha256"] == "AAA"
+    assert final.proof["output_sha256"] == HASH_A
     # The dissenter was slashed below the others.
     assert await provider_stake(session, dissenter.id) < settings.min_provider_stake

@@ -18,7 +18,7 @@ from app.assignment import assign_providers, reap_expired_attempts
 from app.ledger import deposit_stake
 from app.matcher import CapabilityMatcher, ReputationMatcher, set_matcher
 from app.models import Dispute, Job, JobAttempt, JobStatus, Provider
-from conftest import auth, make_provider, register
+from conftest import HASH_A, HASH_B, auth, make_provider, register
 from sqlalchemy import select
 
 pytestmark = pytest.mark.usefixtures("_no_redis", "_rep_matcher")
@@ -84,7 +84,11 @@ async def test_all_k_providers_are_polled_and_quorum_settles(client, session, se
         assert got and got["id"] == str(job_id), f"provider {provider.id} was not polled the job"
 
     # Two vote AAA, one dissents with BBB. Finalization must wait for the third vote.
-    votes = {str(providers[0].id): "AAA", str(providers[1].id): "AAA", str(providers[2].id): "BBB"}
+    votes = {
+        str(providers[0].id): HASH_A,
+        str(providers[1].id): HASH_A,
+        str(providers[2].id): HASH_B,
+    }
     dissenter = providers[2]
     statuses = []
     for provider in providers:
@@ -106,7 +110,7 @@ async def test_all_k_providers_are_polled_and_quorum_settles(client, session, se
     job = await session.get(Job, job_id)
     await session.refresh(job)
     assert job.status is JobStatus.completed
-    assert job.result_ref == "AAA", "the majority output wins"
+    assert job.result_ref == HASH_A, "the majority output wins"
 
     dispute = await session.scalar(select(Dispute).where(Dispute.provider_id == dissenter.id))
     assert dispute is not None, "the dissenter must be slashed (via a held dispute)"
@@ -191,7 +195,7 @@ async def test_kn_survives_one_provider_dying(client, session, settings) -> None
         await client.post(
             f"/agent/jobs/{job_id}/result",
             headers=auth(keys[str(provider.id)]),
-            json=await _result_body("AAA"),
+            json=await _result_body(HASH_A),
         )
     job = await session.get(Job, job_id)
     await session.refresh(job)
@@ -204,7 +208,7 @@ async def test_kn_survives_one_provider_dying(client, session, settings) -> None
     job = await session.get(Job, job_id)
     await session.refresh(job)
     assert job.status is JobStatus.completed, "the surviving majority settles the job"
-    assert job.result_ref == "AAA"
+    assert job.result_ref == HASH_A
     assert float(job.cost_final) > 0, "the majority is paid"
 
 
@@ -216,7 +220,7 @@ async def test_kn_fails_and_refunds_when_no_majority_survives(client, session, s
     await client.post(
         f"/agent/jobs/{job_id}/result",
         headers=auth(keys[str(providers[0].id)]),
-        json=await _result_body("AAA"),
+        json=await _result_body(HASH_A),
     )
     for dead in providers[1:]:
         await _expire_attempt(session, job_id, dead.id)

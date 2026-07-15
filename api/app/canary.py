@@ -21,13 +21,17 @@ from app.models import Developer, Job, JobKind, JobStatus
 CANARY_IMAGE = "ghcr.io/gridix/canary:1"
 CANARY_EXPECTED_HASH = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 _SYSTEM_DEVELOPER_NAME = "__gridix_system__"
+# Fixed id for the canary-owning system developer (security wave 0 / H12). Canary ownership
+# is keyed on THIS id, never on the name — so registering a look-alike name cannot hijack
+# canaries. Registration also refuses the reserved ``__gridix_`` prefix (see routes).
+SYSTEM_DEVELOPER_ID = uuid.UUID("00000000-0000-0000-0000-00000000c0de")
 
 
 async def _system_developer(session: AsyncSession) -> Developer:
-    """Return (creating if needed) the internal developer that owns canaries."""
-    dev = await session.scalar(select(Developer).where(Developer.name == _SYSTEM_DEVELOPER_NAME))
+    """Return (creating if needed) the internal developer that owns canaries, by fixed id."""
+    dev = await session.get(Developer, SYSTEM_DEVELOPER_ID)
     if dev is None:
-        dev = Developer(name=_SYSTEM_DEVELOPER_NAME)
+        dev = Developer(id=SYSTEM_DEVELOPER_ID, name=_SYSTEM_DEVELOPER_NAME)
         session.add(dev)
         await session.flush()
     return dev
