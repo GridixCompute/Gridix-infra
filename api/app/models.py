@@ -244,6 +244,12 @@ class ApiKey(Base):
     key_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     prefix: Mapped[str] = mapped_column(String(16), nullable=False)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # A wallet sign-in mints one of these as the browser session (label "session"), so the
+    # UI and the agent CLI authenticate through the SAME path and require_developer needs
+    # no second mechanism. NULL = never expires — what a user-generated CLI key is.
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Lets a developer tell their keys apart in /settings.
+    label: Mapped[str | None] = mapped_column(String(80))
 
     created_at: Mapped[datetime] = _created_at()
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -255,6 +261,35 @@ class ApiKey(Base):
             name="ck_apikey_single_owner",
         ),
     )
+
+
+class AuthNonce(Base):
+    """A single-use SIWE (EIP-4361) challenge.
+
+    The server composes the ENTIRE message and stores it verbatim; the wallet signs that
+    exact string and /auth/verify checks the signature against what was stored. Nothing
+    the client sends is ever parsed into an authorization decision, so the classic SIWE
+    failure modes — a forged ``domain``, a swapped ``chainId``, a rewritten address —
+    cannot occur: those fields are ours, not theirs.
+
+    Rows live in the database rather than Redis on purpose: a Redis outage is a
+    degradation this system tolerates everywhere else (see docs/RUNBOOKS.md), and losing
+    the ability to sign in is not a degradation.
+    """
+
+    __tablename__ = "auth_nonces"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    nonce: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    # Lowercase 0x-hex. The address the challenge was issued to; verify() requires the
+    # recovered signer to equal it, so a signature for someone else's challenge is useless.
+    address: Mapped[str] = mapped_column(String(42), nullable=False)
+    message: Mapped[str] = mapped_column(String(2000), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Set the moment a nonce is spent. The UPDATE that sets it is guarded by
+    # `used_at IS NULL`, so two concurrent replays cannot both win.
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = _created_at()
 
 
 class Job(Base):
