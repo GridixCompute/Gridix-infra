@@ -15,6 +15,10 @@ export const queryKeys = {
   session: {
     current: ["session"] as const,
   },
+  /** Inference (Sesi 4-5). Model list is long-lived; the rate card rarely moves. */
+  inference: {
+    models: ["inference", "models"] as const,
+  },
   billing: {
     summary: ["billing", "summary"] as const,
     ledger: (limit = 200) => ["billing", "ledger", limit] as const,
