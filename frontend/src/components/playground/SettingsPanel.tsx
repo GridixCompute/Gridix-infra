@@ -41,7 +41,7 @@ function Slider({
         <label htmlFor={id} className="text-sm text-[var(--color-ink-soft)]">
           {label}
         </label>
-        <span className="font-[var(--font-mono)] text-sm text-[var(--color-ink)]">{value}</span>
+        <span className="text-sm font-[var(--font-mono)] text-[var(--color-ink)]">{value}</span>
       </div>
       <input
         id={id}
@@ -52,7 +52,7 @@ function Slider({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="h-1 w-full cursor-pointer appearance-none rounded-full bg-[var(--color-hairline-strong)] accent-[var(--color-signal)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-signal)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-panel)] disabled:cursor-not-allowed disabled:opacity-50"
+        className="h-1 w-full cursor-pointer appearance-none rounded-full bg-[var(--color-hairline-strong)] accent-[var(--color-signal)] focus-visible:ring-2 focus-visible:ring-[var(--color-signal)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-panel)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       />
       <p className="text-xs text-[var(--color-ink-faint)]">{hint}</p>
     </div>

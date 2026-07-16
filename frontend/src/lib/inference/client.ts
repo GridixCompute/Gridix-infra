@@ -73,7 +73,8 @@ export async function listModels(signal?: AbortSignal): Promise<InferenceModel[]
   if (isMockInference) return mockListModels();
 
   const res = await fetch(`${env.apiUrl}/v1/models`, { signal, credentials: "include" });
-  if (!res.ok) throw new InferenceError(kindFromStatus(res.status), MESSAGES[kindFromStatus(res.status)]);
+  if (!res.ok)
+    throw new InferenceError(kindFromStatus(res.status), MESSAGES[kindFromStatus(res.status)]);
   const body = (await res.json()) as { data: InferenceModel[] };
   return body.data;
 }
