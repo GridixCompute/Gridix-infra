@@ -10,7 +10,7 @@ export default function PlaygroundPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-[var(--font-display)] text-2xl font-bold text-[var(--color-ink)]">
+        <h1 className="text-2xl font-[var(--font-display)] font-bold text-[var(--color-ink)]">
           Playground
         </h1>
         <p className="mt-1 text-sm text-[var(--color-ink-faint)]">

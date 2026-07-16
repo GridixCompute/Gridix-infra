@@ -19,10 +19,10 @@ export function MockBanner() {
         ▲
       </span>
       <p className="text-sm text-[var(--color-ink-soft)]">
-        <strong className="font-semibold text-[var(--color-warning)]">Mock playground.</strong>{" "}
-        The inference backend doesn&apos;t exist yet — no model runs, no GPU is reached, and
-        nothing is charged. Replies are canned text streamed to build the interface. Token
-        counts and costs are arithmetic on a placeholder rate card.
+        <strong className="font-semibold text-[var(--color-warning)]">Mock playground.</strong> The
+        inference backend doesn&apos;t exist yet — no model runs, no GPU is reached, and nothing is
+        charged. Replies are canned text streamed to build the interface. Token counts and costs are
+        arithmetic on a placeholder rate card.
       </p>
     </div>
   );

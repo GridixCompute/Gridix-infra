@@ -96,7 +96,9 @@ export function ChatPanel({ model, params, availableBase }: Props) {
       for await (const ev of stream) {
         if (ev.type === "delta") {
           setTurns((prev) =>
-            prev.map((t) => (t.id === replyTurn.id ? { ...t, content: t.content + ev.content } : t)),
+            prev.map((t) =>
+              t.id === replyTurn.id ? { ...t, content: t.content + ev.content } : t,
+            ),
           );
         } else {
           setTurns((prev) =>
@@ -219,7 +221,7 @@ export function ChatPanel({ model, params, availableBase }: Props) {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void send();
           }}
           placeholder={blocked ? "Sending is blocked — see above." : "Send a message…  (⌘↵)"}
-          className="w-full resize-y rounded-[var(--radius-md)] border border-[var(--color-hairline)] bg-[var(--color-panel)] px-3.5 py-2.5 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-disabled)] focus-visible:border-[var(--color-signal)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-signal-glow)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full resize-y rounded-[var(--radius-md)] border border-[var(--color-hairline)] bg-[var(--color-panel)] px-3.5 py-2.5 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-disabled)] focus-visible:border-[var(--color-signal)] focus-visible:ring-2 focus-visible:ring-[var(--color-signal-glow)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         />
 
         <div className="flex flex-wrap items-center gap-3">
@@ -232,7 +234,12 @@ export function ChatPanel({ model, params, availableBase }: Props) {
               Send
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={regenerate} disabled={busy || turns.length === 0}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={regenerate}
+            disabled={busy || turns.length === 0}
+          >
             Regenerate
           </Button>
           <Button

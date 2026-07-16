@@ -44,10 +44,7 @@ export function PlaygroundShell() {
     return balance > held ? balance - held : 0n;
   }, [escrow, summary]);
 
-  const forMode = useMemo(
-    () => (models ?? []).filter((m) => m.kind === mode),
-    [models, mode],
-  );
+  const forMode = useMemo(() => (models ?? []).filter((m) => m.kind === mode), [models, mode]);
   const selected = forMode.find((m) => m.id === modelId) ?? forMode[0];
 
   return (
@@ -67,7 +64,7 @@ export function PlaygroundShell() {
               }}
               className={[
                 "rounded-[var(--radius-sm)] px-3.5 py-1.5 text-sm capitalize transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-signal)]",
+                "focus-visible:ring-2 focus-visible:ring-[var(--color-signal)] focus-visible:outline-none",
                 mode === m
                   ? "bg-[var(--color-signal)] font-medium text-[var(--color-void)]"
                   : "text-[var(--color-ink-soft)] hover:bg-[var(--color-panel)]",
@@ -84,7 +81,7 @@ export function PlaygroundShell() {
             <select
               value={selected?.id ?? ""}
               onChange={(e) => setModelId(e.target.value)}
-              className="rounded-[var(--radius-sm)] border border-[var(--color-hairline)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-ink)] focus-visible:border-[var(--color-signal)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-signal-glow)]"
+              className="rounded-[var(--radius-sm)] border border-[var(--color-hairline)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-ink)] focus-visible:border-[var(--color-signal)] focus-visible:ring-2 focus-visible:ring-[var(--color-signal-glow)] focus-visible:outline-none"
             >
               {forMode.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -98,7 +95,9 @@ export function PlaygroundShell() {
       </div>
 
       {isLoading && <Skeleton className="h-[28rem] w-full" />}
-      {error && <ErrorState message="Couldn't load the model list." onRetry={() => void refetch()} />}
+      {error && (
+        <ErrorState message="Couldn't load the model list." onRetry={() => void refetch()} />
+      )}
 
       {!isLoading && !error && (
         <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
