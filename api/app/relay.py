@@ -233,7 +233,10 @@ async def clear_models(provider_id: uuid.UUID) -> None:
 async def resolve_provider(token: str) -> uuid.UUID | None:
     """Validate a provider API key against the database; return its provider id or None."""
     settings = get_settings()
-    digest = hash_api_key(token, settings.api_hmac_key)
+    try:
+        digest = hash_api_key(token, settings.api_hmac_key)
+    except ValueError:
+        return None  # too long to be a key we issued — never hash it (L1)
     async with get_sessionmaker()() as session:
         key = await session.scalar(select(ApiKey).where(ApiKey.key_hash == digest))
         if key is None or key.revoked or key.owner_type is not OwnerType.provider:
