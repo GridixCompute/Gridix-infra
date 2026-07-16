@@ -111,7 +111,15 @@ class TestChat:
     async def test_charges_actual_usage_not_the_estimate(
         self, client: AsyncClient, session
     ) -> None:
-        """The bill follows the node's reported tokens. The estimate only sizes the gate."""
+        """The bill follows the node's reported tokens. The estimate only sizes the gate.
+
+        The numbers are chosen to be three different things: the prompt estimate is 2
+        tokens, the ceiling allows 2000 output, and the node reports 500/1000. Billing
+        the estimate or billing the ceiling both give a different answer than this.
+
+        Not billing *more* than the ceiling is a separate claim, and lives with the other
+        money guards in test_inference_guards.py.
+        """
         dev_id, key = await register(client, "developer", "Acme")
         dev = uuid.UUID(dev_id)
         await fund(session, dev, "10")
@@ -119,15 +127,15 @@ class TestChat:
 
         with patch(
             "app.dispatch.call_provider",
-            new=AsyncMock(return_value=node_reply(prompt=1_000_000, completion=1_000_000)),
+            new=AsyncMock(return_value=node_reply(prompt=500, completion=1000)),
         ):
-            res = await chat(client, key)
+            res = await chat(client, key, max_tokens=2000)
         assert res.status_code == 200
 
-        # 1M in @ 0.05 + 1M out @ 0.08 = 0.13 USDC exactly.
-        assert Decimal(res.json()["cost_usdc"]) == Decimal("0.13")
+        # 500 in @ 0.05/Mtok + 1000 out @ 0.08/Mtok = 0.000105 USDC exactly.
+        assert Decimal(res.json()["cost_usdc"]) == Decimal("0.000105")
         session.expire_all()
-        assert await developer_balance(session, dev) == Decimal("9.87")
+        assert await developer_balance(session, dev) == Decimal("9.999895")
 
     async def test_unknown_model_is_404(self, client: AsyncClient, session) -> None:
         dev_id, key = await register(client, "developer", "Acme")

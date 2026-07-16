@@ -1,12 +1,15 @@
-"""The two guards that stand between a developer's balance and a wrong number.
+"""The three guards that stand between a developer's balance and a wrong number.
 
 1. Short balance → refused BEFORE a node is touched. A request that cannot be paid for
    must never burn a provider's GPU.
 2. A failed request → not charged. There is no hold to strand and no refund to forget,
    so "not charged" has to mean the ledger never moved.
+3. A completed request → billed at most what the gate approved. The node reports the
+   tokens it used and is paid from that report, so the report is a claim by an
+   interested party, not a fact.
 
-Both are mutation-tested at the bottom: the guard is removed and the test must go red. A
-guard whose test passes without it is decoration.
+All are mutation-tested: the guard is removed and the test must go red. A guard whose
+test passes without it is decoration.
 """
 
 import uuid
@@ -251,6 +254,128 @@ class TestFailedWorkIsFree:
         assert res.status_code == 504
         session.expire_all()
         assert await developer_balance(session, dev) == Decimal("10")
+
+
+# ── Guard 3: the bill never exceeds the ceiling the gate approved ────────────────
+
+
+class TestTheCeilingIsReal:
+    """The gate prices the worst case and checks the balance against it. That promise is
+    only worth something if the bill is actually bounded by it.
+
+    The node is not a neutral narrator here: it reports the token counts, and it is paid
+    from those counts. Every other defence in the system — canary, reputation, staking —
+    exists because a provider can lie. Billing is the one place where a lie is a direct
+    transfer from the developer's balance to the liar's.
+    """
+
+    def _reply(self, *, prompt: int, completion: int) -> dict:
+        return {
+            "status": 200,
+            "payload": {
+                "content": "hi",
+                "usage": {"prompt_tokens": prompt, "completion_tokens": completion},
+            },
+        }
+
+    async def test_a_node_inflating_its_usage_cannot_bill_past_the_ceiling(
+        self, client: AsyncClient, session
+    ) -> None:
+        """A hostile node claims a million tokens each way on a 100-token request.
+
+        Gated: 1 prompt token @ 0.05/Mtok + 100 output @ 0.08/Mtok = 0.00000805 → 0.000008.
+        Believed, the claim would bill 0.05 + 0.08 = 0.13 — sixteen thousand times the
+        ceiling the developer's balance was actually checked against.
+        """
+        dev_id, key = await register(client, "developer", "Acme")
+        dev = uuid.UUID(dev_id)
+        await fund(session, dev, "10")
+        await make_node(session)
+
+        with patch(
+            "app.dispatch.call_provider",
+            new=AsyncMock(return_value=self._reply(prompt=1_000_000, completion=1_000_000)),
+        ):
+            res = await chat(client, key, max_tokens=100)
+
+        assert res.status_code == 200, res.text
+        assert Decimal(res.json()["cost_usdc"]) == Decimal("0.000008")
+        session.expire_all()
+        assert await developer_balance(session, dev) == Decimal("9.999992")
+
+    async def test_the_reported_usage_cannot_exceed_the_ceiling_either(
+        self, client: AsyncClient, session
+    ) -> None:
+        """The bill and the receipt have to agree.
+
+        Clamping the charge but echoing the node's fiction back would hand the developer a
+        receipt for a million tokens next to a bill for a hundred, and leave the same lie
+        in whatever reads usage next.
+        """
+        dev_id, key = await register(client, "developer", "Acme")
+        await fund(session, uuid.UUID(dev_id), "10")
+        await make_node(session)
+
+        with patch(
+            "app.dispatch.call_provider",
+            new=AsyncMock(return_value=self._reply(prompt=8, completion=1_000_000)),
+        ):
+            res = await chat(client, key, max_tokens=100)
+
+        assert res.json()["usage"]["completion_tokens"] == 100
+
+    async def test_an_honest_node_is_still_paid_for_what_it_actually_did(
+        self, client: AsyncClient, session
+    ) -> None:
+        """The other direction, and the one that makes the guard a clamp rather than a
+        flat rate: a node that used 50 of its 100 allowed tokens bills for 50.
+
+        Without this, 'always charge the ceiling' would pass the test above while
+        overcharging every honest request on the network.
+        """
+        dev_id, key = await register(client, "developer", "Acme")
+        dev = uuid.UUID(dev_id)
+        await fund(session, dev, "10")
+        await make_node(session)
+
+        with patch(
+            "app.dispatch.call_provider",
+            new=AsyncMock(return_value=self._reply(prompt=1, completion=50)),
+        ):
+            res = await chat(client, key, max_tokens=100)
+
+        # 1 in @ 0.05/Mtok + 50 out @ 0.08/Mtok = 0.00000405 → 0.000004.
+        assert Decimal(res.json()["cost_usdc"]) == Decimal("0.000004")
+        assert res.json()["usage"]["completion_tokens"] == 50
+        session.expire_all()
+        assert await developer_balance(session, dev) == Decimal("9.999996")
+
+    async def test_a_node_cannot_bill_for_more_images_than_were_asked_for(
+        self, client: AsyncClient, session
+    ) -> None:
+        """The image path bills per image returned, which lets the node choose the count.
+
+        Asked for one, sent five: the developer pays for one. The gate priced one, and
+        nobody agreed to buy the other four.
+        """
+        dev_id, key = await register(client, "developer", "Acme")
+        dev = uuid.UUID(dev_id)
+        await fund(session, dev, "10")
+        await make_node(session, models=("sdxl-turbo",))
+
+        reply = {"status": 200, "payload": {"images": [f"blob://{i}" for i in range(5)]}}
+        with patch("app.dispatch.call_provider", new=AsyncMock(return_value=reply)):
+            res = await client.post(
+                "/v1/images/generations",
+                headers=auth(key),
+                json={"model": "sdxl-turbo", "prompt": "a cat", "n": 1},
+            )
+
+        assert res.status_code == 200, res.text
+        assert Decimal(res.json()["cost_usdc"]) == Decimal("0.01")
+        assert len(res.json()["images"]) == 1
+        session.expire_all()
+        assert await developer_balance(session, dev) == Decimal("9.99")
 
 
 # ── The charge itself ────────────────────────────────────────────────────────────
