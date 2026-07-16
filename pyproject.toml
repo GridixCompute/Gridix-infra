@@ -17,6 +17,10 @@ dependencies = [
     "prometheus-client>=0.20",
     "cryptography>=42.0",
     "httpx>=0.27",
+    # Wallet sign-in recovers the SIWE signer, and app.deps imports app.siwe on the path
+    # of every authenticated request — so this is core, not part of the optional [chain]
+    # extra the rest of the on-chain code hides behind. A base install must boot.
+    "eth-account>=0.13",
 ]
 
 [project.optional-dependencies]

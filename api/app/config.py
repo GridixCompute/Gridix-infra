@@ -29,6 +29,19 @@ class Settings(BaseSettings):
     # same-origin proxy, so it needs none). NEVER "*".
     cors_allow_origins: str = ""
 
+    # ── Wallet sign-in (SIWE / EIP-4361) ─────────────────────────────────────────────
+    # The domain and URI the coordinator writes INTO every challenge it issues. These are
+    # the anti-phishing control: a signature a user was tricked into making on another
+    # site carries that site's domain, so recovering it against our message yields a
+    # different signer and fails. They must match the origin users sign from — if this is
+    # misconfigured every sign-in fails, which is the right way to be wrong.
+    siwe_domain: str = "localhost:3000"
+    siwe_uri: str = "http://localhost:3000"
+    # A challenge is a one-shot credential: long enough to approve in a wallet, no longer.
+    siwe_nonce_ttl_seconds: int = Field(default=300, ge=30, le=3600)
+    # How long a browser session key lasts before the wallet must sign again.
+    session_ttl_seconds: int = Field(default=7 * 86_400, ge=300)
+
     database_url: str = "postgresql+asyncpg://gridix:gridix@localhost:5432/gridix"
     redis_url: str = "redis://localhost:6379/0"
 

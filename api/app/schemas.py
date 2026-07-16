@@ -66,6 +66,66 @@ class RegisteredPrincipal(BaseModel):
     api_key: str = Field(description="Store this now — it is never shown again.")
 
 
+# ── Wallet sign-in (SIWE / EIP-4361) ────────────────────────────────────────────
+class NonceResponse(BaseModel):
+    """A challenge to sign. ``message`` is composed server-side and must be signed
+    byte-for-byte — the client never assembles the text it authenticates with."""
+
+    nonce: str
+    message: str
+    expires_at: datetime
+
+
+class VerifyRequest(BaseModel):
+    """A signed challenge. ``nonce`` selects the stored message to check the signature
+    against; the message text itself is never accepted from the client."""
+
+    address: str = Field(max_length=42)
+    # 65-byte secp256k1 signature as 0x-hex. Bounded so a huge body can't reach the
+    # recovery path at all (same reflex as the bearer-length cap, pentest L1).
+    signature: str = Field(max_length=200)
+    nonce: str = Field(max_length=64)
+
+
+class SessionResponse(BaseModel):
+    """An established wallet session. ``api_key`` is the session credential: it goes
+    straight into the httpOnly cookie and is never shown to the user."""
+
+    developer_id: uuid.UUID
+    name: str
+    wallet_address: str
+    api_key: str
+    expires_at: datetime
+
+
+class ApiKeyResponse(ORMModel):
+    """A programmatic key as listed in /settings. The secret is NOT included — it is
+    returned once, by the create call, and never again."""
+
+    id: uuid.UUID
+    label: str | None
+    prefix: str
+    revoked: bool
+    created_at: datetime
+    last_used_at: datetime | None
+    expires_at: datetime | None
+
+
+class CreateApiKeyRequest(BaseModel):
+    """Mint a programmatic key for the agent/API."""
+
+    label: str = Field(min_length=1, max_length=80)
+
+
+class CreatedApiKey(BaseModel):
+    """The one and only time a programmatic key's plaintext is returned."""
+
+    id: uuid.UUID
+    label: str | None
+    prefix: str
+    api_key: str = Field(description="Store this now — it is never shown again.")
+
+
 # ── Resource spec & jobs (Session 2) ────────────────────────────────────────────
 class ResourceSpec(BaseModel):
     """Hardware a job needs. The scheduler matches these against provider capabilities."""
