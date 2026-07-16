@@ -29,6 +29,7 @@ export type BandwidthResponse = S["BandwidthResponse"];
 export type DisputeResponse = S["DisputeResponse"];
 export type BillingLedgerEntry = S["BillingLedgerEntry"];
 export type BillingSummary = S["BillingSummary"];
+export type BlobRef = S["BlobRef"];
 
 /** All job statuses in lifecycle order — the single source for UI ordering. */
 export const JOB_STATUSES: readonly JobStatus[] = [

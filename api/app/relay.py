@@ -39,6 +39,7 @@ from app.db import get_sessionmaker
 from app.logging import configure_logging
 from app.models import ApiKey, OwnerType, Provider, ProviderModel
 from app.presence import mark_seen
+from app.ratelimit import auth_failures_exceeded, record_auth_failure
 from app.secret_manager import init_secrets
 from app.security import hash_api_key
 
@@ -350,15 +351,35 @@ def create_relay_app(authenticate: Authenticator | None = None) -> FastAPI:
             await ws.close(code=1013)
             return
 
+        # Brute-force guard (H8): a failed auth frame used to cost the attacker nothing, so
+        # keys could be guessed over the tunnel at connection rate — and each guess spent a
+        # DB round-trip (resolve_provider), making it an amplifier too. Check the IP's
+        # failure budget BEFORE accepting, so a locked-out client never reaches the DB.
+        #
+        # Beside the capacity cap above, not instead of it: that one bounds how many sockets
+        # exist, this one bounds how many guesses come down them. Neither covers the other.
+        client = ws.client
+        ip_identity = f"relay-auth:ip:{client.host if client else 'unknown'}"
+        settings = get_settings()
+        if await auth_failures_exceeded(ip_identity, settings.relay_auth_failures_per_minute):
+            logger.warning("relay tunnel rejected: failed-auth budget spent by {}", ip_identity)
+            await ws.close(code=1008)
+            return
+
         await ws.accept()
         _connections += 1
         try:
-            await _serve_tunnel(ws, auth)
+            await _serve_tunnel(ws, auth, ip_identity)
         finally:
             _connections -= 1
 
-    async def _serve_tunnel(ws: WebSocket, auth: Authenticator) -> None:
-        """Authenticate the socket, then pump its frames until it goes away."""
+    async def _serve_tunnel(ws: WebSocket, auth: Authenticator, ip_identity: str) -> None:
+        """Authenticate the socket, then pump its frames until it goes away.
+
+        ``ip_identity`` is threaded through from the accept path so a failed key can be
+        charged to the budget that refused it there (H8) — the check and the record have to
+        name the same client, or the budget never fills and the guard never fires.
+        """
         try:
             # A socket that never authenticates must not be able to hold a slot forever.
             frame = await asyncio.wait_for(_receive_json_bounded(ws), timeout=_AUTH_TIMEOUT_SECONDS)
@@ -377,6 +398,7 @@ def create_relay_app(authenticate: Authenticator | None = None) -> FastAPI:
 
         provider_id = await auth(frame["key"])
         if provider_id is None:
+            await record_auth_failure(ip_identity)
             await ws.send_json({"type": "auth_error", "reason": "invalid key"})
             await ws.close(code=1008)
             return

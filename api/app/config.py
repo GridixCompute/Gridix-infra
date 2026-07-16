@@ -197,6 +197,10 @@ class Settings(BaseSettings):
     # to open the tunnel sends an Origin and is rejected unless it is in this (normally empty)
     # allowlist. Comma-separated exact origins; NEVER "*".
     relay_allowed_origins: str = ""
+    # Failed tunnel authentications allowed per client IP per minute (pentest H8). Only
+    # FAILURES count, so a provider holding a valid key is never throttled no matter how
+    # often it reconnects; a key guesser is cut off after this many misses.
+    relay_auth_failures_per_minute: int = Field(default=10, ge=1)
     # Internal URL the API uses to reach the relay's bridge endpoint (Session 7.5).
     relay_internal_url: str = "http://localhost:8100"
     # Public base the coordinator advertises for endpoint URLs.
