@@ -44,8 +44,13 @@ async def post_transaction(
     *,
     reason: str,
     job_id: uuid.UUID | None = None,
+    tx_hash: str | None = None,
 ) -> uuid.UUID:
     """Append a balanced set of ledger rows and return their ``entry_group`` id.
+
+    ``tx_hash`` records the on-chain transaction a movement came from, so a developer can
+    tie a credit on their statement back to the transfer they sent. Stamped on every leg,
+    because the group is what the transaction caused; null for everything not from chain.
 
     Raises:
         UnbalancedTransactionError: If debits and credits do not net to zero, or the
@@ -69,6 +74,7 @@ async def post_transaction(
                 direction=p.direction,
                 amount=p.amount,
                 reason=reason,
+                tx_hash=tx_hash,
             )
         )
     await session.flush()

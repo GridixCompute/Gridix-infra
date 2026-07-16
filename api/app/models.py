@@ -467,6 +467,14 @@ class LedgerEntry(Base):
     currency: Mapped[str] = mapped_column(String(8), default="USD", nullable=False)
     reason: Mapped[str] = mapped_column(String(64), nullable=False)
 
+    # The on-chain transaction this row came from, for rows that came from one. Null for
+    # everything else — inference charges, fees, stake movements — which have no tx.
+    #
+    # The watcher already had it (chain_events dedups on tx_hash/log_index) and dropped it
+    # on the way to the ledger, so a developer could see "+50 USDC" with no way to tie it
+    # to the transfer they made. 0x-hex, 32 bytes.
+    tx_hash: Mapped[str | None] = mapped_column(String(66), index=True)
+
     created_at: Mapped[datetime] = _created_at()
 
     __table_args__ = (

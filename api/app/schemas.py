@@ -618,6 +618,11 @@ class BillingLedgerEntry(ORMModel):
     direction: str
     amount: float
     reason: str
+    # The on-chain transaction behind this row, when there was one. Null for movements
+    # with no transaction — inference charges, fees, escrow. The frontend links it to a
+    # block explorer, which is how a developer checks a top-up against their wallet
+    # instead of taking our number on faith.
+    tx_hash: str | None
     created_at: datetime
 
 
