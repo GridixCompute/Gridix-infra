@@ -212,6 +212,7 @@ class ChainWatcher:
                     Posting(LedgerAccount.developer, LedgerDirection.credit, amount, dev.id),
                 ],
                 reason="chain_deposit",
+                tx_hash=ev.tx_hash,
             )
         elif ev.event_name == "Withdrawn":
             await post_transaction(
@@ -221,6 +222,7 @@ class ChainWatcher:
                     Posting(LedgerAccount.protocol, LedgerDirection.credit, amount),
                 ],
                 reason="chain_withdraw",
+                tx_hash=ev.tx_hash,
             )
         return True
 
@@ -243,5 +245,13 @@ class ChainWatcher:
                 Posting(LedgerAccount.protocol, LedgerDirection.debit, amount),
                 Posting(LedgerAccount.developer, LedgerDirection.credit, amount, dev.id),
             ]
-        await post_transaction(session, postings, reason=f"reorg_reverse_{ev.event_name.lower()}")
+        # Carries the same tx_hash as the entry it compensates: the reversal is that
+        # transaction's doing too, and a statement showing a correction with no origin is
+        # exactly the confusion this column exists to end.
+        await post_transaction(
+            session,
+            postings,
+            reason=f"reorg_reverse_{ev.event_name.lower()}",
+            tx_hash=ev.tx_hash,
+        )
         result.reversed_effects += 1

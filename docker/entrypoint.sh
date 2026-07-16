@@ -2,6 +2,7 @@
 # Entrypoint dispatch for the GRIDIX control-plane image.
 #   api        → run migrations, then serve the FastAPI app
 #   scheduler  → run the scheduler + reaper worker (Session 3)
+#   chain      → run the on-chain watcher / settlement / reconcile worker
 #   relay      → run the NAT-traversal relay server (Session 7.2)
 set -euo pipefail
 
@@ -30,12 +31,17 @@ case "$role" in
     # The scheduler assumes the api has already applied migrations.
     exec python -m app.scheduler
     ;;
+  chain)
+    # Settlement engine: watcher + settlement + reconcile. Its own process so the money
+    # path doesn't share a lifecycle with job dispatch.
+    exec python -m app.chain_worker
+    ;;
   relay)
     # Standalone relay for NAT'd providers; shares the DB for key validation.
     exec uvicorn app.relay:app --host 0.0.0.0 --port 8100
     ;;
   *)
-    echo "unknown role: $role (expected: api | scheduler | relay)" >&2
+    echo "unknown role: $role (expected: api | scheduler | chain | relay)" >&2
     exit 2
     ;;
 esac
