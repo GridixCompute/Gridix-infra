@@ -38,11 +38,14 @@ export function JobInputField({ value, onChange, onUploadingChange }: Props) {
       return;
     }
     setSizeError(null);
+    onUploadingChange?.(true);
     try {
       const blob = await upload.mutateAsync(file);
       onChange({ ref: blob.ref, name: file.name, size: blob.size });
     } catch {
       /* surfaced through upload.error */
+    } finally {
+      onUploadingChange?.(false);
     }
   }
 

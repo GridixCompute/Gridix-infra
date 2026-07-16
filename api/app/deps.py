@@ -49,7 +49,11 @@ async def _resolve_key(
     forgotten on the other.
     """
     token = _extract_bearer(authorization)
-    digest = hash_api_key(token, settings.api_hmac_key)
+    try:
+        digest = hash_api_key(token, settings.api_hmac_key)
+    except ValueError:
+        # Too long to be a key we issued — reject without hashing it (L1).
+        raise _UNAUTHORIZED from None
     key = await session.scalar(select(ApiKey).where(ApiKey.key_hash == digest))
     if key is None or key.revoked or _is_expired(key):
         raise _UNAUTHORIZED

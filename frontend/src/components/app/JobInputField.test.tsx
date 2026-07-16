@@ -80,7 +80,11 @@ describe("JobInputField", () => {
     });
     const { onChange } = setup();
 
-    await userEvent.upload(screen.getByLabelText("Job input file"), fileOfSize("d.bin", 10));
+    // fireEvent, not userEvent.upload: the latter trips a vitest module-mock
+    // interaction that reports the (handled) rejection as an unhandled error.
+    fireEvent.change(screen.getByLabelText("Job input file"), {
+      target: { files: [fileOfSize("d.bin", 10)] },
+    });
 
     expect(await screen.findByText("Storage unavailable.")).toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ ref: expect.anything() }));
