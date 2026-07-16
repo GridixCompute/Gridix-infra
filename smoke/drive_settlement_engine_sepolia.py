@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "api"))
 
 from app.chain.client import Web3ChainClient  # noqa: E402
 from app.chain.settlement import SettlementEngine  # noqa: E402
+from app.chain.signer import LocalKeySigner  # noqa: E402
 from app.db import Base, get_engine, get_sessionmaker  # noqa: E402
 from app.ledger import Posting, post_transaction  # noqa: E402
 from app.models import (  # noqa: E402
@@ -119,7 +120,7 @@ async def main() -> None:
         chain_id=CHAIN_ID,
         escrow_address=ESCROW,
         staking_address=STAKING,
-        coordinator_private_key=key,
+        signer=LocalKeySigner(key),
     )
     dev_wallet = client.coordinator_address  # our key doubles as the developer (holds escrow)
     print(f"RPC={rpc}\ncoordinator/developer={dev_wallet}\nDB={_DB}\n")

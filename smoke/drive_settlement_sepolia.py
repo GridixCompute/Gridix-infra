@@ -32,6 +32,7 @@ from web3 import AsyncHTTPProvider, AsyncWeb3
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "api"))
 from app.chain.client import Web3ChainClient  # noqa: E402
+from app.chain.signer import LocalKeySigner  # noqa: E402
 
 # ── live Sepolia exercise pair (throwaway MockUSDC; our key = coordinator) ──────────────
 CHAIN_ID = 11155111
@@ -137,7 +138,7 @@ async def main() -> None:
         chain_id=CHAIN_ID,
         escrow_address=ESCROW,
         staking_address=STAKING,
-        coordinator_private_key=key,
+        signer=LocalKeySigner(key),
     )
 
     escrow_cs = w3.to_checksum_address(ESCROW)

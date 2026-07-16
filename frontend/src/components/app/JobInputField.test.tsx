@@ -1,18 +1,23 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ApiError } from "@/lib/api/errors";
-
-const h = vi.hoisted(() => ({ uploadBlob: vi.fn() }));
-
-vi.mock("@/lib/api/browser", () => ({
-  api: { uploadBlob: h.uploadBlob },
-  MAX_BLOB_BYTES: 256 * 1024 * 1024,
-}));
-
+import { MAX_BLOB_BYTES } from "@/lib/api/browser";
 import { JobInputField } from "./JobInputField";
 import type { StagedInput } from "./JobInputField";
+
+/**
+ * Driven through the real api/ApiClient against a stubbed fetch, so the multipart
+ * body and the error mapping are exercised rather than mocked away.
+ */
+const fetchMock = vi.fn();
+
+function json(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
@@ -29,31 +34,61 @@ function fileOfSize(name: string, size: number): File {
 function setup(value: StagedInput | null = null) {
   const onChange = vi.fn();
   const onUploadingChange = vi.fn();
-  render(<JobInputField value={value} onChange={onChange} onUploadingChange={onUploadingChange} />, {
-    wrapper,
-  });
+  render(
+    <JobInputField value={value} onChange={onChange} onUploadingChange={onUploadingChange} />,
+    {
+      wrapper,
+    },
+  );
   return { onChange, onUploadingChange };
 }
 
+function pick(file: File) {
+  return userEvent.upload(screen.getByLabelText("Job input file"), file);
+}
+
 describe("JobInputField", () => {
-  beforeEach(() => h.uploadBlob.mockReset());
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => vi.unstubAllGlobals());
 
   it("uploads the chosen file and reports the ref back to the form", async () => {
-    h.uploadBlob.mockResolvedValue({ ref: "blob://sha256:abc", size: 2048 });
+    fetchMock.mockResolvedValue(json({ ref: "blob://sha256:abc", size: 2048 }, 201));
     const { onChange } = setup();
 
-    await userEvent.upload(screen.getByLabelText("Job input file"), fileOfSize("data.bin", 2048));
+    await pick(fileOfSize("data.bin", 2048));
 
+    // Controlled component: it reports the ref upward rather than rendering it
+    // itself, so the contract is the onChange payload.
     await waitFor(() =>
-      expect(onChange).toHaveBeenCalledWith({ ref: "blob://sha256:abc", name: "data.bin", size: 2048 }),
+      expect(onChange).toHaveBeenCalledWith({
+        ref: "blob://sha256:abc",
+        name: "data.bin",
+        size: 2048,
+      }),
     );
   });
 
+  it("posts the file as multipart to /blobs", async () => {
+    fetchMock.mockResolvedValue(json({ ref: "blob://r", size: 3 }, 201));
+    setup();
+
+    await pick(fileOfSize("data.bin", 3));
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/gw/blobs");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeInstanceOf(FormData);
+    expect((init.body as FormData).get("file")).toBeInstanceOf(File);
+  });
+
   it("brackets the upload with onUploadingChange so the form can block submit", async () => {
-    h.uploadBlob.mockResolvedValue({ ref: "blob://r", size: 1 });
+    fetchMock.mockResolvedValue(json({ ref: "blob://r", size: 1 }, 201));
     const { onUploadingChange } = setup();
 
-    await userEvent.upload(screen.getByLabelText("Job input file"), fileOfSize("d.bin", 1));
+    await pick(fileOfSize("d.bin", 1));
 
     await waitFor(() => expect(onUploadingChange).toHaveBeenCalledWith(false));
     expect(onUploadingChange.mock.calls.map((c) => c[0])).toEqual([true, false]);
@@ -62,29 +97,18 @@ describe("JobInputField", () => {
   it("rejects an oversize file without uploading it", async () => {
     const { onChange } = setup();
 
-    await userEvent.upload(
-      screen.getByLabelText("Job input file"),
-      fileOfSize("huge.bin", 256 * 1024 * 1024 + 1),
-    );
+    await pick(fileOfSize("huge.bin", MAX_BLOB_BYTES + 1));
 
-    expect(h.uploadBlob).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(await screen.findByText(/the limit is 256\.0 MiB/i)).toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ ref: expect.anything() }));
   });
 
   it("surfaces a failed upload instead of staging a ref", async () => {
-    // Thrown inside the async impl, not handed to mockRejectedValue: the latter
-    // builds an already-rejected promise before anything awaits it.
-    h.uploadBlob.mockImplementation(async () => {
-      throw new ApiError({ kind: "server", status: 500, message: "Storage unavailable." });
-    });
+    fetchMock.mockResolvedValue(json({ detail: "Storage unavailable." }, 500));
     const { onChange } = setup();
 
-    // fireEvent, not userEvent.upload: the latter trips a vitest module-mock
-    // interaction that reports the (handled) rejection as an unhandled error.
-    fireEvent.change(screen.getByLabelText("Job input file"), {
-      target: { files: [fileOfSize("d.bin", 10)] },
-    });
+    await pick(fileOfSize("d.bin", 10));
 
     expect(await screen.findByText("Storage unavailable.")).toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ ref: expect.anything() }));
