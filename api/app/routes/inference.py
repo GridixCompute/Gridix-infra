@@ -302,6 +302,30 @@ def _estimate_prompt_tokens(body: ChatCompletionRequest) -> int:
     return max(1, chars // 4)
 
 
+def _reported_tokens(raw: dict, field: str, *, default: int) -> int:
+    """One token count out of a node's reply, or ``default`` if it gave nothing usable.
+
+    Every value here arrives from a counterparty that is paid from it, so nothing may be
+    assumed about its type. `int("abc")`, `int(None)` and `int([1, 2])` all raise, and an
+    exception this deep becomes a 500 — a node could return one string and break every
+    request routed to it. A count we cannot read is not a count, so it falls back exactly
+    like an omitted one.
+
+    Negative values are floored at zero rather than rejected: ChatUsage requires ge=0, so
+    passing one through would raise ValidationError and 500 for the same reason.
+    """
+    value = raw.get(field)
+    if value is None:
+        return default
+    # bool is an int subclass; True would silently mean 1 token.
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        logger.warning(
+            "node reported {}={!r}, which is not a number; using {}", field, value, default
+        )
+        return default
+    return max(0, int(value))
+
+
 def _usage_from(reply: dict, *, prompt_tokens: int, max_output_tokens: int) -> ChatUsage:
     """Token usage as the node reported it — bounded by what it was allowed to do.
 
@@ -311,9 +335,16 @@ def _usage_from(reply: dict, *, prompt_tokens: int, max_output_tokens: int) -> C
     node is paid from the number it reports. `max_output_tokens` is the ceiling we sent it
     and priced the balance gate on, so a larger count is either a broken node or a lying
     one. Either way the developer does not fund it.
+
+    Nothing in here may raise on a hostile reply. The node chooses this payload; if a
+    malformed one could reach an unhandled exception, any node could 500 every request it
+    was given, for free, and never be billed for the privilege.
     """
-    raw = reply.get("usage") or {}
-    claimed = int(raw.get("completion_tokens") or 0)
+    raw = reply.get("usage")
+    if not isinstance(raw, dict):
+        # `usage: "x"` used to reach .get() and raise AttributeError.
+        raw = {}
+    claimed = _reported_tokens(raw, "completion_tokens", default=0)
     if claimed > max_output_tokens:
         logger.warning(
             "node claimed {} completion tokens against a ceiling of {}; billing the ceiling",
@@ -321,6 +352,6 @@ def _usage_from(reply: dict, *, prompt_tokens: int, max_output_tokens: int) -> C
             max_output_tokens,
         )
     return ChatUsage(
-        prompt_tokens=int(raw.get("prompt_tokens") or prompt_tokens),
+        prompt_tokens=_reported_tokens(raw, "prompt_tokens", default=prompt_tokens),
         completion_tokens=min(claimed, max_output_tokens),
     )
