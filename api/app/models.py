@@ -263,6 +263,30 @@ class ApiKey(Base):
     )
 
 
+class ProviderModel(Base):
+    """A model a provider's node declares it can serve.
+
+    Written by the relay when a node's tunnel comes up, so it is the coordinator's answer
+    to "who can serve llama-3-70b right now?" — a query, not a per-process dict. That
+    matters: the tunnels live in the relay, while any API replica may need to dispatch.
+    A registry held in one process's memory would be right only in that process.
+
+    Declared, not verified. A node claiming a model it does not run is exactly the
+    substitution attack canaries exist to catch; this table records the claim.
+    """
+
+    __tablename__ = "provider_models"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("providers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    model: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    created_at: Mapped[datetime] = _created_at()
+
+    __table_args__ = (UniqueConstraint("provider_id", "model", name="uq_provider_model"),)
+
+
 class AuthNonce(Base):
     """A single-use SIWE (EIP-4361) challenge.
 
