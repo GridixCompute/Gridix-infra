@@ -11,6 +11,25 @@ jobs:
   # integration happy path). A PR that breaks the happy path fails here (12.2).
   test:
     runs-on: ubuntu-latest
+    # The suite is hermetic on SQLite, with one exception that cannot be: concurrent
+    # charges are serialised with SELECT ... FOR UPDATE, which SQLite parses and ignores.
+    # Removing that lock leaves every SQLite test green while a developer can overdraw, so
+    # tests/integration/test_postgres_overdraw.py needs a real Postgres — and a test that
+    # only ever skips is not a test.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: gridix
+          POSTGRES_PASSWORD: gridix
+          POSTGRES_DB: gridix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +57,10 @@ jobs:
           alembic downgrade base
 
       - name: Tests (unit + integration)
+        env:
+          GRIDIX_TEST_POSTGRES_URL: postgresql+asyncpg://gridix:gridix@localhost:5432/gridix_test
         run: pytest -q
+
 
       - name: Packaging build
         run: pip install -e .

@@ -27,6 +27,267 @@
         }
       }
     },
+    "/auth/nonce": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Issue Nonce",
+        "description": "Compose and store a single-use SIWE challenge for ``address``.\n\nThe full EIP-4361 message is built here, from server settings, and persisted. The\nwallet signs it verbatim; /auth/verify checks against the stored copy. That is why\n``domain`` and ``chainId`` cannot be forged: the client never states them.",
+        "operationId": "issue_nonce_auth_nonce_get",
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 42,
+              "description": "The wallet address that will sign.",
+              "title": "Address"
+            },
+            "description": "The wallet address that will sign."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NonceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Verify Signature",
+        "description": "Verify a signed challenge and return a session credential.\n\nOrder matters: the nonce is claimed (atomically, once) before the signature is\nchecked, so a replay cannot ride on a slow verification.",
+        "operationId": "verify_signature_auth_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "tags": [
+          "inference"
+        ],
+        "summary": "List Models",
+        "description": "Catalogue models, each flagged with whether a node is serving it right now.\n\nAvailability is reported rather than filtered: a developer whose model went dark\nshould see that it exists and is offline, not watch it vanish from the list.",
+        "operationId": "list_models_v1_models_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "tags": [
+          "inference"
+        ],
+        "summary": "Chat Completions",
+        "description": "Run a chat completion on the network and bill the tokens it used.",
+        "operationId": "chat_completions_v1_chat_completions_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatCompletionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletionResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "stream=true: the network cannot forward partial results yet."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/images/generations": {
+      "post": {
+        "tags": [
+          "inference"
+        ],
+        "summary": "Image Generations",
+        "description": "Generate images on the network and bill per image returned.",
+        "operationId": "image_generations_v1_images_generations_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageGenerationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageGenerationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/developers": {
       "post": {
         "tags": [
@@ -117,7 +378,7 @@
           "billing"
         ],
         "summary": "My Ledger",
-        "description": "Every ledger leg across this developer's jobs, newest first.\n\nOrdered by group so the two (or more) legs of a transaction stay adjacent.",
+        "description": "Every ledger leg this developer's money moved through, newest first.\n\nOrdered by group so the two (or more) legs of a transaction stay adjacent.\n\nBoth kinds of movement, and it used to be only one: an inner join on ``job_id`` meant\na row had to belong to a job to appear, so on-chain deposits \u2014 which have no job \u2014\nwere invisible. A developer could top up 50 USDC, watch their balance rise, and find\nnothing in their statement to explain it.\n\nA group is theirs if any leg names them, which is what pulls in whole deposit groups\n(the protocol leg carries no ``account_ref``), or if it came from one of their jobs.\nEvery leg of a matching group is returned, so the UI can still show that each\ntransaction balances.",
         "operationId": "my_ledger_billing_ledger_get",
         "parameters": [
           {
@@ -3087,6 +3348,17 @@
             "type": "string",
             "title": "Reason"
           },
+          "tx_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tx Hash"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -3102,6 +3374,7 @@
           "direction",
           "amount",
           "reason",
+          "tx_hash",
           "created_at"
         ],
         "title": "BillingLedgerEntry",
@@ -3223,6 +3496,155 @@
         "title": "CacheReport",
         "description": "Agent reports the digests it currently has cached (Session 8.5)."
       },
+      "ChatCompletionRequest": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Model"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array",
+            "maxItems": 256,
+            "minItems": 1,
+            "title": "Messages"
+          },
+          "max_tokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 32768.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Tokens"
+          },
+          "temperature": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Temperature",
+            "default": 1.0
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "stream": {
+            "type": "boolean",
+            "title": "Stream",
+            "default": false
+          },
+          "data_tier": {
+            "$ref": "#/components/schemas/DataTier",
+            "default": "public"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "messages"
+        ],
+        "title": "ChatCompletionRequest",
+        "description": "A chat request. Bounded at the edge: these numbers size the balance gate, and an\nunbounded max_tokens would make the worst case unknowable."
+      },
+      "ChatCompletionResponse": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/ChatUsage"
+          },
+          "cost_usdc": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cost Usdc"
+          },
+          "provider_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Provider Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "content",
+          "usage",
+          "cost_usdc",
+          "provider_id"
+        ],
+        "title": "ChatCompletionResponse",
+        "description": "A completed chat request, with what it cost and which node served it."
+      },
+      "ChatMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user",
+              "assistant"
+            ],
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "ChatMessage",
+        "description": "One turn. OpenAI-shaped so existing clients work unchanged."
+      },
+      "ChatUsage": {
+        "properties": {
+          "prompt_tokens": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Prompt Tokens"
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Completion Tokens"
+          }
+        },
+        "type": "object",
+        "required": [
+          "prompt_tokens",
+          "completion_tokens"
+        ],
+        "title": "ChatUsage",
+        "description": "Tokens the request actually consumed \u2014 what it is billed on."
+      },
       "DataKeyResponse": {
         "properties": {
           "data_key": {
@@ -3236,6 +3658,16 @@
         ],
         "title": "DataKeyResponse",
         "description": "The brokered per-job data key released to the assigned agent (Session 9.3)."
+      },
+      "DataTier": {
+        "type": "string",
+        "enum": [
+          "public",
+          "encrypted_at_rest",
+          "confidential_tee"
+        ],
+        "title": "DataTier",
+        "description": "Per-job data-handling policy (Session 9). Guarantees rise with the tier."
       },
       "DisputeResponse": {
         "properties": {
@@ -3555,6 +3987,86 @@
         ],
         "title": "IceCandidate",
         "description": "A single ICE-style connectivity candidate advertised by the agent."
+      },
+      "ImageGenerationRequest": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Model"
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Prompt"
+          },
+          "n": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "N",
+            "default": 1
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "data_tier": {
+            "$ref": "#/components/schemas/DataTier",
+            "default": "public"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "prompt"
+        ],
+        "title": "ImageGenerationRequest",
+        "description": "An image request."
+      },
+      "ImageGenerationResponse": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Images"
+          },
+          "cost_usdc": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cost Usdc"
+          },
+          "provider_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Provider Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "images",
+          "cost_usdc",
+          "provider_id"
+        ],
+        "title": "ImageGenerationResponse",
+        "description": "Generated images, billed per image actually returned."
       },
       "JobArgs": {
         "properties": {
@@ -3880,6 +4392,100 @@
         ],
         "title": "LedgerRecord",
         "description": "One ledger row in a job's audit trail."
+      },
+      "ModelInfo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "modality": {
+            "type": "string",
+            "title": "Modality"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "nodes": {
+            "type": "integer",
+            "title": "Nodes"
+          },
+          "input_usdc_per_mtok": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Input Usdc Per Mtok"
+          },
+          "output_usdc_per_mtok": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Output Usdc Per Mtok"
+          },
+          "usdc_per_image": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Usdc Per Image"
+          },
+          "context_window": {
+            "type": "integer",
+            "title": "Context Window"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "modality",
+          "available",
+          "nodes",
+          "input_usdc_per_mtok",
+          "output_usdc_per_mtok",
+          "usdc_per_image",
+          "context_window"
+        ],
+        "title": "ModelInfo",
+        "description": "A catalogue model and whether the network is serving it right now."
+      },
+      "ModelsResponse": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelInfo"
+            },
+            "type": "array",
+            "title": "Models"
+          }
+        },
+        "type": "object",
+        "required": [
+          "models"
+        ],
+        "title": "ModelsResponse",
+        "description": "Everything GRIDIX can serve, with prices."
+      },
+      "NonceResponse": {
+        "properties": {
+          "nonce": {
+            "type": "string",
+            "title": "Nonce"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nonce",
+          "message",
+          "expires_at"
+        ],
+        "title": "NonceResponse",
+        "description": "A challenge to sign. ``message`` is composed server-side and must be signed\nbyte-for-byte \u2014 the client never assembles the text it authenticates with."
       },
       "PathResponse": {
         "properties": {
@@ -4445,6 +5051,42 @@
         "title": "ResourceSpec",
         "description": "Hardware a job needs. The scheduler matches these against provider capabilities."
       },
+      "SessionResponse": {
+        "properties": {
+          "developer_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Developer Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "wallet_address": {
+            "type": "string",
+            "title": "Wallet Address"
+          },
+          "api_key": {
+            "type": "string",
+            "title": "Api Key"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "developer_id",
+          "name",
+          "wallet_address",
+          "api_key",
+          "expires_at"
+        ],
+        "title": "SessionResponse",
+        "description": "An established wallet session. ``api_key`` is the session credential: it goes\nstraight into the httpOnly cookie and is never shown to the user."
+      },
       "SubmitJobRequest": {
         "properties": {
           "image_ref": {
@@ -4636,6 +5278,33 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VerifyRequest": {
+        "properties": {
+          "address": {
+            "type": "string",
+            "maxLength": 42,
+            "title": "Address"
+          },
+          "signature": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Signature"
+          },
+          "nonce": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Nonce"
+          }
+        },
+        "type": "object",
+        "required": [
+          "address",
+          "signature",
+          "nonce"
+        ],
+        "title": "VerifyRequest",
+        "description": "A signed challenge. ``nonce`` selects the stored message to check the signature\nagainst; the message text itself is never accepted from the client."
       }
     }
   }
