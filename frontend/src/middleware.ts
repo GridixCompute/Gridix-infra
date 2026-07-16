@@ -14,7 +14,7 @@ import type { NextRequest } from "next/server";
  */
 const SESSION_COOKIE = "gridix_session";
 const ROLE_COOKIE = "gridix_role";
-const DEVELOPER_AREAS = ["/dashboard", "/jobs", "/billing", "/settings"];
+const DEVELOPER_AREAS = ["/dashboard", "/playground", "/models", "/jobs", "/billing", "/settings"];
 const PROVIDER_HOME = "/provider";
 const DEVELOPER_HOME = "/dashboard";
 
@@ -38,9 +38,16 @@ function buildCsp(nonce: string): string {
   // C2/H13: NO script 'unsafe-inline'. Inline scripts run only with the per-request
   // nonce; 'strict-dynamic' lets those trusted scripts load the app's chunks. So an
   // injected <script> from an XSS can't execute — it has no valid nonce.
+  //
+  // `next dev` evaluates its bundled modules through eval(), so without 'unsafe-eval' the
+  // dev server's own scripts are blocked and the app never hydrates — the page renders its
+  // SSR output and then sits there, dead, which reads as a broken feature rather than a
+  // blocked script. Production builds don't eval, so the allowance is scoped to dev and the
+  // shipped policy stays exactly as strict as C2/H13 made it.
+  const devEval = process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${devEval}`,
     // Styles still need inline (Tailwind/next-font inject <style>); style injection
     // can't steal a session cookie the way script execution can.
     "style-src 'self' 'unsafe-inline'",

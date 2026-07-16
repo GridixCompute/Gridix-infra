@@ -100,7 +100,7 @@ function Hero() {
             <Link href="/register">
               <Button size="lg">Start building</Button>
             </Link>
-            <Link href="/docs/quickstart">
+            <Link href="/docs#quickstart">
               <Button variant="secondary" size="lg">
                 Read the quickstart
               </Button>

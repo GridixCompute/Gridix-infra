@@ -8,8 +8,15 @@ import { loginAs, mockApi, makeJob } from "./support";
  */
 test.use({ viewport: { width: 375, height: 800 } });
 
-async function expectNoOverflow(page: import("@playwright/test").Page, path: string) {
+async function expectNoOverflow(
+  page: import("@playwright/test").Page,
+  path: string,
+  /** A selector proving the page rendered — without it we might measure a skeleton, which
+   *  never overflows and so passes while checking nothing. */
+  marker?: string,
+) {
   await page.goto(path, { waitUntil: "domcontentloaded" });
+  if (marker) await page.waitForSelector(marker, { timeout: 30_000 });
   // Poll so late layout shifts (fonts/images) settle before we judge.
   await expect
     .poll(
@@ -49,5 +56,10 @@ test.describe("responsive @ 375px", () => {
     for (const path of ["/dashboard", "/jobs", "/jobs/new", "/billing", "/settings"]) {
       await expectNoOverflow(page, path);
     }
+    // The inference surfaces render from a client query, so they need a render marker.
+    // /models is the interesting one: its rate card is the widest content in the app and
+    // must scroll inside its own container rather than push the page body.
+    await expectNoOverflow(page, "/playground", 'textarea[aria-label="Prompt"]');
+    await expectNoOverflow(page, "/models", "table");
   });
 });
