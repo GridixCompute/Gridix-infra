@@ -129,7 +129,21 @@ async def list_models(
     return ModelsResponse(models=models)
 
 
-@router.post("/chat/completions", response_model=ChatCompletionResponse)
+@router.post(
+    "/chat/completions",
+    response_model=ChatCompletionResponse,
+    # The route really can return 501 (stream=true, below), so the contract has to say so.
+    # Without this the spec advertises `stream?: boolean` and stays silent about half of it
+    # being unimplemented: a client generates types, wires up a stream toggle, and finds out
+    # at runtime. A schema that omits a response it actually returns is the same class of bug
+    # as one that declares an event the contract never emits (5e26dc1) — just from the other
+    # side. Both let generated code be confidently wrong.
+    responses={
+        status.HTTP_501_NOT_IMPLEMENTED: {
+            "description": "stream=true: the network cannot forward partial results yet.",
+        },
+    },
+)
 async def chat_completions(
     body: ChatCompletionRequest,
     session: SessionDep,

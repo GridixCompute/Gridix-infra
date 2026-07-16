@@ -160,6 +160,27 @@ class TestChat:
         assert "stream" in res.text.lower()
         call.assert_not_awaited()
 
+    def test_the_spec_declares_the_501_it_can_return(self) -> None:
+        """The behaviour above is worth nothing to a client that cannot see it coming.
+
+        `stream` is in the schema, so generated clients offer it — and FastAPI only
+        documents the responses it is told about, so a route that raises 501 advertises
+        nothing but 200. A developer wires up a stream toggle against types that look fine
+        and learns the truth at runtime.
+
+        This is the mirror of 5e26dc1, where an ABI declared events the contract never
+        emitted: there the schema promised what did not happen, here it hides what does.
+        Either way the generated code is confidently wrong, and neither is caught by tests
+        of behaviour — only by testing the contract itself.
+        """
+        from app.main import app
+
+        responses = app.openapi()["paths"]["/v1/chat/completions"]["post"]["responses"]
+        assert "501" in responses, (
+            "the route can return 501 (stream=true) but the OpenAPI spec does not say so, "
+            "so generated clients cannot know"
+        )
+
     async def test_a_non_streaming_request_is_unaffected(
         self, client: AsyncClient, session
     ) -> None:
