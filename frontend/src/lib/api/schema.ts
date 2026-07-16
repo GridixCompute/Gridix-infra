@@ -24,6 +24,116 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/nonce": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Issue Nonce
+         * @description Compose and store a single-use SIWE challenge for ``address``.
+         *
+         *     The full EIP-4361 message is built here, from server settings, and persisted. The
+         *     wallet signs it verbatim; /auth/verify checks against the stored copy. That is why
+         *     ``domain`` and ``chainId`` cannot be forged: the client never states them.
+         */
+        get: operations["issue_nonce_auth_nonce_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Signature
+         * @description Verify a signed challenge and return a session credential.
+         *
+         *     Order matters: the nonce is claimed (atomically, once) before the signature is
+         *     checked, so a replay cannot ride on a slow verification.
+         */
+        post: operations["verify_signature_auth_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Models
+         * @description Catalogue models, each flagged with whether a node is serving it right now.
+         *
+         *     Availability is reported rather than filtered: a developer whose model went dark
+         *     should see that it exists and is offline, not watch it vanish from the list.
+         */
+        get: operations["list_models_v1_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/chat/completions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chat Completions
+         * @description Run a chat completion on the network and bill the tokens it used.
+         */
+        post: operations["chat_completions_v1_chat_completions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/images/generations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Image Generations
+         * @description Generate images on the network and bill per image returned.
+         */
+        post: operations["image_generations_v1_images_generations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/developers": {
         parameters: {
             query?: never;
@@ -73,9 +183,19 @@ export interface paths {
         };
         /**
          * My Ledger
-         * @description Every ledger leg across this developer's jobs, newest first.
+         * @description Every ledger leg this developer's money moved through, newest first.
          *
          *     Ordered by group so the two (or more) legs of a transaction stay adjacent.
+         *
+         *     Both kinds of movement, and it used to be only one: an inner join on ``job_id`` meant
+         *     a row had to belong to a job to appear, so on-chain deposits — which have no job —
+         *     were invisible. A developer could top up 50 USDC, watch their balance rise, and find
+         *     nothing in their statement to explain it.
+         *
+         *     A group is theirs if any leg names them, which is what pulls in whole deposit groups
+         *     (the protocol leg carries no ``account_ref``), or if it came from one of their jobs.
+         *     Every leg of a matching group is returned, so the UI can still show that each
+         *     transaction balances.
          */
         get: operations["my_ledger_billing_ledger_get"];
         put?: never;
@@ -1126,6 +1246,8 @@ export interface components {
             amount: number;
             /** Reason */
             reason: string;
+            /** Tx Hash */
+            tx_hash: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1188,6 +1310,74 @@ export interface components {
             cached?: string[];
         };
         /**
+         * ChatCompletionRequest
+         * @description A chat request. Bounded at the edge: these numbers size the balance gate, and an
+         *     unbounded max_tokens would make the worst case unknowable.
+         */
+        ChatCompletionRequest: {
+            /** Model */
+            model: string;
+            /** Messages */
+            messages: components["schemas"]["ChatMessage"][];
+            /** Max Tokens */
+            max_tokens?: number | null;
+            /**
+             * Temperature
+             * @default 1
+             */
+            temperature: number;
+            /** Seed */
+            seed?: number | null;
+            /**
+             * Stream
+             * @default false
+             */
+            stream: boolean;
+            /** @default public */
+            data_tier: components["schemas"]["DataTier"];
+        };
+        /**
+         * ChatCompletionResponse
+         * @description A completed chat request, with what it cost and which node served it.
+         */
+        ChatCompletionResponse: {
+            /** Model */
+            model: string;
+            /** Content */
+            content: string;
+            usage: components["schemas"]["ChatUsage"];
+            /** Cost Usdc */
+            cost_usdc: string;
+            /**
+             * Provider Id
+             * Format: uuid
+             */
+            provider_id: string;
+        };
+        /**
+         * ChatMessage
+         * @description One turn. OpenAI-shaped so existing clients work unchanged.
+         */
+        ChatMessage: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "system" | "user" | "assistant";
+            /** Content */
+            content: string;
+        };
+        /**
+         * ChatUsage
+         * @description Tokens the request actually consumed — what it is billed on.
+         */
+        ChatUsage: {
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Completion Tokens */
+            completion_tokens: number;
+        };
+        /**
          * DataKeyResponse
          * @description The brokered per-job data key released to the assigned agent (Session 9.3).
          */
@@ -1195,6 +1385,12 @@ export interface components {
             /** Data Key */
             data_key: string;
         };
+        /**
+         * DataTier
+         * @description Per-job data-handling policy (Session 9). Guarantees rise with the tier.
+         * @enum {string}
+         */
+        DataTier: "public" | "encrypted_at_rest" | "confidential_tee";
         /**
          * DisputeResponse
          * @description A slash dispute with its reproducible evidence.
@@ -1350,6 +1546,42 @@ export interface components {
             kind: "host" | "srflx" | "relay";
         };
         /**
+         * ImageGenerationRequest
+         * @description An image request.
+         */
+        ImageGenerationRequest: {
+            /** Model */
+            model: string;
+            /** Prompt */
+            prompt: string;
+            /**
+             * N
+             * @default 1
+             */
+            n: number;
+            /** Seed */
+            seed?: number | null;
+            /** @default public */
+            data_tier: components["schemas"]["DataTier"];
+        };
+        /**
+         * ImageGenerationResponse
+         * @description Generated images, billed per image actually returned.
+         */
+        ImageGenerationResponse: {
+            /** Model */
+            model: string;
+            /** Images */
+            images: string[];
+            /** Cost Usdc */
+            cost_usdc: string;
+            /**
+             * Provider Id
+             * Format: uuid
+             */
+            provider_id: string;
+        };
+        /**
          * JobArgs
          * @description Optional container overrides for the job.
          */
@@ -1476,6 +1708,52 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /**
+         * ModelInfo
+         * @description A catalogue model and whether the network is serving it right now.
+         */
+        ModelInfo: {
+            /** Id */
+            id: string;
+            /** Modality */
+            modality: string;
+            /** Available */
+            available: boolean;
+            /** Nodes */
+            nodes: number;
+            /** Input Usdc Per Mtok */
+            input_usdc_per_mtok: string;
+            /** Output Usdc Per Mtok */
+            output_usdc_per_mtok: string;
+            /** Usdc Per Image */
+            usdc_per_image: string;
+            /** Context Window */
+            context_window: number;
+        };
+        /**
+         * ModelsResponse
+         * @description Everything GRIDIX can serve, with prices.
+         */
+        ModelsResponse: {
+            /** Models */
+            models: components["schemas"]["ModelInfo"][];
+        };
+        /**
+         * NonceResponse
+         * @description A challenge to sign. ``message`` is composed server-side and must be signed
+         *     byte-for-byte — the client never assembles the text it authenticates with.
+         */
+        NonceResponse: {
+            /** Nonce */
+            nonce: string;
+            /** Message */
+            message: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
         };
         /**
          * PathResponse
@@ -1709,6 +1987,29 @@ export interface components {
             gpu_vram_mb: number;
         };
         /**
+         * SessionResponse
+         * @description An established wallet session. ``api_key`` is the session credential: it goes
+         *     straight into the httpOnly cookie and is never shown to the user.
+         */
+        SessionResponse: {
+            /**
+             * Developer Id
+             * Format: uuid
+             */
+            developer_id: string;
+            /** Name */
+            name: string;
+            /** Wallet Address */
+            wallet_address: string;
+            /** Api Key */
+            api_key: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /**
          * SubmitJobRequest
          * @description Submit a job for execution.
          */
@@ -1786,6 +2087,19 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /**
+         * VerifyRequest
+         * @description A signed challenge. ``nonce`` selects the stored message to check the signature
+         *     against; the message text itself is never accepted from the client.
+         */
+        VerifyRequest: {
+            /** Address */
+            address: string;
+            /** Signature */
+            signature: string;
+            /** Nonce */
+            nonce: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -1811,6 +2125,179 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    issue_nonce_auth_nonce_get: {
+        parameters: {
+            query: {
+                /** @description The wallet address that will sign. */
+                address: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NonceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_signature_auth_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_models_v1_models_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chat_completions_v1_chat_completions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatCompletionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatCompletionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description stream=true: the network cannot forward partial results yet. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    image_generations_v1_images_generations_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImageGenerationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageGenerationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
