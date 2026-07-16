@@ -1,12 +1,16 @@
 import { isMockInference } from "@/lib/inference/mock";
 
 /**
- * States plainly that nothing here is real (Sesi 4.2).
+ * States plainly that nothing here is real (Sesi 4.2 / 5.4).
  *
  * The build plan allows a marked mock while the inference backend does not exist. "Marked"
  * has to mean visible to whoever is looking at the screen — a comment in the source does not
  * stop a screenshot being mistaken for a working product. Renders nothing once
  * NEXT_PUBLIC_INFERENCE_MOCK=false, so it cannot outlive the mock it warns about.
+ *
+ * Worded for every surface that shows mocked inference, not just the playground: it also
+ * heads the Models page, where there is no reply and nothing streams, and where the thing
+ * most likely to be believed is the rate card.
  */
 export function MockBanner() {
   if (!isMockInference) return null;
@@ -19,10 +23,10 @@ export function MockBanner() {
         ▲
       </span>
       <p className="text-sm text-[var(--color-ink-soft)]">
-        <strong className="font-semibold text-[var(--color-warning)]">Mock playground.</strong> The
+        <strong className="font-semibold text-[var(--color-warning)]">Mock inference.</strong> The
         inference backend doesn&apos;t exist yet — no model runs, no GPU is reached, and nothing is
-        charged. Replies are canned text streamed to build the interface. Token counts and costs are
-        arithmetic on a placeholder rate card.
+        charged. The model list, the replies, the images, and every price here are placeholders that
+        exist to build the interface against.
       </p>
     </div>
   );

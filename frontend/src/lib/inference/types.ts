@@ -89,3 +89,32 @@ export type ChatUsage = {
 export type ChatStreamEvent =
   | { type: "delta"; content: string }
   | { type: "done"; usage: ChatUsage | null; finishReason: "stop" | "length" | null };
+
+// ── images (Sesi 5) ─────────────────────────────────────────────────────────────────
+
+/** Sizes the UI offers. The real endpoint decides what it actually accepts. */
+export const IMAGE_SIZES = ["512x512", "768x768", "1024x1024"] as const;
+export type ImageSize = (typeof IMAGE_SIZES)[number];
+
+/** Knobs the image panel drives. `seed` pins determinism, as in chat. */
+export type ImageParams = {
+  size: ImageSize;
+  steps: number;
+  seed: number | null;
+};
+
+export type ImageRequest = {
+  model: string;
+  prompt: string;
+  size: ImageSize;
+  steps: number;
+  seed?: number | null;
+  n: 1;
+};
+
+export type ImageResponse = {
+  created: number;
+  data: { b64_json: string }[];
+  /** GRIDIX extension: what was actually charged, so the UI need not guess. */
+  usage?: { cost_micro_usdc: number };
+};

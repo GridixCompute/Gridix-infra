@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/Button";
 import { USDCAmount } from "@/components/domain/USDCAmount";
 import { inferenceErrorMessage, streamChat } from "@/lib/inference/client";
 import { estimateChatCost, microToBase } from "@/lib/inference/pricing";
-import type { ChatMessage, ChatParams, InferenceModel } from "@/lib/inference/types";
+import type { ChatMessage, ChatParams, ChatRequest, InferenceModel } from "@/lib/inference/types";
+import { CodeViewDialog } from "./CodeViewDialog";
 
 /**
  * The conversation surface (Sesi 4.3).
@@ -36,11 +37,32 @@ type Props = {
 let turnSeq = 0;
 const nextId = () => `turn-${++turnSeq}`;
 
+/**
+ * The request the client sends. Shared with CodeViewDialog so the snippet shown is the call
+ * actually made, not a re-typed lookalike that drifts the first time either changes.
+ */
+function buildRequest(
+  model: InferenceModel,
+  messages: ChatMessage[],
+  params: ChatParams,
+): ChatRequest {
+  return {
+    model: model.id,
+    messages,
+    stream: true,
+    temperature: params.temperature,
+    max_tokens: params.maxTokens,
+    top_p: params.topP,
+    seed: params.seed,
+  };
+}
+
 export function ChatPanel({ model, params, availableBase }: Props) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showCode, setShowCode] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -81,15 +103,7 @@ export function ChatPanel({ model, params, availableBase }: Props) {
 
     try {
       const stream = streamChat(
-        {
-          model: model.id,
-          messages: [...history, { role: "user", content: text }],
-          stream: true,
-          temperature: params.temperature,
-          max_tokens: params.maxTokens,
-          top_p: params.topP,
-          seed: params.seed,
-        },
+        buildRequest(model, [...history, { role: "user", content: text }], params),
         controller.signal,
       );
 
@@ -253,6 +267,14 @@ export function ChatPanel({ model, params, availableBase }: Props) {
           >
             Clear
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowCode(true)}
+            disabled={!model || pending.length === 0}
+          >
+            View code
+          </Button>
 
           <span className="ml-auto flex items-center gap-3 text-xs text-[var(--color-ink-faint)]">
             <span title="Worst case: prompt + the full max_tokens reply">
@@ -271,6 +293,15 @@ export function ChatPanel({ model, params, availableBase }: Props) {
           </span>
         </div>
       </div>
+
+      {model && (
+        <CodeViewDialog
+          open={showCode}
+          onClose={() => setShowCode(false)}
+          path="/v1/chat/completions"
+          body={buildRequest(model, pending, params)}
+        />
+      )}
     </div>
   );
 }

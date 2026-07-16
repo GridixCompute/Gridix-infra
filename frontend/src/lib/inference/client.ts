@@ -1,5 +1,5 @@
 /**
- * Inference client (Sesi 4.2) — chat completions over SSE.
+ * Inference client — chat completions over SSE (Sesi 4.2) and image generation (Sesi 5.1).
  *
  * The real path is written out in full even though nothing serves it yet: the mock and the
  * backend expose the *same* generator contract, so landing `/v1/chat/completions` is a flag
@@ -12,8 +12,15 @@
  */
 
 import { env } from "@/lib/config/env";
-import { isMockInference, mockChatStream, mockListModels } from "./mock";
-import type { ChatRequest, ChatStreamChunk, ChatStreamEvent, InferenceModel } from "./types";
+import { isMockInference, mockChatStream, mockGenerateImage, mockListModels } from "./mock";
+import type {
+  ChatRequest,
+  ChatStreamChunk,
+  ChatStreamEvent,
+  ImageRequest,
+  ImageResponse,
+  InferenceModel,
+} from "./types";
 
 /** Errors the playground must react to differently (Sesi 4.2). */
 export type InferenceErrorKind =
@@ -77,6 +84,40 @@ export async function listModels(signal?: AbortSignal): Promise<InferenceModel[]
     throw new InferenceError(kindFromStatus(res.status), MESSAGES[kindFromStatus(res.status)]);
   const body = (await res.json()) as { data: InferenceModel[] };
   return body.data;
+}
+
+/**
+ * Generate one image (Sesi 5.1).
+ *
+ * Unary, not streamed: there is no partial image to show, so the panel renders a progress
+ * state and this resolves once. `signal` maps to cancel; an aborted request throws
+ * AbortError, which the caller distinguishes from a real failure.
+ */
+export async function generateImage(
+  req: ImageRequest,
+  signal?: AbortSignal,
+): Promise<ImageResponse> {
+  if (isMockInference) return mockGenerateImage(req, signal);
+
+  let res: Response;
+  try {
+    res = await fetch(`${env.apiUrl}/v1/images/generations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+      credentials: "include",
+      signal,
+    });
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") throw e;
+    throw new InferenceError("network", MESSAGES.network);
+  }
+
+  if (!res.ok) {
+    const kind = kindFromStatus(res.status);
+    throw new InferenceError(kind, MESSAGES[kind]);
+  }
+  return (await res.json()) as ImageResponse;
 }
 
 /**

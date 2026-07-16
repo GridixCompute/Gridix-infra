@@ -14,7 +14,8 @@ export default function PlaygroundPage() {
           Playground
         </h1>
         <p className="mt-1 text-sm text-[var(--color-ink-faint)]">
-          Send a prompt to a model running on the network. You pay per token, in USDC.
+          Send a prompt to a model running on the network. You pay per use, in USDC — per token for
+          chat, per image for generation.
         </p>
       </div>
       <PlaygroundShell />

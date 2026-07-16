@@ -4,14 +4,16 @@ import { useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { Card, CardBody, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { EmptyState, ErrorState } from "@/components/ui/States";
+import { ErrorState } from "@/components/ui/States";
 import { useModels } from "@/lib/hooks/useModels";
 import { useBillingSummary } from "@/lib/hooks/useBilling";
 import { useEscrowBalance } from "@/lib/chain/hooks";
 import { toBaseUnits } from "@/lib/format/usdc";
-import type { ChatParams } from "@/lib/inference/types";
+import type { ChatParams, ImageParams } from "@/lib/inference/types";
 import { ChatPanel } from "./ChatPanel";
+import { ImagePanel } from "./ImagePanel";
 import { SettingsPanel } from "./SettingsPanel";
+import { ImageSettingsPanel } from "./ImageSettingsPanel";
 import { MockBanner } from "./MockBanner";
 
 /**
@@ -24,6 +26,7 @@ import { MockBanner } from "./MockBanner";
  */
 
 const DEFAULT_PARAMS: ChatParams = { temperature: 0.7, maxTokens: 512, topP: 1, seed: null };
+const DEFAULT_IMAGE_PARAMS: ImageParams = { size: "768x768", steps: 20, seed: null };
 
 type Mode = "chat" | "image";
 
@@ -31,6 +34,7 @@ export function PlaygroundShell() {
   const [mode, setMode] = useState<Mode>("chat");
   const [modelId, setModelId] = useState<string | null>(null);
   const [params, setParams] = useState<ChatParams>(DEFAULT_PARAMS);
+  const [imageParams, setImageParams] = useState<ImageParams>(DEFAULT_IMAGE_PARAMS);
 
   const { data: models, isLoading, error, refetch } = useModels();
   const { address } = useAccount();
@@ -106,17 +110,20 @@ export function PlaygroundShell() {
               {mode === "chat" ? (
                 <ChatPanel model={selected} params={params} availableBase={availableBase} />
               ) : (
-                <EmptyState
-                  title="Image generation is next"
-                  description="The image panel lands in Sesi 5, alongside /v1/images/generations."
-                />
+                <ImagePanel model={selected} params={imageParams} availableBase={availableBase} />
               )}
             </CardBody>
           </Card>
 
           <div className="space-y-4">
-            {mode === "chat" && (
+            {mode === "chat" ? (
               <SettingsPanel params={params} onChange={setParams} disabled={!selected} />
+            ) : (
+              <ImageSettingsPanel
+                params={imageParams}
+                onChange={setImageParams}
+                disabled={!selected}
+              />
             )}
             {selected && (
               <Card>
