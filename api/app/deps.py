@@ -97,8 +97,22 @@ async def require_provider(
     return provider
 
 
+async def provider_signing_key(
+    authorization: Annotated[str | None, Header()] = None,
+) -> str:
+    """The raw provider key from the ``Authorization`` header, for verifying HMAC-signed
+    submissions (e.g. benchmark reports).
+
+    The provider is authenticated separately by ``ProviderDep``; the stored API key is
+    only ever a hash, so the sole place the coordinator can verify a provider-key HMAC
+    is against the bearer token presented on this very request. This returns that token.
+    """
+    return _extract_bearer(authorization)
+
+
 DeveloperDep = Annotated[Developer, Depends(require_developer)]
 ProviderDep = Annotated[Provider, Depends(require_provider)]
+ProviderKeyDep = Annotated[str, Depends(provider_signing_key)]
 
 
 async def require_internal(
