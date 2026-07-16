@@ -24,7 +24,8 @@ import asyncio
 import hmac
 import json
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any
 
@@ -35,8 +36,10 @@ from sqlalchemy import delete, select
 
 from app.config import get_settings
 from app.db import get_sessionmaker
+from app.logging import configure_logging
 from app.models import ApiKey, OwnerType, Provider, ProviderModel
 from app.presence import mark_seen
+from app.secret_manager import init_secrets
 from app.security import hash_api_key
 
 Authenticator = Callable[[str], Awaitable[uuid.UUID | None]]
@@ -50,6 +53,32 @@ _MAX_FRAME_BYTES = 1_048_576  # 1 MiB
 # compromised one from naming ten thousand models to bloat the registry.
 _MAX_MODELS = 64
 _MAX_MODEL_NAME = 128
+
+# How long an accepted socket may stay silent before it must have authenticated.
+# Without this, `await ws.accept()` then an unbounded receive parks the coroutine forever:
+# connect, send nothing, hold. Such a socket is pre-auth, so it is in no registry and
+# counted by nothing — N of them cost an attacker nothing and cost the relay its file
+# descriptors. Generous enough for a slow link, far short of forever.
+_AUTH_TIMEOUT_SECONDS = 10.0
+
+# Ceiling on sockets held at once, PRE-AUTH INCLUDED. The registry only ever counted
+# authenticated tunnels, which is precisely the population that isn't the problem.
+_MAX_CONNECTIONS = 512
+
+# Live sockets, authenticated or not. Guards the accept path, so it has to be counted
+# where sockets are accepted rather than where tunnels are registered.
+_connections = 0
+
+
+def _idle_timeout() -> float:
+    """How long a live tunnel may stay silent before we assume it is gone.
+
+    Derived from the agent's keepalive cadence rather than a constant of its own: the
+    agent pings on a schedule, so anything past a few missed beats is a dead peer. Tying
+    them together means one knob moves both, instead of a timeout that quietly contradicts
+    the heartbeat interval.
+    """
+    return max(30.0, get_settings().agent_heartbeat_interval_seconds * 3.0)
 
 
 async def _receive_json_bounded(ws: WebSocket) -> Any:
@@ -240,10 +269,34 @@ async def require_internal(authorization: str | None = Header(default=None)) -> 
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="internal only")
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Validate secrets and transport before the relay serves anything.
+
+    The relay is a fourth process, and until now the only one that never ran this. The
+    API, scheduler and chain worker all call init_secrets at startup; this one built its
+    app at import time with no hook, so neither validate_secret_config nor
+    validate_tls_config ever fired here.
+
+    That was not a missing nicety. `relay_key` falls back to `secret_key` (config.py),
+    whose default is the published constant "dev-insecure-secret-change-me" — so a relay
+    deployed with only GRIDIX_SECRET_KEY set authenticated its internal bridge on a value
+    printed in this repository. Anyone who could reach the bridge could push arbitrary
+    requests down any connected provider's tunnel. The Vault case was worse still: an
+    operator who put GRIDIX_RELAY_SECRET in Vault got a relay that never read Vault and
+    silently kept using the constant.
+    """
+    configure_logging()
+    settings = get_settings()
+    init_secrets(settings)
+    logger.info("GRIDIX relay starting (env={})", settings.env)
+    yield
+
+
 def create_relay_app(authenticate: Authenticator | None = None) -> FastAPI:
     """Build the relay app. ``authenticate`` is injectable so tests can bypass the DB."""
     auth: Authenticator = authenticate or resolve_provider
-    app = FastAPI(title="GRIDIX Relay", version="0.1.0")
+    app = FastAPI(title="GRIDIX Relay", version="0.1.0", lifespan=lifespan)
 
     @app.get("/relay/health")
     async def relay_health() -> dict[str, int]:
@@ -288,9 +341,31 @@ def create_relay_app(authenticate: Authenticator | None = None) -> FastAPI:
             logger.warning("relay tunnel rejected: disallowed Origin {!r}", origin)
             await ws.close(code=1008)
             return
+
+        global _connections
+        if _connections >= _MAX_CONNECTIONS:
+            # 1013 = try again later. Refused before accept, so a flood costs one
+            # handshake rather than a held socket.
+            logger.warning("relay at capacity ({} sockets), refusing tunnel", _connections)
+            await ws.close(code=1013)
+            return
+
         await ws.accept()
+        _connections += 1
         try:
-            frame = await _receive_json_bounded(ws)
+            await _serve_tunnel(ws, auth)
+        finally:
+            _connections -= 1
+
+    async def _serve_tunnel(ws: WebSocket, auth: Authenticator) -> None:
+        """Authenticate the socket, then pump its frames until it goes away."""
+        try:
+            # A socket that never authenticates must not be able to hold a slot forever.
+            frame = await asyncio.wait_for(_receive_json_bounded(ws), timeout=_AUTH_TIMEOUT_SECONDS)
+        except TimeoutError:
+            logger.warning("relay tunnel: no auth frame within {}s", _AUTH_TIMEOUT_SECONDS)
+            await ws.close(code=1008)
+            return
         except (WebSocketDisconnect, ValueError):
             await ws.close(code=1008)
             return
@@ -323,8 +398,15 @@ def create_relay_app(authenticate: Authenticator | None = None) -> FastAPI:
 
         try:
             while True:
-                msg = await _receive_json_bounded(ws)
+                # An authenticated tunnel that goes silent holds a slot just as well as an
+                # unauthenticated one. The agent keepalives (relay answers `ping`), so
+                # silence past the idle deadline means the far end is gone without a
+                # close frame — a half-open TCP connection the OS hasn't noticed.
+                msg = await asyncio.wait_for(_receive_json_bounded(ws), timeout=_idle_timeout())
                 await tunnel.handle_incoming(msg)
+        except TimeoutError:
+            logger.info("relay tunnel idle past {}s: provider {}", _idle_timeout(), provider_id)
+            await ws.close(code=1001)
         except WebSocketDisconnect:
             pass
         except ValueError:
