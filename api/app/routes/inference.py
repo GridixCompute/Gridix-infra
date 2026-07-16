@@ -245,7 +245,19 @@ async def image_generations(
     # images is paid for two. Capped at what was asked for, because the count is the
     # node's to choose and `n` is what the gate priced — nobody agreed to buy a sixth
     # image on a request for one.
-    returned = [str(u) for u in (reply.get("images") or [])]
+    #
+    # The list check is load-bearing, not defensive habit: strings are iterable, so
+    # `images: "abc"` iterated into three "images" and was billed as three. A node could
+    # return three bytes and be paid for three pictures. Anything that is not a list is
+    # not a set of images, so it counts as none and pays nothing.
+    raw_images = reply.get("images")
+    if raw_images is not None and not isinstance(raw_images, list):
+        logger.warning(
+            "node returned {} for images, not a list; treating as no images returned",
+            type(raw_images).__name__,
+        )
+        raw_images = None
+    returned = [str(u) for u in (raw_images or [])]
     if len(returned) > body.n:
         logger.warning(
             "node returned {} images for a request of {}; keeping {}",
