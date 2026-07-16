@@ -11,7 +11,14 @@
  * Delete this together with `types.ts` when `/v1/*` lands.
  */
 
-import type { ChatRequest, ChatStreamEvent, InferenceModel } from "./types";
+import type {
+  ChatRequest,
+  ChatStreamEvent,
+  ImageRequest,
+  ImageResponse,
+  ImageSize,
+  InferenceModel,
+} from "./types";
 
 /** Mock is ON unless someone explicitly points the app at a real inference backend. */
 export const isMockInference = process.env.NEXT_PUBLIC_INFERENCE_MOCK !== "false";
@@ -117,4 +124,49 @@ export async function* mockChatStream(
 export async function mockListModels(): Promise<InferenceModel[]> {
   await sleep(150);
   return MOCK_MODELS;
+}
+
+const SIZE_PX: Record<ImageSize, number> = { "512x512": 512, "768x768": 768, "1024x1024": 1024 };
+
+/**
+ * A placeholder "generation": an SVG that says so, in the requested size.
+ *
+ * Deliberately not a pretty picture. A mock image that looked like a real generation is a
+ * screenshot away from being presented as product — so it renders its own disclaimer, plus
+ * the prompt and seed it was asked for, which is what actually helps while building the
+ * panel around it.
+ */
+function placeholderSvg(req: ImageRequest): string {
+  // Every size we offer is square; a lookup keeps this total instead of parsing the label.
+  const w = SIZE_PX[req.size];
+  const h = w;
+  const prompt = req.prompt.slice(0, 48).replace(/[<>&"]/g, "");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <rect width="${w}" height="${h}" fill="#111820"/>
+  <rect x="8" y="8" width="${w - 16}" height="${h - 16}" fill="none" stroke="#ffab3d" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="50%" y="42%" fill="#ffab3d" font-family="monospace" font-size="${Math.round(w / 18)}" font-weight="bold" text-anchor="middle">NO IMAGE WAS GENERATED</text>
+  <text x="50%" y="52%" fill="#7e8c98" font-family="monospace" font-size="${Math.round(w / 32)}" text-anchor="middle">mock — no model, no GPU</text>
+  <text x="50%" y="62%" fill="#aeb9c4" font-family="monospace" font-size="${Math.round(w / 38)}" text-anchor="middle">${prompt}</text>
+  <text x="50%" y="70%" fill="#45525f" font-family="monospace" font-size="${Math.round(w / 44)}" text-anchor="middle">${req.size} · ${req.steps} steps · seed ${req.seed ?? "auto"}</text>
+</svg>`;
+  // btoa is latin1-only; the SVG is ASCII by construction (prompt is sliced/stripped above).
+  return btoa(unescape(encodeURIComponent(svg)));
+}
+
+/** Mirrors the real client's contract: same shape in, same shape out, abortable. */
+export async function mockGenerateImage(
+  req: ImageRequest,
+  signal?: AbortSignal,
+): Promise<ImageResponse> {
+  // Long enough that the progress state is a real state and not a flicker.
+  for (let i = 0; i < 12; i++) {
+    if (signal?.aborted) throw new DOMException("aborted", "AbortError");
+    await sleep(90);
+  }
+  const model = MOCK_MODELS.find((m) => m.id === req.model);
+  return {
+    created: 0, // stamped by the caller; Date.now() here would make snapshots unstable
+    data: [{ b64_json: placeholderSvg(req) }],
+    usage: { cost_micro_usdc: model?.pricePerImage ?? 0 },
+  };
 }

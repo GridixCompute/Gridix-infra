@@ -14,7 +14,7 @@ import type { NextRequest } from "next/server";
  */
 const SESSION_COOKIE = "gridix_session";
 const ROLE_COOKIE = "gridix_role";
-const DEVELOPER_AREAS = ["/dashboard", "/playground", "/jobs", "/billing", "/settings"];
+const DEVELOPER_AREAS = ["/dashboard", "/playground", "/models", "/jobs", "/billing", "/settings"];
 const PROVIDER_HOME = "/provider";
 const DEVELOPER_HOME = "/dashboard";
 
