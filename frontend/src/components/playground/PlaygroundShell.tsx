@@ -48,12 +48,37 @@ export function PlaygroundShell() {
     return balance > held ? balance - held : 0n;
   }, [escrow, summary]);
 
+  /**
+   * Why the balance is missing, when it is.
+   *
+   * A null balance disables the spend guard, and three unrelated causes produce one — no
+   * wallet, no ledger, still loading. Collapsing them into a silently absent line lets the
+   * page look normal while the thing that stops an unaffordable request is switched off.
+   * So say which, and say that the guard is off.
+   */
+  const balanceGap = !address
+    ? "Connect a wallet to see your balance — until then, the spend guard is off."
+    : escrow === undefined
+      ? "Reading your on-chain balance… the spend guard is off until it loads."
+      : !summary
+        ? "Your balance can't be read right now, so the spend guard is off. Requests may be refused by the node."
+        : null;
+
   const forMode = useMemo(() => (models ?? []).filter((m) => m.kind === mode), [models, mode]);
   const selected = forMode.find((m) => m.id === modelId) ?? forMode[0];
 
   return (
     <div className="space-y-6">
       <MockBanner />
+
+      {balanceGap && (
+        <p
+          role="status"
+          className="rounded-[var(--radius-sm)] border border-[var(--color-hairline)] bg-[var(--color-panel)] px-3 py-2 text-sm text-[var(--color-ink-faint)]"
+        >
+          {balanceGap}
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-4">
         <div role="tablist" aria-label="Inference mode" className="flex gap-1">

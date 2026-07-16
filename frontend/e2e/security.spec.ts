@@ -28,6 +28,31 @@ test("responses carry a strict, nonce-based CSP and the hardening headers", asyn
   expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
 });
 
+test("the headers survive a cache hit — the bug this gate exists for", async ({ page }) => {
+  // The original bug: headers set in next.config's headers() are dropped on a full-route
+  // cache hit, so the FIRST request looked perfectly secure and later ones shipped naked.
+  // The test above makes one request and would not have caught it. This makes a second.
+  const first = await page.goto("/login");
+  const second = await page.goto("/login");
+
+  for (const res of [first!, second!]) {
+    const h = res.headers();
+    expect(h["content-security-policy"] ?? "").toContain("default-src 'self'");
+    expect(h["strict-transport-security"]).toContain("max-age=");
+    expect(h["x-frame-options"]).toBe("DENY");
+  }
+
+  // Stronger than "present twice": a per-request nonce that repeats would mean the response
+  // (headers and all) came from a cache, which is exactly how the headers went missing.
+  const nonceOf = (res: NonNullable<typeof first>) =>
+    /'nonce-([A-Za-z0-9+/=]+)'/.exec(res.headers()["content-security-policy"] ?? "")?.[1];
+  const a = nonceOf(first!);
+  const b = nonceOf(second!);
+  expect(a).toBeTruthy();
+  expect(b).toBeTruthy();
+  expect(a, "the CSP nonce repeated across requests — the response is being cached").not.toEqual(b);
+});
+
 test("the CSP nonce is applied to Next's inline scripts (app hydrates)", async ({ page }) => {
   // If the nonce weren't stamped onto the scripts, the strict CSP would block them and
   // the app wouldn't hydrate. Assert every script tag carries a nonce.
