@@ -16,3 +16,9 @@ htmlcov/
 reference/
 
 
+
+# Security triage and working notes. The authoritative finding register lives in the
+# private GridixCompute/gridix-security repo; this repository is PUBLIC, and a list of
+# what is NOT yet fixed is a map for anyone who wants it.
+docs/PENTEST_REMAP.md
+HANDOFF.md
