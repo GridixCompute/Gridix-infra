@@ -137,6 +137,17 @@ async def chat_completions(
     developer: DeveloperDep,
 ) -> ChatCompletionResponse:
     """Run a chat completion on the network and bill the tokens it used."""
+    if body.stream:
+        # Refused before the gate and before a node: nothing is charged for a request the
+        # network cannot serve. Streaming needs the relay to forward frames as the node
+        # produces them; returning one blocking body to a caller who asked for a stream
+        # would answer the request with something that is not what it asked for, and no
+        # client could tell.
+        raise HTTPException(
+            status.HTTP_501_NOT_IMPLEMENTED,
+            "stream=true is not implemented: the network cannot forward partial results "
+            "yet. Send stream=false for a single complete response.",
+        )
     spec = _model_or_404(body.model, Modality.chat)
     max_output = min(body.max_tokens or spec.max_output_tokens, spec.max_output_tokens)
     prompt_tokens = _estimate_prompt_tokens(body)

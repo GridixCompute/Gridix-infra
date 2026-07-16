@@ -137,6 +137,42 @@ class TestChat:
         session.expire_all()
         assert await developer_balance(session, dev) == Decimal("9.999895")
 
+    async def test_streaming_is_refused_rather_than_faked(
+        self, client: AsyncClient, session
+    ) -> None:
+        """501, and before the node is touched.
+
+        The field is in the schema, so an OpenAI-compatible client will send it. Real
+        streaming needs the relay to forward frames as they arrive — a protocol change,
+        not a flag. Until then the only honest answer is 'not implemented': answering a
+        stream request with one blocking body is a lie the client cannot detect, and it
+        would let the schema promise something the network cannot do.
+        """
+        dev_id, key = await register(client, "developer", "Acme")
+        await fund(session, uuid.UUID(dev_id), "10")
+        await make_node(session)
+
+        call = AsyncMock()
+        with patch("app.dispatch.call_provider", new=call):
+            res = await chat(client, key, stream=True)
+
+        assert res.status_code == 501
+        assert "stream" in res.text.lower()
+        call.assert_not_awaited()
+
+    async def test_a_non_streaming_request_is_unaffected(
+        self, client: AsyncClient, session
+    ) -> None:
+        """The other direction: the refusal must be about streaming, not about the field."""
+        dev_id, key = await register(client, "developer", "Acme")
+        await fund(session, uuid.UUID(dev_id), "10")
+        await make_node(session)
+
+        with patch("app.dispatch.call_provider", new=AsyncMock(return_value=node_reply())):
+            res = await chat(client, key, stream=False)
+
+        assert res.status_code == 200, res.text
+
     async def test_unknown_model_is_404(self, client: AsyncClient, session) -> None:
         dev_id, key = await register(client, "developer", "Acme")
         await fund(session, uuid.UUID(dev_id), "10")
