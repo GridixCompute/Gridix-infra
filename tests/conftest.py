@@ -4,7 +4,9 @@ Unit tests touch no live Postgres/Redis: the app is pointed at an on-disk SQLite
 and the Redis health probe is stubbed per-test where needed.
 """
 
+import atexit
 import os
+import shutil
 import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -12,7 +14,16 @@ from pathlib import Path
 import pytest
 
 # Configure the environment BEFORE any app module reads settings (they are lru_cached).
-_TMP_DB = Path(tempfile.gettempdir()) / "gridix_test.sqlite3"
+#
+# A private directory per run, NOT a fixed name in /tmp. The schema fixture drops and
+# recreates every table for each test, so two suites sharing one file tear each other's
+# schema down mid-test: "no such table: jobs" out of nowhere, tests that pass alone and
+# fail together, and SQLite lock stalls. Nothing about that failure points at its cause,
+# and it cost a wrong diagnosis before the shared file was spotted. Two runs on one
+# machine — two agents, a local run beside CI — now simply cannot collide.
+_TMP_DIR = Path(tempfile.mkdtemp(prefix="gridix-test-"))
+atexit.register(shutil.rmtree, _TMP_DIR, True)
+_TMP_DB = _TMP_DIR / "gridix_test.sqlite3"
 os.environ["GRIDIX_DATABASE_URL"] = f"sqlite+aiosqlite:///{_TMP_DB}"
 os.environ["GRIDIX_REDIS_URL"] = "redis://localhost:6379/15"
 # Rate limiting now fails CLOSED (security wave 2): with no Redis in the hermetic
@@ -21,7 +32,7 @@ os.environ["GRIDIX_REDIS_URL"] = "redis://localhost:6379/15"
 os.environ["GRIDIX_RATE_LIMIT_PER_MINUTE"] = "100000"
 os.environ["GRIDIX_SECRET_KEY"] = "test-secret-key-deterministic"
 os.environ["GRIDIX_ENV"] = "dev"
-os.environ["GRIDIX_STORAGE_LOCAL_PATH"] = str(Path(tempfile.gettempdir()) / "gridix_blobs")
+os.environ["GRIDIX_STORAGE_LOCAL_PATH"] = str(_TMP_DIR / "blobs")
 # Keep long-poll holds tiny so the suite stays fast (Session 7.1).
 os.environ["GRIDIX_POLL_HOLD_SECONDS"] = "0.4"
 os.environ["GRIDIX_POLL_TICK_SECONDS"] = "0.05"

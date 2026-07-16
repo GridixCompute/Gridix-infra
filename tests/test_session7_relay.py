@@ -2,6 +2,7 @@
 
 import asyncio
 import uuid
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from app.config import get_settings
@@ -16,6 +17,25 @@ from app.relay import (
 from conftest import register
 from httpx import ASGITransport, AsyncClient
 from starlette.testclient import TestClient
+
+
+@pytest.fixture(autouse=True)
+def _registry_writes():
+    """Stub the DB writes the tunnel handler performs on connect/disconnect.
+
+    Registering a node now publishes its models and presence (Langkah 2), so the connect
+    path does database I/O. TestClient drives the socket from its own blocking loop, and
+    real writes from there deadlock against the async test session — so every WS test in
+    this module gets them stubbed, and the ones that care assert on the stubs.
+
+    That the writes themselves reach the database is proven in test_relay_models.py.
+    """
+    with (
+        patch("app.relay.record_models", new=AsyncMock()) as record,
+        patch("app.relay.mark_provider_seen", new=AsyncMock()) as seen,
+        patch("app.relay.clear_models", new=AsyncMock()) as clear,
+    ):
+        yield {"record": record, "seen": seen, "clear": clear}
 
 
 # ── ConnectionRegistry unit ─────────────────────────────────────────────────────
@@ -211,3 +231,50 @@ async def test_request_requires_internal_secret() -> None:
             json={"method": "GET", "payload": {}},
         )
     assert resp.status_code == 401
+
+
+# ── Node registration: the tunnel publishes what the node serves (Langkah 2) ─────
+# Sync, like the tunnel tests above: TestClient drives the socket from its own blocking
+# loop. These assert the handler CALLS the registry writes; that those writes reach the
+# database is proven in test_relay_models.py. Neither half is sufficient alone.
+
+
+def test_connecting_publishes_the_declared_models_and_presence(_registry_writes) -> None:
+    pid = uuid.uuid4()
+    tc = _relay_with_fake_auth(pid)
+    with tc.websocket_connect("/relay/agent") as ws:
+        ws.send_json({"type": "auth", "key": "good-key", "models": ["sdxl", "llama-3-70b"]})
+        assert ws.receive_json() == {"type": "auth_ok", "provider_id": str(pid)}
+    # Sorted + deduped by _clean_models before it reaches the registry.
+    _registry_writes["record"].assert_awaited_once_with(pid, ["llama-3-70b", "sdxl"])
+    _registry_writes["seen"].assert_awaited_once_with(pid)
+
+
+def test_disconnecting_retracts_the_models(_registry_writes) -> None:
+    """A dead node stops being selectable at once, not when presence ages out."""
+    pid = uuid.uuid4()
+    tc = _relay_with_fake_auth(pid)
+    with tc.websocket_connect("/relay/agent") as ws:
+        ws.send_json({"type": "auth", "key": "good-key", "models": ["llama-3-70b"]})
+        ws.receive_json()
+    _registry_writes["clear"].assert_awaited_once_with(pid)
+
+
+def test_a_rejected_node_publishes_nothing(_registry_writes) -> None:
+    pid = uuid.uuid4()
+    tc = _relay_with_fake_auth(pid)
+    with tc.websocket_connect("/relay/agent") as ws:
+        ws.send_json({"type": "auth", "key": "wrong-key", "models": ["llama-3-70b"]})
+        assert ws.receive_json()["type"] == "auth_error"
+    _registry_writes["record"].assert_not_awaited()
+    _registry_writes["seen"].assert_not_awaited()
+
+
+def test_a_node_declaring_no_models_still_connects(_registry_writes) -> None:
+    """An agent predating this protocol change sends no model list; it must not break."""
+    pid = uuid.uuid4()
+    tc = _relay_with_fake_auth(pid)
+    with tc.websocket_connect("/relay/agent") as ws:
+        ws.send_json({"type": "auth", "key": "good-key"})
+        assert ws.receive_json()["type"] == "auth_ok"
+    _registry_writes["record"].assert_awaited_once_with(pid, [])
