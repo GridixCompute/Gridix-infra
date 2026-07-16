@@ -22,9 +22,13 @@ quietly take them along. `tests/test_dispatch.py` proves each one from this side
 """
 
 import uuid
+from collections import Counter
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 
+import httpx
+from fastapi import status
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,12 +48,58 @@ class DispatchError(RuntimeError):
     """The node was reachable but the request did not produce a usable result."""
 
 
+class DispatchTimeoutError(DispatchError):
+    """The node took the work and never answered.
+
+    Distinct from a node error: the work may still be burning GPU somewhere, and the
+    caller deserves 504 rather than 502. A subclass, so callers that only care that
+    dispatch failed still catch DispatchError.
+    """
+
+
 @dataclass(frozen=True)
 class Candidate:
     """A provider that may receive this request, with the load used to rank it."""
 
     provider_id: uuid.UUID
     inflight: int
+
+
+# Requests currently out on each node, counted in this process.
+#
+# Deliberately local, and honest about it: a request is in flight only while a coroutine
+# here awaits its reply, so the process holding that coroutine is the only one that knows.
+# Across replicas each sees its own share, which biases selection but never breaks it —
+# every replica still spreads its own load, and a node's real ceiling is enforced by the
+# node. Making this global would mean a round trip to Redis on the hot path to sharpen a
+# heuristic, and a stuck counter would strand a healthy node.
+_inflight: Counter[uuid.UUID] = Counter()
+
+
+@contextmanager
+def track_inflight(provider_id: uuid.UUID):
+    """Count a request against a node for as long as it is out.
+
+    The decrement is in a finally: a node that errors or times out must not look busy
+    forever, or one bad request retires it from selection.
+    """
+    _inflight[provider_id] += 1
+    try:
+        yield
+    finally:
+        _inflight[provider_id] -= 1
+        if _inflight[provider_id] <= 0:
+            del _inflight[provider_id]
+
+
+def inflight_count(provider_id: uuid.UUID) -> int:
+    """How many requests this process currently has out on ``provider_id``."""
+    return _inflight[provider_id]
+
+
+def reset_inflight() -> None:
+    """Drop all counts. For tests; nothing in production should need this."""
+    _inflight.clear()
 
 
 async def eligible_nodes(
@@ -88,7 +138,7 @@ async def eligible_nodes(
         # minimum has nothing at risk, so it gets no work.
         if await provider_stake(session, provider.id) < settings.min_provider_stake:
             continue
-        candidates.append(Candidate(provider_id=provider.id, inflight=0))
+        candidates.append(Candidate(provider_id=provider.id, inflight=inflight_count(provider.id)))
     return candidates
 
 
@@ -126,17 +176,27 @@ async def dispatch(
     Raises:
         DispatchError: If the node is unreachable, times out, or answers with a failure.
     """
-    try:
-        reply = await call_provider(
-            provider_id, method=method, payload=payload, settings=settings, job_id=job_id
-        )
-    except RelayUnavailableError as exc:
-        # The node dropped between selection and dispatch, or the relay is down. Callers
-        # may retry against another node; that choice isn't ours to make here.
-        raise DispatchError(str(exc)) from exc
+    with track_inflight(provider_id):
+        try:
+            reply = await call_provider(
+                provider_id, method=method, payload=payload, settings=settings, job_id=job_id
+            )
+        except RelayUnavailableError as exc:
+            # The node dropped between selection and dispatch, or the relay is down.
+            # Callers may retry against another node; that choice isn't ours to make here.
+            raise DispatchError(str(exc)) from exc
+        except httpx.HTTPStatusError as exc:
+            # call_provider raise_for_status()es outside its own try, so the relay's own
+            # status codes surface here rather than as RelayUnavailableError. 504 is the
+            # relay telling us the node went quiet mid-request.
+            if exc.response.status_code == status.HTTP_504_GATEWAY_TIMEOUT:
+                raise DispatchTimeoutError(f"node {provider_id} did not respond") from exc
+            raise DispatchError(f"relay returned {exc.response.status_code}") from exc
+        except TimeoutError as exc:
+            raise DispatchTimeoutError(f"node {provider_id} did not respond") from exc
 
-    status = reply.get("status", 200)
-    if status >= 400:
-        logger.warning("node {} returned status {} for {}", provider_id, status, method)
-        raise DispatchError(f"node returned status {status}")
+    node_status = reply.get("status", 200)
+    if node_status >= 400:
+        logger.warning("node {} returned status {} for {}", provider_id, node_status, method)
+        raise DispatchError(f"node returned status {node_status}")
     return reply.get("payload") or {}
