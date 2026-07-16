@@ -6,11 +6,15 @@ The whole flow, in order, and the order is the point:
 2. gate the balance on the WORST case (short → 402, before any node is touched),
 3. select a node that serves it under the placement rules,
 4. dispatch and wait,
-5. charge for what was ACTUALLY used.
+5. charge for what was ACTUALLY used, and never more than step 2 approved.
 
 A request that fails at the node is never charged. That is the difference from the async
 path, which escrows up front and must remember to refund: here there is no hold to
 strand. Nothing is billed until a node has returned a result.
+
+The second half of step 5 is what makes step 2 mean anything. The node reports the usage
+it is paid for, so the report is a claim by an interested party; the worst case is the
+only number the developer's balance was ever checked against, and it binds the bill.
 """
 
 import uuid
@@ -158,14 +162,19 @@ async def chat_completions(
         # Nothing is charged: no result, no bill. There was never a hold to give back.
         raise _node_failed(exc, provider_id, "chat") from exc
 
-    usage = _usage_from(reply, prompt_tokens=prompt_tokens)
+    usage = _usage_from(reply, prompt_tokens=prompt_tokens, max_output_tokens=max_output)
+    # The gate checked the balance against `worst_case`. Billing above it would mean
+    # charging for something the developer was never asked to approve, so the ceiling
+    # holds here too — whatever the node says it did.
+    billed = min(
+        chat_cost(spec, input_tokens=usage.prompt_tokens, output_tokens=usage.completion_tokens),
+        worst_case,
+    )
     cost = await _charge(
         session,
         developer=developer,
         provider_id=provider_id,
-        cost=chat_cost(
-            spec, input_tokens=usage.prompt_tokens, output_tokens=usage.completion_tokens
-        ),
+        cost=billed,
         settings=settings,
     )
     return ChatCompletionResponse(
@@ -208,8 +217,18 @@ async def image_generations(
         raise _node_failed(exc, provider_id, "image") from exc
 
     # Billed on what came back, not what was asked for: a node returning two of three
-    # images is paid for two.
-    images = [str(u) for u in (reply.get("images") or [])]
+    # images is paid for two. Capped at what was asked for, because the count is the
+    # node's to choose and `n` is what the gate priced — nobody agreed to buy a sixth
+    # image on a request for one.
+    returned = [str(u) for u in (reply.get("images") or [])]
+    if len(returned) > body.n:
+        logger.warning(
+            "node returned {} images for a request of {}; keeping {}",
+            len(returned),
+            body.n,
+            body.n,
+        )
+    images = returned[: body.n]
     cost = await _charge(
         session,
         developer=developer,
@@ -247,20 +266,36 @@ async def _charge(
 def _estimate_prompt_tokens(body: ChatCompletionRequest) -> int:
     """A cheap prompt-token estimate for the pre-dispatch gate.
 
-    Four characters per token is the usual rough ratio. It only sizes the gate; the bill
-    uses the node's reported count, so being approximate here costs nobody money.
+    Four characters per token is the usual rough ratio. The bill normally follows the
+    node's reported count, but this estimate sizes the worst case that caps it, so an
+    estimate far below the truth can clamp an honest node's bill on the input side.
+    The output ceiling leaves enough headroom that this stays theoretical, and it errs
+    toward the developer either way. A real tokeniser here is the honest fix if it ever
+    stops being theoretical.
     """
     chars = sum(len(m.content) for m in body.messages)
     return max(1, chars // 4)
 
 
-def _usage_from(reply: dict, *, prompt_tokens: int) -> ChatUsage:
-    """Token usage as the node reported it, falling back to our estimate.
+def _usage_from(reply: dict, *, prompt_tokens: int, max_output_tokens: int) -> ChatUsage:
+    """Token usage as the node reported it — bounded by what it was allowed to do.
 
     A node that omits its counts gets billed on the estimate rather than for free.
+
+    The counts are a claim, not a measurement: only the node saw the generation, and the
+    node is paid from the number it reports. `max_output_tokens` is the ceiling we sent it
+    and priced the balance gate on, so a larger count is either a broken node or a lying
+    one. Either way the developer does not fund it.
     """
     raw = reply.get("usage") or {}
+    claimed = int(raw.get("completion_tokens") or 0)
+    if claimed > max_output_tokens:
+        logger.warning(
+            "node claimed {} completion tokens against a ceiling of {}; billing the ceiling",
+            claimed,
+            max_output_tokens,
+        )
     return ChatUsage(
         prompt_tokens=int(raw.get("prompt_tokens") or prompt_tokens),
-        completion_tokens=int(raw.get("completion_tokens") or 0),
+        completion_tokens=min(claimed, max_output_tokens),
     )
