@@ -15,25 +15,47 @@ async function scan(page: import("@playwright/test").Page) {
 }
 
 test.describe("accessibility", () => {
-  test("public pages have no axe violations", async ({ page }) => {
-    for (const path of ["/", "/docs", "/login", "/register", "/provider-register"]) {
+  // Split per page for the same reason as the authenticated set below: five pages plus five
+  // axe scans in one test sits right on the 30s budget, so it passed alone and failed under
+  // the full suite. A gate that fails on load rather than on merit teaches people to re-run
+  // it instead of read it.
+  for (const path of ["/", "/docs", "/login", "/register", "/provider-register"]) {
+    test(`${path} has no axe violations`, async ({ page }) => {
       await page.goto(path);
       const violations = await scan(page);
       expect(violations, `${path}: ${violations.map((v) => v.id).join(", ")}`).toEqual([]);
-    }
-  });
+    });
+  }
 
-  test("authenticated developer pages have no axe violations", async ({ page, context }) => {
-    await loginAs(context);
-    await mockApi(page, { jobs: [makeJob({ status: "completed" })] });
+  /**
+   * One test per page, rather than one test walking them all.
+   *
+   * The `marker` is a landmark that exists only once the page has really rendered: without
+   * it, a page still showing its skeleton audits clean and the gate passes on nothing — the
+   * failure mode that makes an a11y gate worse than none, because it reports safety it never
+   * checked. But waiting for real content costs time, and five pages in one test blew the
+   * 30s budget. Split, so each page gets its own budget, they run in parallel, and a failure
+   * names the page instead of the loop.
+   */
+  const AUTHED_PAGES: [path: string, marker: string][] = [
+    ["/dashboard", "h1"],
+    ["/jobs/new", "form"],
+    ["/billing", "h1"],
+    ["/playground", 'textarea[aria-label="Prompt"]'],
+    ["/models", "table"],
+  ];
 
-    for (const path of ["/dashboard", "/jobs/new", "/billing"]) {
+  for (const [path, marker] of AUTHED_PAGES) {
+    test(`${path} has no axe violations`, async ({ page, context }) => {
+      await loginAs(context);
+      await mockApi(page, { jobs: [makeJob({ status: "completed" })] });
+
       await page.goto(path);
-      await page.waitForLoadState("networkidle");
+      await page.waitForSelector(marker, { timeout: 15_000 });
       const violations = await scan(page);
       expect(violations, `${path}: ${violations.map((v) => v.id).join(", ")}`).toEqual([]);
-    }
-  });
+    });
+  }
 
   test("the app is navigable from the keyboard", async ({ page, context }) => {
     await loginAs(context);
