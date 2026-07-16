@@ -80,7 +80,7 @@ export function JobInputField({ value, onChange, onUploadingChange }: Props) {
         <div className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] border border-[var(--color-hairline-strong)] bg-[var(--color-abyss)] p-3">
           <div className="min-w-0">
             <p className="truncate text-sm text-[var(--color-ink)]">{value.name}</p>
-            <p className="truncate font-[var(--font-mono)] text-xs text-[var(--color-ink-faint)]">
+            <p className="truncate text-xs font-[var(--font-mono)] text-[var(--color-ink-faint)]">
               {formatBytes(value.size)} · {value.ref}
             </p>
           </div>
@@ -104,7 +104,11 @@ export function JobInputField({ value, onChange, onUploadingChange }: Props) {
         <p className="text-xs text-[var(--color-danger)]">{error}</p>
       ) : (
         <p className="text-xs text-[var(--color-ink-faint)]">
-          Mounted read-only in the container. Up to {formatBytes(MAX_BLOB_BYTES)}.
+          Mounted read-only at{" "}
+          <code className="font-[var(--font-mono)] text-[var(--color-ink-soft)]">
+            /gridix/input
+          </code>{" "}
+          in the container. Up to {formatBytes(MAX_BLOB_BYTES)}.
         </p>
       )}
     </div>

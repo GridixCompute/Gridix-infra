@@ -38,8 +38,11 @@ s3 = [
 ]
 # On-chain settlement (Session 13). Install with `.[chain]` when GRIDIX_CHAIN_ENABLED=true
 # (the Web3ChainClient imports web3/eth-account lazily; the hermetic suite never needs them).
+# aioboto3 is here for KMS coordinator signing (pentest H11: GRIDIX_CHAIN_SIGNER=kms, the
+# only signer allowed outside dev) — also lazy-imported, and shared with the s3 extra.
 chain = [
     "web3>=6.15",
+    "aioboto3>=13",
 ]
 # HashiCorp Vault secret backend (12.1 seam, now real). Install with `.[vault]` when
 # GRIDIX_SECRET_BACKEND=vault (VaultSecretManager imports hvac lazily; env/file need nothing).
