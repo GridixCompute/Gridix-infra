@@ -29,6 +29,19 @@ class Settings(BaseSettings):
     # same-origin proxy, so it needs none). NEVER "*".
     cors_allow_origins: str = ""
 
+    # ── Wallet sign-in (SIWE / EIP-4361) ─────────────────────────────────────────────
+    # The domain and URI the coordinator writes INTO every challenge it issues. These are
+    # the anti-phishing control: a signature a user was tricked into making on another
+    # site carries that site's domain, so recovering it against our message yields a
+    # different signer and fails. They must match the origin users sign from — if this is
+    # misconfigured every sign-in fails, which is the right way to be wrong.
+    siwe_domain: str = "localhost:3000"
+    siwe_uri: str = "http://localhost:3000"
+    # A challenge is a one-shot credential: long enough to approve in a wallet, no longer.
+    siwe_nonce_ttl_seconds: int = Field(default=300, ge=30, le=3600)
+    # How long a browser session key lasts before the wallet must sign again.
+    session_ttl_seconds: int = Field(default=7 * 86_400, ge=300)
+
     database_url: str = "postgresql+asyncpg://gridix:gridix@localhost:5432/gridix"
     redis_url: str = "redis://localhost:6379/0"
 
@@ -161,6 +174,12 @@ class Settings(BaseSettings):
     # exporter — which leaks ledger totals, provider counts, queue depth — is NOT world-reachable.
     # Widen it explicitly (e.g. "0.0.0.0") only behind a network policy / scrape-only sidecar.
     scheduler_metrics_addr: str = "127.0.0.1"
+
+    # The chain worker (app.chain_worker) is its own process, so its own scrape target.
+    # Loopback by default for the same reason as the scheduler's (pentest M7): these
+    # metrics carry ledger totals and settlement state.
+    chain_worker_metrics_port: int = Field(default=9101, ge=1, le=65535)
+    chain_worker_metrics_addr: str = "127.0.0.1"
 
     # Control channel / presence (Session 7.1)
     poll_hold_seconds: float = Field(default=25.0, ge=0.0)

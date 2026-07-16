@@ -13,6 +13,11 @@ function entry(p: Partial<BillingLedgerEntry>): BillingLedgerEntry {
     direction: "debit",
     amount: 0,
     reason: "escrow_hold",
+    // Null, not a placeholder hash: only movements that came from the chain have a
+    // transaction behind them, and every leg here (hold, settle, refund, data cost) is
+    // off-chain ledger accounting. A fake hash would make these legs claim an origin
+    // they do not have.
+    tx_hash: null,
     created_at: "2026-07-15T10:00:00Z",
     ...p,
   };

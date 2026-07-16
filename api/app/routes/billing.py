@@ -25,14 +25,29 @@ async def my_ledger(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[LedgerEntry]:
-    """Every ledger leg across this developer's jobs, newest first.
+    """Every ledger leg this developer's money moved through, newest first.
 
     Ordered by group so the two (or more) legs of a transaction stay adjacent.
+
+    Both kinds of movement, and it used to be only one: an inner join on ``job_id`` meant
+    a row had to belong to a job to appear, so on-chain deposits — which have no job —
+    were invisible. A developer could top up 50 USDC, watch their balance rise, and find
+    nothing in their statement to explain it.
+
+    A group is theirs if any leg names them, which is what pulls in whole deposit groups
+    (the protocol leg carries no ``account_ref``), or if it came from one of their jobs.
+    Every leg of a matching group is returned, so the UI can still show that each
+    transaction balances.
     """
-    rows = await session.scalars(
-        select(LedgerEntry)
+    own_groups = select(LedgerEntry.entry_group).where(LedgerEntry.account_ref == developer.id)
+    job_groups = (
+        select(LedgerEntry.entry_group)
         .join(Job, LedgerEntry.job_id == Job.id)
         .where(Job.developer_id == developer.id)
+    )
+    rows = await session.scalars(
+        select(LedgerEntry)
+        .where(LedgerEntry.entry_group.in_(own_groups.union(job_groups).scalar_subquery()))
         .order_by(LedgerEntry.created_at.desc(), LedgerEntry.entry_group)
         .limit(limit)
         .offset(offset)

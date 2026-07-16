@@ -5,6 +5,7 @@ looked up; the row's ``owner_type`` gates access to developer- vs provider-only 
 """
 
 import hmac
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
@@ -15,6 +16,7 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.models import ApiKey, Developer, OwnerType, Provider
 from app.security import hash_api_key
+from app.siwe import as_utc
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
@@ -39,13 +41,26 @@ def _extract_bearer(authorization: str | None) -> str:
 async def _resolve_key(
     authorization: str | None, session: AsyncSession, settings: Settings
 ) -> ApiKey:
-    """Resolve and validate the presented key, returning the live ApiKey row."""
+    """Resolve and validate the presented key, returning the live ApiKey row.
+
+    Both credential kinds arrive here: a browser session minted by wallet sign-in (which
+    expires) and a programmatic key generated in /settings (which does not, until it is
+    revoked). One path, so an expiry or revocation check can never be enforced on one and
+    forgotten on the other.
+    """
     token = _extract_bearer(authorization)
     digest = hash_api_key(token, settings.api_hmac_key)
     key = await session.scalar(select(ApiKey).where(ApiKey.key_hash == digest))
-    if key is None or key.revoked:
+    if key is None or key.revoked or _is_expired(key):
         raise _UNAUTHORIZED
     return key
+
+
+def _is_expired(key: ApiKey) -> bool:
+    """Whether a key's lifetime has run out. NULL expires_at means it never does."""
+    if key.expires_at is None:
+        return False
+    return as_utc(key.expires_at) <= datetime.now(UTC)
 
 
 async def require_developer(

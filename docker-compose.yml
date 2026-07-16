@@ -63,6 +63,24 @@ services:
       redis:
         condition: service_healthy
 
+  # The settlement engine. Off unless GRIDIX_CHAIN_ENABLED=true — with the chain disabled
+  # it logs why and exits rather than idling silently, so a misconfigured deploy is loud.
+  chain:
+    build: .
+    command: ["chain"]
+    environment:
+      GRIDIX_ENV: dev
+      GRIDIX_DATABASE_URL: postgresql+asyncpg://gridix:${POSTGRES_PASSWORD:-gridix}@postgres:5432/gridix
+      GRIDIX_REDIS_URL: redis://redis:6379/0
+      GRIDIX_SECRET_KEY: ${GRIDIX_SECRET_KEY:-dev-insecure-secret-change-me}
+      GRIDIX_CHAIN_ENABLED: ${GRIDIX_CHAIN_ENABLED:-false}
+      GRIDIX_CHAIN_RPC_URL: ${GRIDIX_CHAIN_RPC_URL:-}
+      GRIDIX_ESCROW_ADDRESS: ${GRIDIX_ESCROW_ADDRESS:-}
+      GRIDIX_STAKING_ADDRESS: ${GRIDIX_STAKING_ADDRESS:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   relay:
     build: .
     command: ["relay"]
