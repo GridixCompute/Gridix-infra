@@ -1,4 +1,10 @@
-/** Minimal ABIs for the functions/events the frontend actually uses. */
+/**
+ * Minimal ABIs for the functions/events the frontend actually uses.
+ *
+ * Event names must match `contracts/src/*.sol` EXACTLY — the name is hashed into the log's
+ * topic0, so a filter on a misspelled event does not error, it silently matches nothing and
+ * the UI shows an empty history that looks like "no activity".
+ */
 
 export const escrowAbi = [
   {
@@ -31,7 +37,7 @@ export const escrowAbi = [
   },
   {
     type: "event",
-    name: "Deposit",
+    name: "Deposited",
     inputs: [
       { name: "developer", type: "address", indexed: true },
       { name: "amount", type: "uint256", indexed: false },
@@ -39,7 +45,7 @@ export const escrowAbi = [
   },
   {
     type: "event",
-    name: "Withdrawal",
+    name: "Withdrawn",
     inputs: [
       { name: "developer", type: "address", indexed: true },
       { name: "amount", type: "uint256", indexed: false },
