@@ -15,7 +15,7 @@ Money still moves only through balanced double-entry postings; balances stay der
 """
 
 import uuid
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,6 +45,21 @@ def quantize_usdc(amount: Decimal) -> Decimal:
     a half-even cent here would drift from what the contract moved.
     """
     return Decimal(amount).quantize(USDC_PLACES, rounding=ROUND_HALF_UP)
+
+
+def ceil_usdc(amount: Decimal) -> Decimal:
+    """Round UP to USDC's six decimals — for ceilings, which must never understate.
+
+    A ceiling is a promise about the most a request can cost, and it is compared against a
+    charge that has itself been rounded. Rounding the ceiling half-up would let it land
+    BELOW the charge derived from it: price a request at 0.0000005, quantize the bill, and
+    the developer pays 0.000001 — double the number the gate approved them for.
+
+    So ceilings round away from the developer's favour and charges round to nearest. The
+    gate then asks for at most half a millionth of a USDC more than the true worst case,
+    which is the safe direction: the developer is never billed above what they approved.
+    """
+    return Decimal(amount).quantize(USDC_PLACES, rounding=ROUND_CEILING)
 
 
 async def developer_balance(session: AsyncSession, developer_id: uuid.UUID) -> Decimal:

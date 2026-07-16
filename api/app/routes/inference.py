@@ -44,7 +44,12 @@ from app.schemas import (
     ModelsResponse,
 )
 from app.siwe import utcnow
-from app.usage_billing import InsufficientBalanceError, assert_can_afford, charge_usage
+from app.usage_billing import (
+    InsufficientBalanceError,
+    assert_can_afford,
+    ceil_usdc,
+    charge_usage,
+)
 
 router = APIRouter(prefix="/v1", tags=["inference"])
 
@@ -166,8 +171,13 @@ async def chat_completions(
     max_output = min(body.max_tokens or spec.max_output_tokens, spec.max_output_tokens)
     prompt_tokens = _estimate_prompt_tokens(body)
 
-    # The gate: the most this could cost, checked before a node is touched.
-    worst_case = chat_worst_case(spec, input_tokens=prompt_tokens, max_output_tokens=max_output)
+    # The gate: the most this could cost, checked before a node is touched. Rounded UP to
+    # a payable number, because this same value caps the bill below and the bill is itself
+    # rounded — a raw ceiling of 0.0000005 caps a charge that quantises to 0.000001, which
+    # is twice what the gate approved.
+    worst_case = ceil_usdc(
+        chat_worst_case(spec, input_tokens=prompt_tokens, max_output_tokens=max_output)
+    )
     try:
         await assert_can_afford(session, developer.id, worst_case)
     except InsufficientBalanceError as exc:
@@ -221,7 +231,7 @@ async def image_generations(
     """Generate images on the network and bill per image returned."""
     spec = _model_or_404(body.model, Modality.image)
 
-    worst_case = image_cost(spec, images=body.n)
+    worst_case = ceil_usdc(image_cost(spec, images=body.n))
     try:
         await assert_can_afford(session, developer.id, worst_case)
     except InsufficientBalanceError as exc:
