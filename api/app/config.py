@@ -175,6 +175,12 @@ class Settings(BaseSettings):
     # Widen it explicitly (e.g. "0.0.0.0") only behind a network policy / scrape-only sidecar.
     scheduler_metrics_addr: str = "127.0.0.1"
 
+    # The chain worker (app.chain_worker) is its own process, so its own scrape target.
+    # Loopback by default for the same reason as the scheduler's (pentest M7): these
+    # metrics carry ledger totals and settlement state.
+    chain_worker_metrics_port: int = Field(default=9101, ge=1, le=65535)
+    chain_worker_metrics_addr: str = "127.0.0.1"
+
     # Control channel / presence (Session 7.1)
     poll_hold_seconds: float = Field(default=25.0, ge=0.0)
     poll_tick_seconds: float = Field(default=1.0, gt=0.0)
