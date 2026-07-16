@@ -12,8 +12,7 @@ import pytest
 from app.usage_billing import developer_balance
 from conftest import auth, register
 from httpx import AsyncClient
-
-from tests.test_inference import fund, make_node
+from test_inference import fund, make_node
 
 pytestmark = pytest.mark.anyio
 

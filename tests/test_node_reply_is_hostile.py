@@ -13,8 +13,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from conftest import auth, register
 from httpx import AsyncClient
-
-from tests.test_inference import fund, make_node
+from test_inference import fund, make_node
 
 pytestmark = pytest.mark.anyio
 
