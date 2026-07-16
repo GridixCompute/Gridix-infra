@@ -15,10 +15,12 @@ import { isMockInference } from "@/lib/inference/mock";
 export function MockBanner() {
   if (!isMockInference) return null;
   return (
-    <div
-      role="status"
-      className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-warning)] bg-[#ffab3d14] px-4 py-3"
-    >
+    // Deliberately not role="status": that is a live region, meant to announce CHANGES. This
+    // banner is static and present from first paint, so a live region would not be announced
+    // by most screen readers anyway — while stealing the role from the balance warning, which
+    // really does appear and disappear. Plain prose is read in document order, before the
+    // controls it is warning about.
+    <div className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-warning)] bg-[#ffab3d14] px-4 py-3">
       <span aria-hidden className="mt-0.5 text-[var(--color-warning)]">
         ▲
       </span>
