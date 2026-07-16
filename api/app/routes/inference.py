@@ -164,7 +164,7 @@ async def chat_completions(
         )
     spec = _model_or_404(body.model, Modality.chat)
     max_output = min(body.max_tokens or spec.max_output_tokens, spec.max_output_tokens)
-    prompt_tokens = _estimate_prompt_tokens(body)
+    prompt_tokens = _prompt_token_bound(body)
 
     # The gate: the most this could cost, checked before a node is touched.
     worst_case = chat_worst_case(spec, input_tokens=prompt_tokens, max_output_tokens=max_output)
@@ -300,18 +300,32 @@ async def _charge(
         raise _payment_required(exc) from exc
 
 
-def _estimate_prompt_tokens(body: ChatCompletionRequest) -> int:
-    """A cheap prompt-token estimate for the pre-dispatch gate.
+def _prompt_token_bound(body: ChatCompletionRequest) -> int:
+    """An UPPER BOUND on the prompt's tokens, without a tokeniser.
 
-    Four characters per token is the usual rough ratio. The bill normally follows the
-    node's reported count, but this estimate sizes the worst case that caps it, so an
-    estimate far below the truth can clamp an honest node's bill on the input side.
-    The output ceiling leaves enough headroom that this stays theoretical, and it errs
-    toward the developer either way. A real tokeniser here is the honest fix if it ever
-    stops being theoretical.
+    This number does two jobs, and only one of them wants a good guess. It sizes the
+    pre-dispatch gate — which must not understate, or a request slips through that the
+    balance cannot cover — and it sizes the ceiling that caps the bill, which must not
+    understate either, or an honest node is paid less than it earned.
+
+    Four characters per token, the previous ratio, is a fair average for English prose and
+    badly wrong elsewhere. One CJK character is roughly one token, so a Chinese prompt has
+    about four times the tokens that ratio predicts. That was not theoretical: a node that
+    honestly read a 400-character Chinese prompt and wrote its full allowance was paid 24.5%
+    less than it earned, silently, with the clamp doing the cutting.
+
+    One token per character is the honest bound: no common tokeniser splits a character
+    into more than one token for text like this. It over-states for English, where the true
+    count is nearer a quarter of it — but over-stating is the safe direction for both jobs,
+    and it costs little in practice because output dominates the price of a chat request
+    (for a 400-character prompt with a 512-token allowance, the gate asks for ~1.3x, not 4x).
+
+    A real tokeniser is still the right answer eventually. Until then this errs toward
+    refusing a request the developer could afford, rather than underpaying a provider who
+    has no way to see it happening.
     """
     chars = sum(len(m.content) for m in body.messages)
-    return max(1, chars // 4)
+    return max(1, chars)
 
 
 def _reported_tokens(raw: dict, field: str, *, default: int) -> int:
