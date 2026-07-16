@@ -15,13 +15,17 @@ async function scan(page: import("@playwright/test").Page) {
 }
 
 test.describe("accessibility", () => {
-  test("public pages have no axe violations", async ({ page }) => {
-    for (const path of ["/", "/docs", "/login", "/register", "/provider-register"]) {
+  // Split per page for the same reason as the authenticated set below: five pages plus five
+  // axe scans in one test sits right on the 30s budget, so it passed alone and failed under
+  // the full suite. A gate that fails on load rather than on merit teaches people to re-run
+  // it instead of read it.
+  for (const path of ["/", "/docs", "/login", "/register", "/provider-register"]) {
+    test(`${path} has no axe violations`, async ({ page }) => {
       await page.goto(path);
       const violations = await scan(page);
       expect(violations, `${path}: ${violations.map((v) => v.id).join(", ")}`).toEqual([]);
-    }
-  });
+    });
+  }
 
   /**
    * One test per page, rather than one test walking them all.
