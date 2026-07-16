@@ -6,11 +6,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { safeNext } from "@/lib/auth/safe-next";
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") ?? "/dashboard";
+  // Never redirect anywhere but our own origin: `next` is attacker-supplied and is acted on
+  // right after a successful sign-in (pentest H14). Unsafe values fall back to the default.
+  const next =
+    typeof window === "undefined" ? null : safeNext(params.get("next"), window.location.origin);
 
   const [apiKey, setApiKey] = useState("");
   const [error, setError] = useState<string | null>(null);

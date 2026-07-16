@@ -72,10 +72,34 @@ async def open_dispute(
     return dispute
 
 
-async def contest_dispute(session: AsyncSession, dispute: Dispute) -> None:
-    """Provider contests an open slash → ``under_review`` (awaiting adjudication)."""
-    if dispute.state is DisputeState.open:
-        dispute.state = DisputeState.under_review
+def _window_open(dispute: Dispute) -> bool:
+    """True while the dispute's contest window is still running.
+
+    A dispute with no window is treated as CLOSED: we cannot demonstrate the window is
+    open, so we refuse rather than hand out an unbounded right to contest (fail closed).
+    """
+    expires = dispute.window_expires_at
+    if expires is None:
+        return False
+    if expires.tzinfo is None:
+        # SQLite returns naive datetimes for DateTime(timezone=True); they are stored UTC.
+        expires = expires.replace(tzinfo=UTC)
+    return _now() < expires
+
+
+async def contest_dispute(session: AsyncSession, dispute: Dispute) -> bool:
+    """Provider contests an open slash → ``under_review`` (awaiting adjudication).
+
+    Returns False and changes nothing when the dispute is not open or its contest window
+    has closed. The window check is what lets an unanswered slash auto-confirm: without it
+    a provider could contest a long-expired dispute forever, parking the held stake in
+    limbo and breaking dispute resolution economically (pentest H6). Enforced here rather
+    than at the route so every caller inherits it.
+    """
+    if dispute.state is not DisputeState.open or not _window_open(dispute):
+        return False
+    dispute.state = DisputeState.under_review
+    return True
 
 
 async def resolve_dispute(
