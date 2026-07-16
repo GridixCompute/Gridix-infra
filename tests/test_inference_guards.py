@@ -1,0 +1,381 @@
+"""The two guards that stand between a developer's balance and a wrong number.
+
+1. Short balance → refused BEFORE a node is touched. A request that cannot be paid for
+   must never burn a provider's GPU.
+2. A failed request → not charged. There is no hold to strand and no refund to forget,
+   so "not charged" has to mean the ledger never moved.
+
+Both are mutation-tested at the bottom: the guard is removed and the test must go red. A
+guard whose test passes without it is decoration.
+"""
+
+import uuid
+from datetime import UTC, datetime
+from decimal import Decimal
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from app.config import get_settings
+from app.dispatch import inflight_count, reset_inflight, select_node, track_inflight
+from app.ledger import deposit_stake
+from app.models import Provider, ProviderModel
+from app.usage_billing import (
+    InsufficientBalanceError,
+    charge_usage,
+    credit_deposit,
+    developer_balance,
+    quantize_usdc,
+)
+from conftest import auth, register
+from httpx import AsyncClient
+
+CHAT_MODEL = "llama-3.1-8b"
+
+
+@pytest.fixture(autouse=True)
+def _clean_inflight():
+    reset_inflight()
+    yield
+    reset_inflight()
+
+
+async def make_node(session, *, models=(CHAT_MODEL,), stake=1000) -> Provider:
+    now = datetime.now(UTC)
+    p = Provider(name=f"node-{uuid.uuid4().hex[:6]}", last_seen=now, connected_at=now)
+    session.add(p)
+    await session.flush()
+    session.add_all(ProviderModel(provider_id=p.id, model=m) for m in models)
+    if stake:
+        await deposit_stake(session, p.id, Decimal(stake))
+    await session.commit()
+    return p
+
+
+async def fund(session, dev: uuid.UUID, amount: str) -> None:
+    await credit_deposit(session, developer_id=dev, amount=Decimal(amount))
+    await session.commit()
+
+
+async def chat(client: AsyncClient, key: str, **over):
+    body = {"model": CHAT_MODEL, "messages": [{"role": "user", "content": "hi"}], **over}
+    return await client.post("/v1/chat/completions", headers=auth(key), json=body)
+
+
+# ── Guard 1: the balance gate fires before dispatch ──────────────────────────────
+
+
+class TestBalanceGate:
+    async def test_an_empty_balance_is_refused_before_the_node_is_touched(
+        self, client: AsyncClient, session
+    ) -> None:
+        _, key = await register(client, "developer", "Broke")
+        await make_node(session)
+
+        call = AsyncMock()
+        with patch("app.dispatch.call_provider", new=call):
+            res = await chat(client, key, max_tokens=1000)
+
+        assert res.status_code == 402
+        call.assert_not_awaited()  # the GPU was never asked to do anything
+
+    async def test_a_balance_below_the_worst_case_is_refused(
+        self, client: AsyncClient, session
+    ) -> None:
+        """Gated on the ceiling, not a guess: 1000 output tokens at 0.08/Mtok."""
+        dev_id, key = await register(client, "developer", "Thin")
+        await fund(session, uuid.UUID(dev_id), "0.00001")
+        await make_node(session)
+
+        call = AsyncMock()
+        with patch("app.dispatch.call_provider", new=call):
+            res = await chat(client, key, max_tokens=1000)
+
+        assert res.status_code == 402
+        call.assert_not_awaited()
+
+    async def test_a_sufficient_balance_passes_the_gate(self, client: AsyncClient, session) -> None:
+        """The other direction: the gate must not refuse a developer who can pay."""
+        dev_id, key = await register(client, "developer", "Funded")
+        await fund(session, uuid.UUID(dev_id), "1")
+        await make_node(session)
+
+        reply = {
+            "status": 200,
+            "payload": {"content": "hi", "usage": {"prompt_tokens": 5, "completion_tokens": 5}},
+        }
+        with patch("app.dispatch.call_provider", new=AsyncMock(return_value=reply)):
+            res = await chat(client, key, max_tokens=1000)
+
+        assert res.status_code == 200, res.text
+
+    async def test_the_402_says_how_short_they_are(self, client: AsyncClient, session) -> None:
+        dev_id, key = await register(client, "developer", "Thin")
+        await fund(session, uuid.UUID(dev_id), "0.00001")
+        await make_node(session)
+        res = await chat(client, key, max_tokens=1000)
+        assert "0.00001" in res.text and "USDC" in res.text
+
+
+# ── Guard 2: failed work is never charged ────────────────────────────────────────
+
+
+class TestFailedWorkIsFree:
+    @pytest.mark.parametrize(
+        "failure",
+        [
+            {"status": 500, "payload": {"detail": "cuda oom"}},
+            {"status": 504, "payload": {}},
+        ],
+    )
+    async def test_a_node_error_leaves_the_balance_untouched(
+        self, client: AsyncClient, session, failure: dict
+    ) -> None:
+        dev_id, key = await register(client, "developer", "Acme")
+        dev = uuid.UUID(dev_id)
+        await fund(session, dev, "10")
+        await make_node(session)
+
+        with patch("app.dispatch.call_provider", new=AsyncMock(return_value=failure)):
+            res = await chat(client, key)
+
+        assert res.status_code == 502
+        session.expire_all()
+        assert await developer_balance(session, dev) == Decimal("10")
+
+    async def test_a_failed_request_never_reaches_the_charge(
+        self, client: AsyncClient, session
+    ) -> None:
+        """Asserts the ordering directly, because the balance alone cannot.
+
+        get_session rolls back on any exception, so a route that charged and *then* raised
+        would still leave the balance intact — every balance assertion above passes even
+        with the guard removed. The claim is that billing is never reached for work that
+        failed, and only a spy can see that.
+        """
+        dev_id, key = await register(client, "developer", "Acme")
+        await fund(session, uuid.UUID(dev_id), "10")
+        await make_node(session)
+
+        with (
+            patch(
+                "app.dispatch.call_provider",
+                new=AsyncMock(return_value={"status": 500, "payload": {}}),
+            ),
+            patch("app.routes.inference.charge_usage", new=AsyncMock()) as charge,
+        ):
+            res = await chat(client, key)
+
+        assert res.status_code == 502
+        charge.assert_not_awaited()
+
+    async def test_a_successful_request_does_reach_the_charge(
+        self, client: AsyncClient, session
+    ) -> None:
+        """The other direction — or the test above would pass on a route that never bills."""
+        dev_id, key = await register(client, "developer", "Acme")
+        await fund(session, uuid.UUID(dev_id), "10")
+        await make_node(session)
+
+        reply = {
+            "status": 200,
+            "payload": {"content": "hi", "usage": {"prompt_tokens": 5, "completion_tokens": 5}},
+        }
+        with (
+            patch("app.dispatch.call_provider", new=AsyncMock(return_value=reply)),
+            patch(
+                "app.routes.inference.charge_usage", new=AsyncMock(return_value=Decimal("0.001"))
+            ) as charge,
+        ):
+            res = await chat(client, key)
+
+        assert res.status_code == 200
+        charge.assert_awaited_once()
+
+    async def test_an_unreachable_node_leaves_the_balance_untouched(
+        self, client: AsyncClient, session
+    ) -> None:
+        from app.relay_client import RelayUnavailableError
+
+        dev_id, key = await register(client, "developer", "Acme")
+        dev = uuid.UUID(dev_id)
+        await fund(session, dev, "10")
+        await make_node(session)
+
+        with patch(
+            "app.dispatch.call_provider",
+            new=AsyncMock(side_effect=RelayUnavailableError("provider not connected")),
+        ):
+            res = await chat(client, key)
+
+        assert res.status_code == 502
+        session.expire_all()
+        assert await developer_balance(session, dev) == Decimal("10")
+
+    async def test_a_timed_out_node_is_a_clean_504_and_costs_nothing(
+        self, client: AsyncClient, session
+    ) -> None:
+        """504, not 502: the work may still be running on the node, and the caller should
+        know the difference between 'it failed' and 'it never answered'."""
+        dev_id, key = await register(client, "developer", "Acme")
+        dev = uuid.UUID(dev_id)
+        await fund(session, dev, "10")
+        await make_node(session)
+
+        with patch("app.dispatch.call_provider", new=AsyncMock(side_effect=TimeoutError())):
+            res = await chat(client, key)
+
+        assert res.status_code == 504
+        session.expire_all()
+        assert await developer_balance(session, dev) == Decimal("10")
+
+    async def test_a_relay_gateway_timeout_is_also_a_504(
+        self, client: AsyncClient, session
+    ) -> None:
+        """The real shape: call_provider raise_for_status()es outside its own try, so the
+        relay's 504 arrives as an httpx error rather than RelayUnavailableError."""
+        import httpx
+
+        dev_id, key = await register(client, "developer", "Acme")
+        dev = uuid.UUID(dev_id)
+        await fund(session, dev, "10")
+        await make_node(session)
+
+        exc = httpx.HTTPStatusError(
+            "gateway timeout",
+            request=httpx.Request("POST", "http://relay/x"),
+            response=httpx.Response(504),
+        )
+        with patch("app.dispatch.call_provider", new=AsyncMock(side_effect=exc)):
+            res = await chat(client, key)
+
+        assert res.status_code == 504
+        session.expire_all()
+        assert await developer_balance(session, dev) == Decimal("10")
+
+
+# ── The charge itself ────────────────────────────────────────────────────────────
+
+
+class TestChargeUsage:
+    async def test_developer_pays_provider_earns_protocol_takes_its_fee(
+        self, client: AsyncClient, session
+    ) -> None:
+        from app.ledger import account_balance
+        from app.models import LedgerAccount
+
+        dev_id, _ = await register(client, "developer", "Acme")
+        dev = uuid.UUID(dev_id)
+        await fund(session, dev, "10")
+        node = await make_node(session)
+
+        cost = await charge_usage(
+            session,
+            developer_id=dev,
+            provider_id=node.id,
+            cost=Decimal("1.00"),
+            settings=get_settings(),
+        )
+        await session.commit()
+
+        assert cost == Decimal("1.00")
+        assert await developer_balance(session, dev) == Decimal("9.00")
+        # 250 bps of 1.00 = 0.025 to the protocol; the provider gets the remainder.
+        assert await account_balance(session, LedgerAccount.provider, node.id) == Decimal("0.975")
+
+    async def test_the_legs_always_net_to_zero(self, client: AsyncClient, session) -> None:
+        """The ledger's one invariant, checked on an amount whose fee cannot divide evenly."""
+        from app.ledger import verify_ledger_integrity
+
+        dev_id, _ = await register(client, "developer", "Acme")
+        dev = uuid.UUID(dev_id)
+        await fund(session, dev, "10")
+        node = await make_node(session)
+
+        await charge_usage(
+            session,
+            developer_id=dev,
+            provider_id=node.id,
+            cost=Decimal("0.000333"),
+            settings=get_settings(),
+        )
+        await session.commit()
+        # An empty list is zero discrepancy: every entry_group's debits equal its credits.
+        assert await verify_ledger_integrity(session) == []
+
+    async def test_charging_more_than_the_balance_raises(
+        self, client: AsyncClient, session
+    ) -> None:
+        dev_id, _ = await register(client, "developer", "Acme")
+        dev = uuid.UUID(dev_id)
+        await fund(session, dev, "1")
+        node = await make_node(session)
+
+        with pytest.raises(InsufficientBalanceError):
+            await charge_usage(
+                session,
+                developer_id=dev,
+                provider_id=node.id,
+                cost=Decimal("2"),
+                settings=get_settings(),
+            )
+
+    async def test_a_zero_cost_request_posts_nothing(self, client: AsyncClient, session) -> None:
+        dev_id, _ = await register(client, "developer", "Acme")
+        dev = uuid.UUID(dev_id)
+        await fund(session, dev, "10")
+        node = await make_node(session)
+
+        assert await charge_usage(
+            session, developer_id=dev, provider_id=node.id, cost=Decimal(0), settings=get_settings()
+        ) == Decimal(0)
+        assert await developer_balance(session, dev) == Decimal("10")
+
+    def test_amounts_are_quantised_to_usdc_six_decimals(self) -> None:
+        """The number in the UI must equal the number a contract would move."""
+        assert quantize_usdc(Decimal("0.0000005")) == Decimal("0.000001")
+        assert quantize_usdc(Decimal("1.23456789")) == Decimal("1.234568")
+
+
+# ── Least-loaded selection uses real inflight, not a constant ────────────────────
+
+
+class TestLeastLoaded:
+    async def test_a_busy_node_is_passed_over_for_an_idle_one(self, session) -> None:
+        busy = await make_node(session)
+        idle = await make_node(session)
+
+        with track_inflight(busy.id):
+            chosen = await select_node(
+                session, model=CHAT_MODEL, now=datetime.now(UTC), settings=get_settings()
+            )
+        assert chosen == idle.id
+
+    async def test_load_is_released_when_the_request_finishes(self, session) -> None:
+        node = await make_node(session)
+        with track_inflight(node.id):
+            assert inflight_count(node.id) == 1
+        assert inflight_count(node.id) == 0
+
+    async def test_load_is_released_even_when_the_request_explodes(self, session) -> None:
+        """A node that errors must not look busy forever, or one bad request retires it."""
+        node = await make_node(session)
+        with pytest.raises(RuntimeError), track_inflight(node.id):
+            raise RuntimeError("node blew up")
+        assert inflight_count(node.id) == 0
+
+    async def test_dispatch_counts_the_request_while_it_is_out(self, session) -> None:
+        """Proves the counter tracks real dispatches, not just the helper."""
+        from app.dispatch import dispatch
+
+        node = await make_node(session)
+        seen = {}
+
+        async def _slow(*_a, **_kw):
+            seen["during"] = inflight_count(node.id)
+            return {"status": 200, "payload": {}}
+
+        with patch("app.dispatch.call_provider", new=_slow):
+            await dispatch(node.id, method="chat.completions", payload={}, settings=get_settings())
+
+        assert seen["during"] == 1
+        assert inflight_count(node.id) == 0

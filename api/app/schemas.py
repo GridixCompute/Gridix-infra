@@ -6,11 +6,12 @@ by session: registration & health (S1), jobs & providers (S2), agent (S3/S4).
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models import JobKind, JobStatus
+from app.models import DataTier, JobKind, JobStatus
 
 
 class ORMModel(BaseModel):
@@ -124,6 +125,88 @@ class CreatedApiKey(BaseModel):
     label: str | None
     prefix: str
     api_key: str = Field(description="Store this now — it is never shown again.")
+
+
+# ── Inference (/v1) ─────────────────────────────────────────────────────────────
+class ChatMessage(BaseModel):
+    """One turn. OpenAI-shaped so existing clients work unchanged."""
+
+    role: Literal["system", "user", "assistant"]
+    content: str = Field(min_length=1, max_length=100_000)
+
+
+class ChatCompletionRequest(BaseModel):
+    """A chat request. Bounded at the edge: these numbers size the balance gate, and an
+    unbounded max_tokens would make the worst case unknowable."""
+
+    model: str = Field(min_length=1, max_length=128)
+    messages: list[ChatMessage] = Field(min_length=1, max_length=256)
+    max_tokens: int | None = Field(default=None, ge=1, le=32_768)
+    temperature: float = Field(default=1.0, ge=0.0, le=2.0)
+    # Fixing the seed makes a reply reproducible, which is what lets a canary compare a
+    # node's answer against a known-good one.
+    seed: int | None = Field(default=None, ge=0)
+    stream: bool = False
+    data_tier: DataTier = DataTier.public
+
+
+class ChatUsage(BaseModel):
+    """Tokens the request actually consumed — what it is billed on."""
+
+    prompt_tokens: int = Field(ge=0)
+    completion_tokens: int = Field(ge=0)
+
+    @property
+    def total_tokens(self) -> int:
+        return self.prompt_tokens + self.completion_tokens
+
+
+class ChatCompletionResponse(BaseModel):
+    """A completed chat request, with what it cost and which node served it."""
+
+    model: str
+    content: str
+    usage: ChatUsage
+    cost_usdc: Decimal
+    provider_id: uuid.UUID
+
+
+class ImageGenerationRequest(BaseModel):
+    """An image request."""
+
+    model: str = Field(min_length=1, max_length=128)
+    prompt: str = Field(min_length=1, max_length=4_000)
+    n: int = Field(default=1, ge=1, le=8)
+    seed: int | None = Field(default=None, ge=0)
+    data_tier: DataTier = DataTier.public
+
+
+class ImageGenerationResponse(BaseModel):
+    """Generated images, billed per image actually returned."""
+
+    model: str
+    images: list[str]
+    cost_usdc: Decimal
+    provider_id: uuid.UUID
+
+
+class ModelInfo(BaseModel):
+    """A catalogue model and whether the network is serving it right now."""
+
+    id: str
+    modality: str
+    available: bool
+    nodes: int
+    input_usdc_per_mtok: Decimal
+    output_usdc_per_mtok: Decimal
+    usdc_per_image: Decimal
+    context_window: int
+
+
+class ModelsResponse(BaseModel):
+    """Everything GRIDIX can serve, with prices."""
+
+    models: list[ModelInfo]
 
 
 # ── Resource spec & jobs (Session 2) ────────────────────────────────────────────

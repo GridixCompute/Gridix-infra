@@ -21,6 +21,7 @@ from app.routes import (
     endpoints,
     events,
     health,
+    inference,
     jobs,
     metrics,
     providers,
@@ -69,6 +70,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(inference.router)
     app.include_router(registration.router)
     app.include_router(billing.router)
     app.include_router(blobs.router)
