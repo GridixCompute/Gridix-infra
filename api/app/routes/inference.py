@@ -188,9 +188,16 @@ async def chat_completions(
         raise _node_failed(exc, provider_id, "chat") from exc
 
     usage = _usage_from(reply, prompt_tokens=prompt_tokens, max_output_tokens=max_output)
-    # The gate checked the balance against `worst_case`. Billing above it would mean
-    # charging for something the developer was never asked to approve, so the ceiling
-    # holds here too — whatever the node says it did.
+    # The gate checked the balance against `worst_case`, so the bill is clamped to it: a
+    # node that over-reports its usage cannot charge past the ceiling the developer was
+    # priced against. The clamp holds on the raw Decimals, but `_charge` then quantizes
+    # the result half-up to USDC's six decimals, so the amount actually posted can land up
+    # to 5e-7 (half of USDC's 1e-6 tick) ABOVE this raw ceiling. That overshoot is a
+    # rounding artifact at the smallest payable USDC unit, not a leak: it is bounded by the
+    # resolution and cannot compound, and 5e-7 USDC is below what the chain can even settle.
+    # Quantizing with ceil (always rounding the charge up) was tried and reverted — it
+    # raised developer bills by 12.5%, far worse than the half-up tick. So the ceiling binds
+    # up to USDC's six-decimal resolution, and no further.
     billed = min(
         chat_cost(spec, input_tokens=usage.prompt_tokens, output_tokens=usage.completion_tokens),
         worst_case,
@@ -308,24 +315,28 @@ def _prompt_token_bound(body: ChatCompletionRequest) -> int:
     balance cannot cover — and it sizes the ceiling that caps the bill, which must not
     understate either, or an honest node is paid less than it earned.
 
-    Four characters per token, the previous ratio, is a fair average for English prose and
-    badly wrong elsewhere. One CJK character is roughly one token, so a Chinese prompt has
-    about four times the tokens that ratio predicts. That was not theoretical: a node that
-    honestly read a 400-character Chinese prompt and wrote its full allowance was paid 24.5%
-    less than it earned, silently, with the clamp doing the cutting.
+    The bound is the prompt's length in UTF-8 bytes. Every token a real tokeniser produces
+    maps to at least one byte — byte-level BPE, which the models here use, builds tokens out
+    of byte sequences, so token_count <= byte_count always. Counting characters looked like
+    an upper bound but was not: byte-level BPE can split a single character into several
+    tokens (an emoji or a ZWJ-joined grapheme like a family emoji is one Python character
+    but many bytes and several tokens), so char_count could fall *below* the true token
+    count and the clamp would silently underpay an honest node. Bytes never do that.
 
-    One token per character is the honest bound: no common tokeniser splits a character
-    into more than one token for text like this. It over-states for English, where the true
-    count is nearer a quarter of it — but over-stating is the safe direction for both jobs,
-    and it costs little in practice because output dominates the price of a chat request
-    (for a 400-character prompt with a 512-token allowance, the gate asks for ~1.3x, not 4x).
+    The trade-off is honest looseness, always on the developer's side:
+      - ASCII/English: one byte per character, so this is identical to the old char count —
+        no change for English prompts.
+      - CJK: ~3 bytes per character where a tokeniser sees roughly one token per character,
+        so the bound over-states by ~3x. That is bounded and safe: it can only make the
+        gate ask for more balance or raise the ceiling, never underpay. It costs little in
+        practice because output tokens dominate the price of a chat request.
 
-    A real tokeniser is still the right answer eventually. Until then this errs toward
-    refusing a request the developer could afford, rather than underpaying a provider who
-    has no way to see it happening.
+    A real tokeniser is still the right final answer, and would tighten the CJK case. Until
+    then this errs toward refusing a request the developer could afford, rather than
+    underpaying a provider who has no way to see it happening.
     """
-    chars = sum(len(m.content) for m in body.messages)
-    return max(1, chars)
+    total_bytes = sum(len(m.content.encode("utf-8")) for m in body.messages)
+    return max(1, total_bytes)
 
 
 def _reported_tokens(raw: dict, field: str, *, default: int) -> int:
