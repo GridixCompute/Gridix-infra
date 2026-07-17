@@ -19,6 +19,19 @@ jobs:
     # at roughly 3x its normal run — loose enough for a slow runner, tight enough that a
     # hang turns into a red X in minutes instead of a silence nobody notices.
     timeout-minutes: 10
+    # pyproject says requires-python = ">=3.11", so 3.12 is a promise this project makes.
+    # It was never once tested: CI pinned 3.11 while every developer machine here runs
+    # 3.12.3 — the version this code is actually written on each day. An untested promise
+    # is still a promise, and the gap was invisible precisely because nothing looked.
+    # The matrix runs in parallel, so wall-clock is unchanged.
+    #
+    # fail-fast is off on purpose: the default cancels the sibling the moment one version
+    # goes red, so a 3.11 failure would leave "did 3.12 break too?" unanswered — which is
+    # the only question a version matrix exists to answer.
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
     # The suite is hermetic on SQLite, with one exception that cannot be: concurrent
     # charges are serialised with SELECT ... FOR UPDATE, which SQLite parses and ignores.
     # Removing that lock leaves every SQLite test green while a developer can overdraw, so
@@ -43,7 +56,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
