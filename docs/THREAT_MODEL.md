@@ -10,6 +10,16 @@ memory, disk, environment, and network. The coordinator is trusted (it holds the
 brokers keys); Session 10+ hardens against a cheating provider economically, not
 cryptographically.
 
+> **Scope: this document describes the async JOBS path only.** Every guarantee below is
+> implemented for jobs (`matcher`, `crypto` envelope encryption, `key_broker`, attestation).
+> The synchronous inference path (`/v1/chat/completions`, `/v1/images/generations`) does
+> **not** implement any of it: there is no envelope encryption, no DEK, and no
+> attestation-gated release on that path — the prompt is sent to the selected node in
+> cleartext. Because of that, `/v1/chat/completions` **refuses `data_tier=confidential_tee`
+> with 501** rather than appear to honor a guarantee it cannot keep; other tiers on the
+> chat path are served as `public` (plaintext visible to the host). Do not read the
+> `confidential_tee` row as applying to chat or image inference.
+
 | Tier | Input/result confidentiality vs. a malicious host | Enforcement in code |
 |---|---|---|
 | `public` (default) | **None.** Plaintext input/result are visible to the host. | No encryption; any capable provider (`matcher`). |
@@ -43,6 +53,19 @@ cryptographically.
 - **Assumption:** the attestation verifier (`attestation_secret`, standing in for the
   vendor root) is sound. Production replaces the HMAC stand-in with real SGX/SEV quote
   verification.
+- **Current enforcement is weaker than the guarantee above, and this is a stand-in, not
+  the finished tier.** Three gaps to close before it can be relied on:
+  - `attestation.verify_attestation` only checks an HMAC over the quote; it does **not**
+    check the reported `measurement` against an allowlist, so any measurement with a valid
+    signature is accepted. Real SGX/SEV verification pins the measurement to a known-good
+    enclave image.
+  - `tee_attested` is a **persistent flag** set at `/agent/attest` and cleared only on a
+    later failed attestation. It is **not re-verified at dispatch/key-release time on the
+    inference path**, so a node that attested once and then stopped running the enclave can
+    still be selected until it submits a failing quote. (The jobs path re-checks in
+    `key_broker` at key release; the inference path has no such gate — which is one reason
+    chat refuses the tier.)
+  - The tier is **not enforced on the inference path** at all (see the Scope note above).
 
 ## Runtime secrets (9.6)
 
