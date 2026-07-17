@@ -428,6 +428,14 @@ def create_relay_app(authenticate: Authenticator | None = None) -> FastAPI:
                 # silence past the idle deadline means the far end is gone without a
                 # close frame — a half-open TCP connection the OS hasn't noticed.
                 msg = await asyncio.wait_for(_receive_json_bounded(ws), timeout=_idle_timeout())
+                # A keepalive also refreshes presence. Dispatch selects nodes by the DB
+                # `last_seen` window (presence.is_connected), not by this in-memory tunnel
+                # registry — and only auth ever stamped it, so a connected node went
+                # undispatchable `connection_timeout_seconds` after connecting even with the
+                # tunnel wide open. The agent pings well inside that window, so refreshing on
+                # each ping keeps a live node selectable, at one small UPDATE per ping.
+                if isinstance(msg, dict) and msg.get("type") == "ping":
+                    await mark_provider_seen(provider_id)
                 await tunnel.handle_incoming(msg)
         except TimeoutError:
             logger.info("relay tunnel idle past {}s: provider {}", _idle_timeout(), provider_id)
