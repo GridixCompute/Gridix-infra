@@ -91,7 +91,7 @@ async def charge_usage(
         return Decimal(0)
 
     await session.execute(
-        select(Developer.id).where(Developer.id == developer_id).with_for_update()
+        select(Developer.id).where(Developer.id == developer_id)  # MUTASI: FOR UPDATE dicabut
     )
 
     balance = await developer_balance(session, developer_id)
@@ -145,7 +145,7 @@ async def reserve_balance(
         return Decimal(0)
 
     await session.execute(
-        select(Developer.id).where(Developer.id == developer_id).with_for_update()
+        select(Developer.id).where(Developer.id == developer_id)  # MUTASI: FOR UPDATE dicabut
     )
 
     balance = await developer_balance(session, developer_id)
