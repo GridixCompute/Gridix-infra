@@ -155,6 +155,10 @@ class TestFailedWorkIsFree:
         would still leave the balance intact — every balance assertion above passes even
         with the guard removed. The claim is that billing is never reached for work that
         failed, and only a spy can see that.
+
+        With the pre-dispatch hold, a failed request must do exactly one thing to the
+        reservation: return it. So the spy checks both directions — the charge (settle) is
+        never reached, and the hold IS released, so nothing is stranded in escrow.
         """
         dev_id, key = await register(client, "developer", "Acme")
         await fund(session, uuid.UUID(dev_id), "10")
@@ -165,17 +169,22 @@ class TestFailedWorkIsFree:
                 "app.dispatch.call_provider",
                 new=AsyncMock(return_value={"status": 500, "payload": {}}),
             ),
-            patch("app.routes.inference.charge_usage", new=AsyncMock()) as charge,
+            patch("app.routes.inference.settle_reservation", new=AsyncMock()) as settle,
+            patch("app.routes.inference.release_reservation", new=AsyncMock()) as release,
         ):
             res = await chat(client, key)
 
         assert res.status_code == 502
-        charge.assert_not_awaited()
+        settle.assert_not_awaited()  # a failed request is never billed
+        release.assert_awaited_once()  # and its hold is returned, not stranded
 
     async def test_a_successful_request_does_reach_the_charge(
         self, client: AsyncClient, session
     ) -> None:
-        """The other direction — or the test above would pass on a route that never bills."""
+        """The other direction — or the test above would pass on a route that never bills.
+
+        Success settles the reservation (bills) and does NOT release it.
+        """
         dev_id, key = await register(client, "developer", "Acme")
         await fund(session, uuid.UUID(dev_id), "10")
         await make_node(session)
@@ -187,13 +196,16 @@ class TestFailedWorkIsFree:
         with (
             patch("app.dispatch.call_provider", new=AsyncMock(return_value=reply)),
             patch(
-                "app.routes.inference.charge_usage", new=AsyncMock(return_value=Decimal("0.001"))
-            ) as charge,
+                "app.routes.inference.settle_reservation",
+                new=AsyncMock(return_value=Decimal("0.001")),
+            ) as settle,
+            patch("app.routes.inference.release_reservation", new=AsyncMock()) as release,
         ):
             res = await chat(client, key)
 
         assert res.status_code == 200
-        charge.assert_awaited_once()
+        settle.assert_awaited_once()
+        release.assert_not_awaited()
 
     async def test_an_unreachable_node_leaves_the_balance_untouched(
         self, client: AsyncClient, session

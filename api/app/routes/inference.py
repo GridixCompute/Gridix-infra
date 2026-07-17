@@ -18,7 +18,6 @@ only number the developer's balance was ever checked against, and it binds the b
 """
 
 import uuid
-from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, status
 from loguru import logger
@@ -33,7 +32,7 @@ from app.dispatch import (
     eligible_nodes,
     select_node,
 )
-from app.models import DataTier, Developer
+from app.models import DataTier
 from app.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -44,7 +43,12 @@ from app.schemas import (
     ModelsResponse,
 )
 from app.siwe import utcnow
-from app.usage_billing import InsufficientBalanceError, assert_can_afford, charge_usage
+from app.usage_billing import (
+    InsufficientBalanceError,
+    release_reservation,
+    reserve_balance,
+    settle_reservation,
+)
 
 router = APIRouter(prefix="/v1", tags=["inference"])
 
@@ -166,49 +170,64 @@ async def chat_completions(
     max_output = min(body.max_tokens or spec.max_output_tokens, spec.max_output_tokens)
     prompt_tokens = _prompt_token_bound(body)
 
-    # The gate: the most this could cost, checked before a node is touched.
+    # The gate: reserve the most this could cost before a node is touched. The reservation
+    # is atomic against concurrent requests (see reserve_balance), so a second request from
+    # the same developer that can only afford one is refused HERE, not after its node has
+    # already burned a GPU on work that cannot be paid for.
     worst_case = chat_worst_case(spec, input_tokens=prompt_tokens, max_output_tokens=max_output)
     try:
-        await assert_can_afford(session, developer.id, worst_case)
+        held = await reserve_balance(session, developer_id=developer.id, amount=worst_case)
     except InsufficientBalanceError as exc:
         raise _payment_required(exc) from exc
 
-    provider_id = await _pick_node(
-        session, model=body.model, settings=settings, data_tier=body.data_tier
-    )
-    payload = body.model_dump(mode="json", exclude={"data_tier"})
-    payload["max_tokens"] = max_output
-
+    # From here the hold exists, so every exit must either settle it (success) or release it
+    # (any failure) — never leave it stranded in escrow. The `finally` guarantees exactly
+    # one of the two runs.
+    settled = False
     try:
-        reply = await dispatch(
-            provider_id, method="chat.completions", payload=payload, settings=settings
+        provider_id = await _pick_node(
+            session, model=body.model, settings=settings, data_tier=body.data_tier
         )
-    except DispatchError as exc:
-        # Nothing is charged: no result, no bill. There was never a hold to give back.
-        raise _node_failed(exc, provider_id, "chat") from exc
+        payload = body.model_dump(mode="json", exclude={"data_tier"})
+        payload["max_tokens"] = max_output
 
-    usage = _usage_from(reply, prompt_tokens=prompt_tokens, max_output_tokens=max_output)
-    # The gate checked the balance against `worst_case`, so the bill is clamped to it: a
-    # node that over-reports its usage cannot charge past the ceiling the developer was
-    # priced against. The clamp holds on the raw Decimals, but `_charge` then quantizes
-    # the result half-up to USDC's six decimals, so the amount actually posted can land up
-    # to 5e-7 (half of USDC's 1e-6 tick) ABOVE this raw ceiling. That overshoot is a
-    # rounding artifact at the smallest payable USDC unit, not a leak: it is bounded by the
-    # resolution and cannot compound, and 5e-7 USDC is below what the chain can even settle.
-    # Quantizing with ceil (always rounding the charge up) was tried and reverted — it
-    # raised developer bills by 12.5%, far worse than the half-up tick. So the ceiling binds
-    # up to USDC's six-decimal resolution, and no further.
-    billed = min(
-        chat_cost(spec, input_tokens=usage.prompt_tokens, output_tokens=usage.completion_tokens),
-        worst_case,
-    )
-    cost = await _charge(
-        session,
-        developer=developer,
-        provider_id=provider_id,
-        cost=billed,
-        settings=settings,
-    )
+        try:
+            reply = await dispatch(
+                provider_id, method="chat.completions", payload=payload, settings=settings
+            )
+        except DispatchError as exc:
+            raise _node_failed(exc, provider_id, "chat") from exc
+
+        usage = _usage_from(reply, prompt_tokens=prompt_tokens, max_output_tokens=max_output)
+        # The gate reserved `worst_case`, so the bill is clamped to it: a node that
+        # over-reports its usage cannot charge past the ceiling the developer was priced
+        # against. The clamp holds on the raw Decimals, but the charge is then quantized
+        # half-up to USDC's six decimals, so the amount actually posted can land up to 5e-7
+        # (half of USDC's 1e-6 tick) ABOVE this raw ceiling. That overshoot is a rounding
+        # artifact at the smallest payable USDC unit, not a leak: it is bounded by the
+        # resolution and cannot compound, and 5e-7 USDC is below what the chain can even
+        # settle. Quantizing with ceil (always rounding up) was tried and reverted — it
+        # raised developer bills by 12.5%, far worse than the half-up tick. So the ceiling
+        # binds up to USDC's six-decimal resolution, and no further.
+        billed = min(
+            chat_cost(
+                spec, input_tokens=usage.prompt_tokens, output_tokens=usage.completion_tokens
+            ),
+            worst_case,
+        )
+        cost = await settle_reservation(
+            session,
+            developer_id=developer.id,
+            provider_id=provider_id,
+            held=held,
+            actual=billed,
+            settings=settings,
+        )
+        settled = True
+    finally:
+        if not settled:
+            await release_reservation(session, developer_id=developer.id, held=held)
+
     return ChatCompletionResponse(
         model=body.model,
         content=str(reply.get("content", "")),
@@ -228,83 +247,71 @@ async def image_generations(
     """Generate images on the network and bill per image returned."""
     spec = _model_or_404(body.model, Modality.image)
 
+    # Same pre-dispatch reservation as chat: hold the worst case atomically so a second
+    # concurrent request that can only afford one is refused before a node runs.
     worst_case = image_cost(spec, images=body.n)
     try:
-        await assert_can_afford(session, developer.id, worst_case)
+        held = await reserve_balance(session, developer_id=developer.id, amount=worst_case)
     except InsufficientBalanceError as exc:
         raise _payment_required(exc) from exc
 
-    provider_id = await _pick_node(
-        session, model=body.model, settings=settings, data_tier=body.data_tier
-    )
-
+    settled = False
     try:
-        reply = await dispatch(
-            provider_id,
-            method="images.generations",
-            payload=body.model_dump(mode="json", exclude={"data_tier"}),
-            settings=settings,
+        provider_id = await _pick_node(
+            session, model=body.model, settings=settings, data_tier=body.data_tier
         )
-    except DispatchError as exc:
-        raise _node_failed(exc, provider_id, "image") from exc
 
-    # Billed on what came back, not what was asked for: a node returning two of three
-    # images is paid for two. Capped at what was asked for, because the count is the
-    # node's to choose and `n` is what the gate priced — nobody agreed to buy a sixth
-    # image on a request for one.
-    #
-    # The list check is load-bearing, not defensive habit: strings are iterable, so
-    # `images: "abc"` iterated into three "images" and was billed as three. A node could
-    # return three bytes and be paid for three pictures. Anything that is not a list is
-    # not a set of images, so it counts as none and pays nothing.
-    raw_images = reply.get("images")
-    if raw_images is not None and not isinstance(raw_images, list):
-        logger.warning(
-            "node returned {} for images, not a list; treating as no images returned",
-            type(raw_images).__name__,
-        )
-        raw_images = None
-    returned = [str(u) for u in (raw_images or [])]
-    if len(returned) > body.n:
-        logger.warning(
-            "node returned {} images for a request of {}; keeping {}",
-            len(returned),
-            body.n,
-            body.n,
-        )
-    images = returned[: body.n]
-    cost = await _charge(
-        session,
-        developer=developer,
-        provider_id=provider_id,
-        cost=image_cost(spec, images=len(images)),
-        settings=settings,
-    )
-    return ImageGenerationResponse(
-        model=body.model, images=images, cost_usdc=cost, provider_id=provider_id
-    )
+        try:
+            reply = await dispatch(
+                provider_id,
+                method="images.generations",
+                payload=body.model_dump(mode="json", exclude={"data_tier"}),
+                settings=settings,
+            )
+        except DispatchError as exc:
+            raise _node_failed(exc, provider_id, "image") from exc
 
-
-async def _charge(
-    session, *, developer: Developer, provider_id: uuid.UUID, cost: Decimal, settings
-) -> Decimal:
-    """Bill a completed request.
-
-    The work is already done here, so a shortfall cannot un-run it. The pre-dispatch gate
-    is what prevents that; this raising means the balance moved underneath us, and the
-    honest answer is 402 rather than silently serving free compute.
-    """
-    try:
-        return await charge_usage(
+        # Billed on what came back, not what was asked for: a node returning two of three
+        # images is paid for two. Capped at what was asked for, because the count is the
+        # node's to choose and `n` is what the gate priced — nobody agreed to buy a sixth
+        # image on a request for one.
+        #
+        # The list check is load-bearing, not defensive habit: strings are iterable, so
+        # `images: "abc"` iterated into three "images" and was billed as three. A node could
+        # return three bytes and be paid for three pictures. Anything that is not a list is
+        # not a set of images, so it counts as none and pays nothing.
+        raw_images = reply.get("images")
+        if raw_images is not None and not isinstance(raw_images, list):
+            logger.warning(
+                "node returned {} for images, not a list; treating as no images returned",
+                type(raw_images).__name__,
+            )
+            raw_images = None
+        returned = [str(u) for u in (raw_images or [])]
+        if len(returned) > body.n:
+            logger.warning(
+                "node returned {} images for a request of {}; keeping {}",
+                len(returned),
+                body.n,
+                body.n,
+            )
+        images = returned[: body.n]
+        cost = await settle_reservation(
             session,
             developer_id=developer.id,
             provider_id=provider_id,
-            cost=cost,
+            held=held,
+            actual=image_cost(spec, images=len(images)),
             settings=settings,
         )
-    except InsufficientBalanceError as exc:
-        logger.error("could not bill developer {} for completed work: {}", developer.id, exc)
-        raise _payment_required(exc) from exc
+        settled = True
+    finally:
+        if not settled:
+            await release_reservation(session, developer_id=developer.id, held=held)
+
+    return ImageGenerationResponse(
+        model=body.model, images=images, cost_usdc=cost, provider_id=provider_id
+    )
 
 
 def _prompt_token_bound(body: ChatCompletionRequest) -> int:
