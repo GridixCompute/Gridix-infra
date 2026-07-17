@@ -38,7 +38,12 @@ case "$role" in
     ;;
   relay)
     # Standalone relay for NAT'd providers; shares the DB for key validation.
-    exec uvicorn app.relay:app --host 0.0.0.0 --port 8100
+    # --ws-max-size caps a WebSocket frame at 1 MiB (1048576 bytes). relay.py already
+    # states a 1 MiB limit (_MAX_FRAME_BYTES), but that check runs *after* receive_text()
+    # has buffered the whole frame, so without this the real ceiling is uvicorn's 16 MiB
+    # default and the app cap only bounds parsing, not memory. This makes the server refuse
+    # oversized frames at the protocol layer, enforcing the limit the code already declares.
+    exec uvicorn app.relay:app --host 0.0.0.0 --port 8100 --ws-max-size 1048576
     ;;
   *)
     echo "unknown role: $role (expected: api | scheduler | chain | relay)" >&2
