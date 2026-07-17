@@ -199,6 +199,12 @@ pytest -q                    # ~200 hermetic unit + integration tests
 pytest tests/integration     # full happy path, failure paths, chaos/churn
 ```
 
+Run the `pytest` binary, never `python -m pytest`. The `-m` form prepends the current
+working directory to `sys.path`, so a broken or missing import can resolve against the
+source tree and pass locally while CI — which installs the package and runs the `pytest`
+binary — fails. Matching CI's invocation exactly keeps the local gate as strict as the
+remote one; a looser local gate is what let a broken import through once.
+
 Key end-to-end guarantees: `tests/integration/test_full_flow.py` (submit → assign → run →
 verify → settle, with exact ledger balances) and `tests/integration/test_chaos.py` (node
 churn: no job lost, ledger balanced).
