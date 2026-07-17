@@ -101,7 +101,7 @@ async def main() -> None:
         # always a deploy mistake, and a process that logs nothing looks healthy.
         logger.warning("chain worker started with chain_enabled=false — nothing to do, exiting")
         return
-    install_chain(settings)
+    await install_chain(settings)
     # Its own Prometheus scrape target, on loopback by default (pentest M7): these metrics
     # expose ledger totals and settlement state.
     start_http_server(settings.chain_worker_metrics_port, addr=settings.chain_worker_metrics_addr)

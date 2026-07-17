@@ -197,6 +197,10 @@ class Settings(BaseSettings):
     # to open the tunnel sends an Origin and is rejected unless it is in this (normally empty)
     # allowlist. Comma-separated exact origins; NEVER "*".
     relay_allowed_origins: str = ""
+    # Failed tunnel authentications allowed per client IP per minute (pentest H8). Only
+    # FAILURES count, so a provider holding a valid key is never throttled no matter how
+    # often it reconnects; a key guesser is cut off after this many misses.
+    relay_auth_failures_per_minute: int = Field(default=10, ge=1)
     # Internal URL the API uses to reach the relay's bridge endpoint (Session 7.5).
     relay_internal_url: str = "http://localhost:8100"
     # Public base the coordinator advertises for endpoint URLs.
@@ -223,9 +227,21 @@ class Settings(BaseSettings):
     staking_address: str = ""  # GridixStaking
     usdc_address: str = ""
     usdc_decimals: int = Field(default=6, ge=0, le=36)
+    # How the coordinator signs on-chain transactions (pentest H11).
+    #   "kms"   — the key lives in AWS KMS (ECC_SECG_P256K1) and NEVER enters this process; we
+    #             send a digest and get a signature back. Required outside dev.
+    #   "local" — coordinator_private_key is loaded into memory, where a core file / swap page /
+    #             memory dump leaks the key that can debit every escrow. Dev and tests only;
+    #             bootstrap refuses it when env != "dev".
+    chain_signer: Literal["local", "kms"] = "local"
+    # KMS key id, ARN, or alias (e.g. "alias/gridix-coordinator") used when chain_signer=kms.
+    chain_kms_key_id: str = ""
+    # AWS region for the KMS key; empty falls back to the ambient AWS config/role.
+    chain_kms_region: str = ""
     # Coordinator EOA private key (COORDINATOR_ROLE on both contracts) — it can debit EVERY
-    # developer's escrow, so it is the highest-value secret here. Prefer Vault: leave this empty
-    # and let bootstrap fetch it on demand via the secret manager (it never lands in Settings).
+    # developer's escrow, so it is the highest-value secret here. Used ONLY when
+    # chain_signer=local (dev). In every other environment there is no key here to steal:
+    # set chain_signer=kms and leave this empty.
     # Typed SecretStr so that even an accidental log/repr of Settings masks it ("**********").
     coordinator_private_key: SecretStr = SecretStr("")
     # Expected address the coordinator key must derive to (the on-chain COORDINATOR_ROLE holder).

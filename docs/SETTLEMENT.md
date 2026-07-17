@@ -71,7 +71,9 @@ if their effect was already applied, reversed with a compensating (append-only, 
 | `GRIDIX_CHAIN_ENABLED` | `false` | Master switch; false = fiat-only (`FiatStub`), no RPC. |
 | `GRIDIX_CHAIN_RPC_URL` | — | JSON-RPC endpoint (use one that serves log history for catch-up). |
 | `GRIDIX_ESCROW_ADDRESS` / `GRIDIX_STAKING_ADDRESS` / `GRIDIX_USDC_ADDRESS` | — | Contract addresses. |
-| `GRIDIX_COORDINATOR_PRIVATE_KEY` | — | Signs `debit` / `settleBatch` / `depositSettlement` (via secret manager). |
+| `GRIDIX_CHAIN_SIGNER` | `local` | `kms` (key in AWS KMS, never in the process) or `local` (key in memory). **Startup refuses `local` when `GRIDIX_ENV` is not `dev`.** |
+| `GRIDIX_CHAIN_KMS_KEY_ID` / `GRIDIX_CHAIN_KMS_REGION` | — | KMS key id/ARN/alias and region, when `chain_signer=kms`. |
+| `GRIDIX_COORDINATOR_PRIVATE_KEY` | — | Signs `debit` / `settleBatch` / `depositSettlement`. **Dev only** (`chain_signer=local`); leave empty under KMS. |
 | `GRIDIX_CHAIN_CONFIRMATIONS` | `3` | Confirmations before an event/receipt is final. |
 | `GRIDIX_CHAIN_START_BLOCK` | `0` | Deploy block for a fresh watcher cursor (0 = start at head). |
 | `GRIDIX_CHAIN_LOG_WINDOW` | `500` | Max blocks per `eth_getLogs` (public RPCs cap wide ranges). |
@@ -79,6 +81,59 @@ if their effect was already applied, reversed with a compensating (append-only, 
 | `GRIDIX_RECONCILE_INTERVAL_SECONDS` | `300` | Reconciliation cadence. |
 
 Install the driver with the optional extra: `pip install '.[chain]'` (web3, lazy-imported).
+KMS signing additionally needs `aioboto3` (`pip install '.[s3]'`), also lazy-imported.
+
+## Coordinator signing: the key never enters the process (pentest H11)
+
+The coordinator EOA holds `COORDINATOR_ROLE` on both contracts — it can debit **every**
+developer's escrow. Held in process memory it is one core file, swap page, or memory dump away
+from total financial compromise, and Python cannot scrub it back out: `str` is immutable,
+`SecretStr` only masks `repr`, the secret manager caches values for the process lifetime, and
+`eth_account` copies the key internally. So we removed the key from the process instead of
+pretending to erase it.
+
+Under `GRIDIX_CHAIN_SIGNER=kms` the coordinator holds only an address and a key id. Each
+transaction is RLP-encoded locally, and its 32-byte keccak digest is sent to KMS, which returns a
+signature. **There is no key in the process to dump.** `build_signer` refuses `local` outside dev,
+so this cannot be forgotten on a deploy.
+
+### Provisioning the KMS key
+
+```bash
+# The key spec is not negotiable: Ethereum is secp256k1 only.
+aws kms create-key \
+  --key-spec ECC_SECG_P256K1 \
+  --key-usage SIGN_VERIFY \
+  --description 'GRIDIX coordinator EOA'
+aws kms create-alias \
+  --alias-name alias/gridix-coordinator \
+  --target-key-id <key-id>
+```
+
+Grant the coordinator's role **exactly** `kms:GetPublicKey` and `kms:Sign` on that key — nothing
+else. Then derive the address it signs as and grant that address `COORDINATOR_ROLE` on-chain:
+
+```bash
+python -c "
+import asyncio
+from app.chain.signer import KmsSigner
+print(asyncio.run(KmsSigner.create('alias/gridix-coordinator')).address)"
+```
+
+Set `GRIDIX_EXPECTED_COORDINATOR_ADDRESS` to that address: startup then refuses to boot if the KMS
+key ever stops matching the on-chain role holder (a rotated-out or wrong key fails fast instead of
+reverting on-chain).
+
+**Rotation** is: create a new KMS key → grant the new address `COORDINATOR_ROLE` → point
+`GRIDIX_CHAIN_KMS_KEY_ID` and `GRIDIX_EXPECTED_COORDINATOR_ADDRESS` at it → revoke the old role.
+No secret ever moves, because there is no secret to move.
+
+**Not yet verified against real AWS.** The reassembly (DER → address, DER → low-s (r, s) →
+recovery id → RLP) is covered end to end by `tests/test_pentest_wave3_signer.py` against a fake KMS
+backed by a local key, which is faithful to KMS's narrow digest-in/DER-out contract. What those
+tests cannot cover is the boto3 call itself — parameter/response shapes, IAM, region resolution.
+Do a testnet `settleBatch` under `chain_signer=kms` before trusting it with mainnet funds, the same
+way the Docker socket proxy was proven on a real host rather than on assertion.
 
 ## Live Sepolia verification
 

@@ -63,7 +63,9 @@ function makeOptimisticJob(id: string, body: SubmitJobRequest): Job {
     is_high_value: body.is_high_value ?? false,
     redundancy: 1,
     exposed_port: null,
-    data_tier: "standard",
+    // Must mirror what the form actually sends; "standard" is not a backend tier,
+    // so the optimistic row flashed a value no job can ever have.
+    data_tier: body.data_tier ?? "public",
     assigned_provider_id: null,
     attempt_count: 0,
     lease_expires_at: null,

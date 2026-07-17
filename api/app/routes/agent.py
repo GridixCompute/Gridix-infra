@@ -15,8 +15,8 @@ from sqlalchemy import delete, select
 from app.antispoof import detect_capacity_inflation, find_hardware_collisions
 from app.attestation import verify_attestation
 from app.bandwidth import record_bandwidth
-from app.benchmark import validate_benchmark
-from app.deps import ProviderDep, SessionDep, SettingsDep
+from app.benchmark import validate_benchmark, verify_signature
+from app.deps import ProviderDep, ProviderKeyDep, SessionDep, SettingsDep
 from app.health import evaluate_degraded
 from app.key_broker import KeyReleaseError, release_data_key
 from app.models import (
@@ -285,13 +285,23 @@ async def report_status(
 
 @router.post("/benchmark", response_model=BenchmarkResponse, status_code=201)
 async def submit_benchmark(
-    body: BenchmarkSubmit, provider: ProviderDep, session: SessionDep, settings: SettingsDep
+    body: BenchmarkSubmit,
+    provider: ProviderDep,
+    provider_key: ProviderKeyDep,
+    session: SessionDep,
+    settings: SettingsDep,
 ) -> BenchmarkReport:
     """Store a signed onboarding benchmark and validate it against declared hardware.
 
     The report is attributed to the authenticated provider; validation (Session 11.2)
     catches a machine claiming hardware it can't benchmark to.
     """
+    # Verify the HMAC BEFORE trusting a single metric (pentest H10): the signature binds
+    # the report to the provider key that produced it. A forged or tampered signature is
+    # un-attributable, so we drop the submission outright — fail closed, store nothing.
+    if not verify_signature(body.metrics, body.signature, provider_key):
+        raise HTTPException(status_code=400, detail="Benchmark signature is invalid.")
+
     mark_seen(provider, _now(), settings.connection_timeout_seconds)
     ok, reason = validate_benchmark(body.metrics, provider.gpu_model)
 

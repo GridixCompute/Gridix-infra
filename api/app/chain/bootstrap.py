@@ -16,6 +16,7 @@ from loguru import logger
 from app.chain.client import ChainClient, Web3ChainClient
 from app.chain.provider import USDCPaymentProvider
 from app.chain.registry import set_chain_client
+from app.chain.signer import KmsSigner, LocalKeySigner, Signer
 from app.config import Settings
 from app.payments import set_payment_provider
 from app.secret_manager import get_secret_manager
@@ -34,27 +35,51 @@ def install_chain_client(settings: Settings, client: ChainClient) -> ChainClient
     return client
 
 
-def install_chain(settings: Settings) -> ChainClient | None:
+async def build_signer(settings: Settings) -> Signer:
+    """Build the coordinator's signer. Outside dev the key must live in KMS (pentest H11).
+
+    ``local`` loads the private key into process memory, where a core file, swap page, or
+    memory dump leaks the credential that can debit every developer's escrow — and Python
+    cannot scrub it back out. That is acceptable on a laptop and nowhere else, so this
+    refuses to build a local signer unless ``env`` is dev, rather than trusting the
+    operator to have set the right thing.
+    """
+    if settings.chain_signer == "kms":
+        if not settings.chain_kms_key_id:
+            raise ValueError("chain_signer=kms but chain_kms_key_id is unset")
+        return await KmsSigner.create(settings.chain_kms_key_id, settings.chain_kms_region or None)
+
+    if settings.env != "dev":
+        raise ValueError(
+            f"chain_signer=local is refused in env={settings.env}: it holds the coordinator "
+            "private key in process memory, where a memory dump, core file, or swap page leaks "
+            "the key that controls every escrow debit (pentest H11). Set GRIDIX_CHAIN_SIGNER=kms "
+            "and GRIDIX_CHAIN_KMS_KEY_ID."
+        )
+    # Dev only. Prefer Vault/secret-manager over a value in Settings; never logged.
+    key = settings.coordinator_private_key.get_secret_value() or get_secret_manager().get(
+        "coordinator_private_key"
+    )
+    if not key:
+        raise ValueError("chain_enabled but coordinator_private_key is unset")
+    logger.warning("coordinator signing with an IN-PROCESS key (dev only) — not for deployment")
+    return LocalKeySigner(key)
+
+
+async def install_chain(settings: Settings) -> ChainClient | None:
     """Build + install the real chain client from settings, or ``None`` if disabled."""
     if not settings.chain_enabled:
         return None
     for name in ("chain_rpc_url", "escrow_address", "staking_address"):
         if not getattr(settings, name):
             raise ValueError(f"chain_enabled but {name} is unset")
-    # Prefer Vault/secret-manager over a value in Settings: the key is fetched on demand here and
-    # handed straight to the client (which needs it to sign). It is never logged or persisted on
-    # Settings; the SecretStr wrapper masks any accidental repr of a value injected via env.
-    key = settings.coordinator_private_key.get_secret_value() or get_secret_manager().get(
-        "coordinator_private_key"
-    )
-    if not key:
-        raise ValueError("chain_enabled but coordinator_private_key is unset")
+    signer = await build_signer(settings)
     client = Web3ChainClient(
         rpc_url=settings.chain_rpc_url,
         chain_id=settings.chain_id,
         escrow_address=settings.escrow_address,
         staking_address=settings.staking_address,
-        coordinator_private_key=key,
+        signer=signer,
         log_window=settings.chain_log_window,
     )
     verify_coordinator_address(client.coordinator_address, settings.expected_coordinator_address)
