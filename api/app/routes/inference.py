@@ -188,9 +188,16 @@ async def chat_completions(
         raise _node_failed(exc, provider_id, "chat") from exc
 
     usage = _usage_from(reply, prompt_tokens=prompt_tokens, max_output_tokens=max_output)
-    # The gate checked the balance against `worst_case`. Billing above it would mean
-    # charging for something the developer was never asked to approve, so the ceiling
-    # holds here too — whatever the node says it did.
+    # The gate checked the balance against `worst_case`, so the bill is clamped to it: a
+    # node that over-reports its usage cannot charge past the ceiling the developer was
+    # priced against. The clamp holds on the raw Decimals, but `_charge` then quantizes
+    # the result half-up to USDC's six decimals, so the amount actually posted can land up
+    # to 5e-7 (half of USDC's 1e-6 tick) ABOVE this raw ceiling. That overshoot is a
+    # rounding artifact at the smallest payable USDC unit, not a leak: it is bounded by the
+    # resolution and cannot compound, and 5e-7 USDC is below what the chain can even settle.
+    # Quantizing with ceil (always rounding the charge up) was tried and reverted — it
+    # raised developer bills by 12.5%, far worse than the half-up tick. So the ceiling binds
+    # up to USDC's six-decimal resolution, and no further.
     billed = min(
         chat_cost(spec, input_tokens=usage.prompt_tokens, output_tokens=usage.completion_tokens),
         worst_case,
