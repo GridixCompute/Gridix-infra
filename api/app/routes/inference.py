@@ -166,6 +166,21 @@ async def chat_completions(
             "stream=true is not implemented: the network cannot forward partial results "
             "yet. Send stream=false for a single complete response.",
         )
+    if body.data_tier is DataTier.confidential_tee:
+        # Refused before the gate and before a node, for the same reason streaming is: the
+        # request asks for something the network cannot deliver on this path. On the chat
+        # path `data_tier` only selects an attested node and then sends the prompt down the
+        # tunnel in cleartext — no envelope encryption, no attestation-gated key release,
+        # none of the enclave confidentiality the confidential_tee tier promises (that
+        # machinery exists for jobs, not for /v1/chat/completions). Accepting the tier here
+        # would take money for a guarantee we do not enforce, so we refuse it outright
+        # rather than serve a weaker thing under its name.
+        raise HTTPException(
+            status.HTTP_501_NOT_IMPLEMENTED,
+            "data_tier=confidential_tee is not supported on the chat path: enclave "
+            "attestation is not enforced here, so the prompt would reach the node in "
+            "cleartext. Use data_tier=public (the default) for chat completions.",
+        )
     spec = _model_or_404(body.model, Modality.chat)
     max_output = min(body.max_tokens or spec.max_output_tokens, spec.max_output_tokens)
     prompt_tokens = _prompt_token_bound(body)

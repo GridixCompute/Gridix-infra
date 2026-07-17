@@ -194,6 +194,51 @@ class TestChat:
 
         assert res.status_code == 200, res.text
 
+    async def test_confidential_tee_is_refused_rather_than_served_in_cleartext(
+        self, client: AsyncClient, session
+    ) -> None:
+        """501, and before the node is touched.
+
+        `data_tier` is in the schema, so a client will send `confidential_tee`. On the chat
+        path it only selects an attested node and then sends the prompt down the tunnel in
+        cleartext — none of the envelope encryption or attestation-gated key release the tier
+        promises (that machinery is for jobs). Serving the request anyway would take money
+        for a confidentiality guarantee the code does not enforce, so the honest answer is
+        'not implemented' before anything is charged or dispatched. Mirror of the stream
+        refusal above: do not offer what the network cannot deliver.
+
+        Mutation guard: delete the guard in the route and this reaches dispatch — the node
+        is called and the assertion on `call.assert_not_awaited()` goes red.
+        """
+        dev_id, key = await register(client, "developer", "Acme")
+        await fund(session, uuid.UUID(dev_id), "10")
+        # An attested node exists, so the refusal is the tier policy, not "no node to serve".
+        await make_node(session, tee=True)
+
+        call = AsyncMock()
+        with patch("app.dispatch.call_provider", new=call):
+            res = await chat(client, key, data_tier="confidential_tee")
+
+        assert res.status_code == 501, res.text
+        assert "confidential_tee" in res.text
+        call.assert_not_awaited()  # the node's GPU was never asked to do anything
+
+    async def test_the_default_public_tier_still_serves_on_chat(
+        self, client: AsyncClient, session
+    ) -> None:
+        """The refusal must be about confidential_tee specifically, not about the field.
+
+        `public` is the default every existing chat client sends, and it must be unaffected.
+        """
+        dev_id, key = await register(client, "developer", "Acme")
+        await fund(session, uuid.UUID(dev_id), "10")
+        await make_node(session)
+
+        with patch("app.dispatch.call_provider", new=AsyncMock(return_value=node_reply())):
+            res = await chat(client, key, data_tier="public")
+
+        assert res.status_code == 200, res.text
+
     async def test_unknown_model_is_404(self, client: AsyncClient, session) -> None:
         dev_id, key = await register(client, "developer", "Acme")
         await fund(session, uuid.UUID(dev_id), "10")
@@ -242,26 +287,43 @@ class TestImages:
 class TestPlacementRulesApplyOnTheV1Path:
     """The gates proven in test_dispatch.py must hold through the real endpoint too."""
 
-    async def test_confidential_work_needs_an_attested_node(
+    async def test_confidential_work_is_refused_on_the_v1_path_before_placement(
         self, client: AsyncClient, session
     ) -> None:
+        """confidential_tee is refused (501) on the chat path before a node is chosen.
+
+        This class used to assert the attested-only placement rule *through* the chat
+        endpoint: confidential_tee got 503 with no attested node and 200 with one. That
+        rule was a lie here — the endpoint selected an attested node and then sent the
+        prompt in cleartext, enforcing none of the tier's confidentiality (see the refusal
+        added to /v1/chat/completions). Now the tier is refused upstream, so placement is
+        never reached: the attested/non-attested distinction is moot on this path, and the
+        answer is 501 either way.
+
+        The placement gate itself (confidential work → attested nodes only) is unchanged in
+        `eligible_nodes`/`select_node` and is still covered at the dispatch layer in
+        test_dispatch.py; it would matter through this endpoint again only if the chat path
+        gains real enclave enforcement.
+        """
         dev_id, key = await register(client, "developer", "Acme")
         await fund(session, uuid.UUID(dev_id), "10")
+
+        # No attested node: old behavior was 503 (placement found nothing); now 501, before
+        # placement runs at all.
         await make_node(session, tee=False)
-
-        res = await chat(client, key, data_tier="confidential_tee")
-        assert res.status_code == 503
-
-    async def test_confidential_work_runs_on_an_attested_node(
-        self, client: AsyncClient, session
-    ) -> None:
-        dev_id, key = await register(client, "developer", "Acme")
-        await fund(session, uuid.UUID(dev_id), "10")
-        await make_node(session, tee=True)
-
-        with patch("app.dispatch.call_provider", new=AsyncMock(return_value=node_reply())):
+        call = AsyncMock()
+        with patch("app.dispatch.call_provider", new=call):
             res = await chat(client, key, data_tier="confidential_tee")
-        assert res.status_code == 200
+        assert res.status_code == 501, res.text
+        call.assert_not_awaited()
+
+        # An attested node exists: old behavior was 200; the refusal is a tier policy, not a
+        # "no node" condition, so it is still 501 and the node is still untouched.
+        await make_node(session, tee=True)
+        with patch("app.dispatch.call_provider", new=call):
+            res = await chat(client, key, data_tier="confidential_tee")
+        assert res.status_code == 501, res.text
+        call.assert_not_awaited()
 
     async def test_an_understaked_node_gets_no_v1_traffic(
         self, client: AsyncClient, session
