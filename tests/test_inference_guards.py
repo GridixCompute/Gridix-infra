@@ -22,6 +22,7 @@ from app.config import get_settings
 from app.dispatch import inflight_count, reset_inflight, select_node, track_inflight
 from app.ledger import deposit_stake
 from app.models import Provider, ProviderModel
+from app.schemas import ChatCompletionRequest
 from app.usage_billing import (
     InsufficientBalanceError,
     charge_usage,
@@ -376,6 +377,134 @@ class TestTheCeilingIsReal:
         assert len(res.json()["images"]) == 1
         session.expire_all()
         assert await developer_balance(session, dev) == Decimal("9.99")
+
+
+# ── Guard 3b: the prompt bound is a true upper bound (bytes, not characters) ──────
+
+
+class TestTheBoundIsBytesNotChars:
+    """`_prompt_token_bound` sizes both the gate and the bill ceiling, so it must never
+    fall below a node's real token count — or the ceiling clamps an honest node's bill down.
+
+    Counting characters looked like an upper bound but is not: the byte-level BPE these
+    models use can turn one character into several tokens (an emoji, a ZWJ-joined grapheme),
+    so a character count can sit *below* the true token count. UTF-8 byte length can't —
+    every token maps to at least one byte, so byte_count >= token_count always.
+    """
+
+    def _reply(self, *, prompt: int, completion: int) -> dict:
+        return {
+            "status": 200,
+            "payload": {
+                "content": "hi",
+                "usage": {"prompt_tokens": prompt, "completion_tokens": completion},
+            },
+        }
+
+    def test_the_bound_counts_utf8_bytes_not_characters(self) -> None:
+        """A direct read of the bound. A ZWJ family emoji is 7 Python characters but 25
+        UTF-8 bytes, and a byte-level tokeniser produces several tokens for it — all above 7.
+        The bound must report the bytes to stay above the token count.
+
+        Mutation guard: revert the body to `len(m.content)` and this drops to 7 — red.
+        """
+        from app.routes.inference import _prompt_token_bound
+
+        body = ChatCompletionRequest(
+            model=CHAT_MODEL, messages=[{"role": "user", "content": "👨‍👩‍👧‍👦"}]
+        )
+        assert _prompt_token_bound(body) == 25  # bytes, not 7 characters
+
+    def test_ascii_is_unchanged_from_the_character_count(self) -> None:
+        """The trade-off is one-sided: for ASCII, one byte per character, so English prompts
+        get the exact same bound they had under the character count — no regression."""
+        from app.routes.inference import _prompt_token_bound
+
+        body = ChatCompletionRequest(
+            model=CHAT_MODEL, messages=[{"role": "user", "content": "hello world"}]
+        )
+        assert _prompt_token_bound(body) == len("hello world") == 11
+
+    async def test_an_honest_node_on_emoji_is_paid_above_the_character_count(
+        self, client: AsyncClient, session
+    ) -> None:
+        """The underpay bug the byte bound fixes, end to end.
+
+        Prompt: a family emoji ×20 = 140 characters, 500 UTF-8 bytes. An honest byte-level
+        node reports 300 prompt tokens — more than the 140 characters, fewer than the 500
+        bytes: exactly the range a character bound gets wrong.
+
+        Cost of what the node did: 300 in @ 0.05/Mtok + 1 out @ 0.08/Mtok = 0.00001508.
+          - byte ceiling (input 500): 0.00002508 — does not bind; node is paid 0.000015.
+          - char ceiling (input 140): 0.00000708 — WOULD clamp the bill to 0.000007,
+            underpaying the honest node by more than half, silently.
+
+        Mutation guard: revert the bound to characters and the asserted 0.000015 becomes
+        0.000007 — red.
+        """
+        dev_id, key = await register(client, "developer", "Acme")
+        dev = uuid.UUID(dev_id)
+        await fund(session, dev, "10")
+        await make_node(session)
+
+        prompt = "👨‍👩‍👧‍👦" * 20
+        with patch(
+            "app.dispatch.call_provider",
+            new=AsyncMock(return_value=self._reply(prompt=300, completion=1)),
+        ):
+            res = await client.post(
+                "/v1/chat/completions",
+                headers=auth(key),
+                json={
+                    "model": CHAT_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 1,
+                },
+            )
+
+        assert res.status_code == 200, res.text
+        # Paid for what it reported, not clamped down to the character ceiling.
+        assert Decimal(res.json()["cost_usdc"]) == Decimal("0.000015")
+        assert res.json()["usage"]["prompt_tokens"] == 300
+        session.expire_all()
+        assert await developer_balance(session, dev) == Decimal("9.999985")
+
+    async def test_a_cjk_prompt_over_states_the_ceiling_without_overcharging(
+        self, client: AsyncClient, session
+    ) -> None:
+        """The documented CJK trade-off, verified harmless to the bill.
+
+        Prompt: a CJK character ×100 = 100 characters, 300 UTF-8 bytes (~3×). The byte bound
+        over-states the ceiling — loose, and on the developer's side — but an honest node
+        reporting ~1 token/character (100 tokens) is billed for exactly that, because the
+        generous ceiling does not bind: 100 in @ 0.05/Mtok + 1 out @ 0.08/Mtok = 0.00000508.
+        A looser ceiling is a `max`, so it can never turn into an overcharge; the bill still
+        tracks the node's real usage.
+        """
+        dev_id, key = await register(client, "developer", "Acme")
+        dev = uuid.UUID(dev_id)
+        await fund(session, dev, "10")
+        await make_node(session)
+
+        prompt = "中" * 100
+        with patch(
+            "app.dispatch.call_provider",
+            new=AsyncMock(return_value=self._reply(prompt=100, completion=1)),
+        ):
+            res = await client.post(
+                "/v1/chat/completions",
+                headers=auth(key),
+                json={
+                    "model": CHAT_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 1,
+                },
+            )
+
+        assert res.status_code == 200, res.text
+        assert Decimal(res.json()["cost_usdc"]) == Decimal("0.000005")
+        session.expire_all()
+        assert await developer_balance(session, dev) == Decimal("9.999995")
 
 
 # ── The charge itself ────────────────────────────────────────────────────────────
