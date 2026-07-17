@@ -11,6 +11,14 @@ jobs:
   # integration happy path). A PR that breaks the happy path fails here (12.2).
   test:
     runs-on: ubuntu-latest
+    # ~2m14s normally. A hang is not a failure — it is a disappearance: without a timeout
+    # GitHub lets the job sit for its 6-hour default, and "still running" looks exactly
+    # like "still running" whether the suite is working or parked forever on a deadlock.
+    # This one is set from experience: a websocket test deadlocked the suite and burned
+    # half an hour before anyone thought to look. Every job below carries the same guard,
+    # at roughly 3x its normal run — loose enough for a slow runner, tight enough that a
+    # hang turns into a red X in minutes instead of a silence nobody notices.
+    timeout-minutes: 10
     # The suite is hermetic on SQLite, with one exception that cannot be: concurrent
     # charges are serialised with SELECT ... FOR UPDATE, which SQLite parses and ignores.
     # Removing that lock leaves every SQLite test green while a developer can overdraw, so
@@ -73,6 +81,8 @@ jobs:
   # them to GHCR. The Trivy gate runs BEFORE any push, so a HIGH/CRITICAL image never ships.
   images:
     runs-on: ubuntu-latest
+    # ~1m54s; docker builds vary most.
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: write
@@ -149,6 +159,8 @@ jobs:
   # Dependency / supply-chain scanning (12.6): fail on known-vulnerable packages.
   security:
     runs-on: ubuntu-latest
+    # ~21s.
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -168,6 +180,8 @@ jobs:
   # A PR that breaks any of these fails here.
   frontend:
     runs-on: ubuntu-latest
+    # ~1m24s.
+    timeout-minutes: 8
     defaults:
       run:
         working-directory: frontend
@@ -199,6 +213,8 @@ jobs:
   # breaks the main flow (auth, submit, job lifecycle, failure paths) fails here.
   e2e:
     runs-on: ubuntu-latest
+    # ~2m5s; builds then runs Playwright.
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: frontend
@@ -234,6 +250,8 @@ jobs:
   # of silent contract-drift bugs.
   openapi-drift:
     runs-on: ubuntu-latest
+    # ~35s.
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
