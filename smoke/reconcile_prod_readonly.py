@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "api"))
 
 from app.chain.client import Web3ChainClient  # noqa: E402
 from app.chain.reconcile import CHAIN_DIVERGENCE, Reconciler  # noqa: E402
+from app.chain.signer import LocalKeySigner  # noqa: E402
 from app.chain.watcher import ChainWatcher  # noqa: E402
 from app.db import Base, get_engine, get_sessionmaker  # noqa: E402
 
@@ -79,7 +80,7 @@ async def main() -> None:
         chain_id=CHAIN_ID,
         escrow_address=ESCROW,
         staking_address=STAKING,
-        coordinator_private_key=key,  # constructor only; never used to sign here
+        signer=LocalKeySigner(key),  # read-only script; never signs
         log_window=500,
     )
     print(f"RPC={rpc}\nPRODUCTION escrow={ESCROW}\nPRODUCTION staking={STAKING}\n")

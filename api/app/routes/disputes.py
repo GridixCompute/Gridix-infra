@@ -63,7 +63,10 @@ async def contest(dispute_id: uuid.UUID, provider: ProviderDep, session: Session
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Dispute is no longer open."
         )
-    await contest_dispute(session, dispute)
+    if not await contest_dispute(session, dispute):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Dispute contest window has closed."
+        )
     return dispute
 
 

@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     init_secrets(settings)
     # Install the on-chain payment provider so the submit gate reads on-chain balances
     # (no-op when chain_enabled is false — the process stays fiat-only).
-    install_chain(settings)
+    await install_chain(settings)
     logger.info("GRIDIX API starting (env={})", settings.env)
     yield
     await close_redis()

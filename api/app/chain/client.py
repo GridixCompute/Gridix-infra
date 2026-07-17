@@ -18,6 +18,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from app.chain.signer import Signer
+
 # ── value objects returned by the client ───────────────────────────────────────────────
 
 
@@ -243,12 +245,11 @@ class Web3ChainClient(ChainClient):
         chain_id: int,
         escrow_address: str,
         staking_address: str,
-        coordinator_private_key: str,
+        signer: Signer,
         gas_multiplier: float = 1.25,
         log_window: int = 500,
     ) -> None:
         try:
-            from eth_account import Account
             from web3 import AsyncWeb3
 
             # AsyncHTTPProvider moved across web3 6/7 — accept either location.
@@ -263,7 +264,9 @@ class Web3ChainClient(ChainClient):
 
         self._w3 = AsyncWeb3(AsyncHTTPProvider(rpc_url))
         self._chain_id = chain_id
-        self._acct = Account.from_key(coordinator_private_key)
+        # The signer owns the key material — or, under KMS, owns nothing at all and the key
+        # never enters this process (pentest H11). All this client keeps is the address.
+        self._signer = signer
         self._escrow = self._w3.eth.contract(
             address=self._w3.to_checksum_address(escrow_address), abi=_ESCROW_ABI
         )
@@ -272,7 +275,7 @@ class Web3ChainClient(ChainClient):
         )
         self._gas_multiplier = gas_multiplier
         self._log_window = max(1, log_window)
-        self._addr_lc = self._acct.address.lower()
+        self._addr_lc = signer.address.lower()
 
     @property
     def coordinator_address(self) -> str:
@@ -348,15 +351,15 @@ class Web3ChainClient(ChainClient):
 
     async def get_nonce(self, *, pending: bool = True) -> int:
         block = "pending" if pending else "latest"
-        return int(await self._w3.eth.get_transaction_count(self._acct.address, block))
+        return int(await self._w3.eth.get_transaction_count(self._signer.address, block))
 
     async def _send(self, fn, nonce: int) -> str:
         base = {
-            "from": self._acct.address,
+            "from": self._signer.address,
             "nonce": nonce,
             "chainId": self._chain_id,
         }
-        gas = await fn.estimate_gas({"from": self._acct.address})
+        gas = await fn.estimate_gas({"from": self._signer.address})
         base["gas"] = int(gas * self._gas_multiplier)
         # EIP-1559 fees: the priority (tip) must never exceed maxFeePerGas. On a quiet chain
         # `eth_gasPrice` can dip below a flat 1 gwei tip, which the node rejects ("max priority
@@ -366,8 +369,7 @@ class Web3ChainClient(ChainClient):
         base["maxPriorityFeePerGas"] = tip
         base["maxFeePerGas"] = gas_price + tip
         tx = await fn.build_transaction(base)
-        signed = self._acct.sign_transaction(tx)
-        raw = getattr(signed, "raw_transaction", None) or signed.rawTransaction
+        raw = await self._signer.sign_transaction(tx)
         h = await self._w3.eth.send_raw_transaction(raw)
         return h.hex() if hasattr(h, "hex") else str(h)
 

@@ -22,17 +22,22 @@ from app.redis_client import get_redis
 _local_windows: dict[tuple[str, int], int] = {}
 
 
+def _bump_local(identity: str, window: int) -> int:
+    """Increment and return the per-process counter for ``(identity, window)``."""
+    for k in [k for k in _local_windows if k[1] < window - 1]:
+        del _local_windows[k]
+    count = _local_windows.get((identity, window), 0) + 1
+    _local_windows[(identity, window)] = count
+    return count
+
+
 def _check_local(identity: str, window: int, limit: int) -> bool:
     """Fail-closed fallback: a per-process fixed-window counter.
 
     Bounded by ``limit`` per process per window (at most limit×replicas overall) — never
     unlimited, so a Redis outage degrades to a stricter local cap, not an open door.
     """
-    for k in [k for k in _local_windows if k[1] < window - 1]:
-        del _local_windows[k]
-    count = _local_windows.get((identity, window), 0) + 1
-    _local_windows[(identity, window)] = count
-    return count <= limit
+    return _bump_local(identity, window) <= limit
 
 
 def _identity(request: Request) -> str:
@@ -61,6 +66,43 @@ async def check_rate_limit(identity: str, limit: int, window_seconds: int = 60) 
     except Exception as exc:  # noqa: BLE001 - fail CLOSED: fall back to the local counter
         logger.warning("rate limit: Redis unavailable, using local fallback: {}", exc)
         return _check_local(identity, window, limit)
+
+
+# ── failed-authentication budget (pentest H8) ──────────────────────────────────────────
+# Same fixed-window, fail-closed shape as check_rate_limit, but split into a read-only
+# "exceeded?" and a "record" half so that only FAILURES spend the budget. Counting every
+# attempt instead would throttle a legitimate provider that reconnects often (many agents
+# behind one NAT egress IP), while counting failures only touches an attacker: a provider
+# holding a valid key never fails.
+
+
+def _fail_key(identity: str, window: int) -> str:
+    return f"gridix:authfail:{identity}:{window}"
+
+
+async def record_auth_failure(identity: str, window_seconds: int = 60) -> None:
+    """Charge one failed authentication to ``identity``'s budget for this window."""
+    window = int(time.time()) // window_seconds
+    key = _fail_key(identity, window)
+    try:
+        redis = get_redis()
+        if await redis.incr(key) == 1:
+            await redis.expire(key, window_seconds)
+    except Exception as exc:  # noqa: BLE001 - fail CLOSED: still count it, per-process
+        logger.warning("auth-failure counter: Redis unavailable, using local fallback: {}", exc)
+        _bump_local(_fail_key(identity, 0), window)
+
+
+async def auth_failures_exceeded(identity: str, limit: int, window_seconds: int = 60) -> bool:
+    """True once ``identity`` has burned its failed-auth budget. Never increments."""
+    window = int(time.time()) // window_seconds
+    try:
+        redis = get_redis()
+        count = int(await redis.get(_fail_key(identity, window)) or 0)
+    except Exception as exc:  # noqa: BLE001 - fail CLOSED: trust the per-process count
+        logger.warning("auth-failure counter: Redis unavailable, using local fallback: {}", exc)
+        count = _local_windows.get((_fail_key(identity, 0), window), 0)
+    return count >= limit
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

@@ -1,7 +1,14 @@
 "use client";
 
 import { ApiClient } from "./client";
-import type { Job, SubmitJobRequest, JobAudit, BillingSummary, BillingLedgerEntry } from "./types";
+import type {
+  Job,
+  SubmitJobRequest,
+  JobAudit,
+  BillingSummary,
+  BillingLedgerEntry,
+  BlobRef,
+} from "./types";
 import type { JobFilters } from "@/lib/query/keys";
 
 /**
@@ -10,6 +17,13 @@ import type { JobFilters } from "@/lib/query/keys";
  * see the API key. All return types come from the generated OpenAPI schema.
  */
 const gw = new ApiClient({ baseUrl: "/api/gw" });
+
+/** Mirrors the backend's per-blob guardrail (api/app/routes/blobs.py). */
+export const MAX_BLOB_BYTES = 256 * 1024 * 1024;
+
+// A blob upload is a body transfer, not a round trip — the 15s default would abort
+// any real dataset mid-flight.
+const UPLOAD_TIMEOUT_MS = 10 * 60_000;
 
 function jobsQuery(filters: JobFilters): string {
   const p = new URLSearchParams();
@@ -31,6 +45,12 @@ export const api = {
   },
   submitJob(body: SubmitJobRequest): Promise<Job> {
     return gw.post<Job>("/jobs", body);
+  },
+  /** Stage a job's input data; the returned ref becomes the job's `input_ref`. */
+  uploadBlob(file: File, signal?: AbortSignal): Promise<BlobRef> {
+    const form = new FormData();
+    form.append("file", file);
+    return gw.post<BlobRef>("/blobs", form, { signal, timeoutMs: UPLOAD_TIMEOUT_MS });
   },
   billingSummary(signal?: AbortSignal): Promise<BillingSummary> {
     return gw.get<BillingSummary>("/billing/summary", { signal, retries: 2 });

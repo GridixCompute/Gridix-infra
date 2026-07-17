@@ -7,6 +7,8 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { USDCAmount } from "@/components/domain/USDCAmount";
+import { JobInputField } from "@/components/app/JobInputField";
+import type { StagedInput } from "@/components/app/JobInputField";
 import { useSubmitJob } from "@/lib/hooks/useSubmitJob";
 import { estimateCost } from "@/lib/pricing";
 import { isApiError } from "@/lib/api/errors";
@@ -29,6 +31,8 @@ export default function NewJobPage() {
   const [allowEgress, setAllowEgress] = useState(false);
   const [command, setCommand] = useState("");
   const [envRows, setEnvRows] = useState<EnvRow[]>([{ key: "", value: "" }]);
+  const [input, setInput] = useState<StagedInput | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // First-run sample (Sesi 14.2): /jobs/new?sample=1 prefills a tiny public
   // container a new developer can submit as-is to see the full flow.
@@ -64,7 +68,9 @@ export default function NewJobPage() {
     return undefined;
   }
 
-  const canSubmit = Object.keys(clientErrors).length === 0 && !submit.isPending;
+  // Submitting mid-upload would send a null input_ref and silently run the job
+  // without its data — wait for the ref.
+  const canSubmit = Object.keys(clientErrors).length === 0 && !submit.isPending && !uploading;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -76,6 +82,7 @@ export default function NewJobPage() {
 
     const body: SubmitJobRequest = {
       image_ref: imageRef.trim(),
+      input_ref: input?.ref ?? null,
       resource_spec: {
         cpu_cores: cpuCores,
         memory_mb: memoryMb,
@@ -147,6 +154,15 @@ export default function NewJobPage() {
                 mono
                 hint="Overrides the image entrypoint. Space-separated."
               />
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Input data (optional)</CardTitle>
+            </CardHeader>
+            <CardBody>
+              <JobInputField value={input} onChange={setInput} onUploadingChange={setUploading} />
             </CardBody>
           </Card>
 

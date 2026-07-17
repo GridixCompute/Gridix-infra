@@ -139,7 +139,7 @@ async def main() -> None:
     # Install the chain layer (no-op when disabled). Not for the watcher/settlement loops —
     # those live in app.chain_worker now — but because install_chain also registers the USDC
     # payment provider that this process settles escrow through.
-    install_chain(settings)
+    await install_chain(settings)
     # Serve worker metrics (its own Prometheus scrape target). Bind to loopback by default
     # (M7) so the exporter isn't exposed to the internet; the operator widens the addr only
     # behind a network policy.
