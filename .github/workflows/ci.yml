@@ -85,6 +85,11 @@ jobs:
           GRIDIX_TEST_POSTGRES_URL: postgresql+asyncpg://gridix:gridix@localhost:5432/gridix_test
         run: pytest -q
 
+      # The node/ package is not on the repo suite's testpaths (pyproject testpaths=["tests"]),
+      # so it needs its own invocation to be gated. It needs no database, only websockets +
+      # httpx (already installed via uvicorn[standard] + the base deps).
+      - name: Node package tests
+        run: pytest node/tests -q
 
       - name: Packaging build
         run: pip install -e .
