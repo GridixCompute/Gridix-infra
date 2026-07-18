@@ -34,7 +34,7 @@ export default function NewJobPage() {
   const [input, setInput] = useState<StagedInput | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  // First-run sample (Sesi 14.2): /jobs/new?sample=1 prefills a tiny public
+  // First-run sample (Session 14.2): /jobs/new?sample=1 prefills a tiny public
   // container a new developer can submit as-is to see the full flow.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("sample") === "1") {
@@ -50,7 +50,7 @@ export default function NewJobPage() {
     [cpuCores, gpu, timeoutSeconds],
   );
 
-  // Client validation mirroring the backend (Sesi 7.5); the server 422 is final.
+  // Client validation mirroring the backend (Session 7.5); the server 422 is final.
   const clientErrors = useMemo(() => {
     const e: Record<string, string> = {};
     if (!imageRef.trim()) e.image_ref = "Enter a container image reference.";

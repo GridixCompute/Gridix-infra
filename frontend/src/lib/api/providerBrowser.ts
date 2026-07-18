@@ -12,7 +12,7 @@ import type {
 } from "./types";
 
 /**
- * Provider API surface (Sesi 11). Same discipline as the developer surface:
+ * Provider API surface (Session 11). Same discipline as the developer surface:
  * every call goes through the same-origin authenticated proxy (/api/gw), so the
  * agent key never reaches browser JS, and all return types come from the
  * generated OpenAPI schema.

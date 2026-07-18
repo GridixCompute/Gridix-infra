@@ -14,7 +14,7 @@ export function friendlyTxError(e: unknown): string {
 }
 
 /**
- * Shared on-chain-action lifecycle (Sesi 5.4): signing → pending (hash +
+ * Shared on-chain-action lifecycle (Session 5.4): signing → pending (hash +
  * explorer) → confirmed, never showing success before the chain confirms.
  * `send` broadcasts one tx and waits for its receipt; a multi-step action
  * (e.g. approve then stake) calls it more than once inside `run`.

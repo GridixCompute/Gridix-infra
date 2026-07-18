@@ -1,5 +1,5 @@
 /**
- * Inference client — chat completions over SSE (Sesi 4.2) and image generation (Sesi 5.1).
+ * Inference client — chat completions over SSE (Session 4.2) and image generation (Session 5.1).
  *
  * The real path is written out in full even though nothing serves it yet: the mock and the
  * backend expose the *same* generator contract, so landing `/v1/chat/completions` is a flag
@@ -22,7 +22,7 @@ import type {
   InferenceModel,
 } from "./types";
 
-/** Errors the playground must react to differently (Sesi 4.2). */
+/** Errors the playground must react to differently (Session 4.2). */
 export type InferenceErrorKind =
   | "insufficient_balance" // 403 — top up
   | "node_timeout" // 504 — the provider took too long
@@ -87,7 +87,7 @@ export async function listModels(signal?: AbortSignal): Promise<InferenceModel[]
 }
 
 /**
- * Generate one image (Sesi 5.1).
+ * Generate one image (Session 5.1).
  *
  * Unary, not streamed: there is no partial image to show, so the panel renders a progress
  * state and this resolves once. `signal` maps to cancel; an aborted request throws

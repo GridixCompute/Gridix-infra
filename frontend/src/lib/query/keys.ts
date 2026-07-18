@@ -1,4 +1,4 @@
-/** Structured query-key factory (Sesi 3.1). One source of truth for cache keys. */
+/** Structured query-key factory (Session 3.1). One source of truth for cache keys. */
 export type JobFilters = {
   status?: string;
   limit?: number;
@@ -15,7 +15,7 @@ export const queryKeys = {
   session: {
     current: ["session"] as const,
   },
-  /** Inference (Sesi 4-5). Model list is long-lived; the rate card rarely moves. */
+  /** Inference (Session 4-5). Model list is long-lived; the rate card rarely moves. */
   inference: {
     models: ["inference", "models"] as const,
   },

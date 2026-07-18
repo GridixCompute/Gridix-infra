@@ -4,7 +4,7 @@ import { setSession } from "@/lib/auth/session";
 import type { RegisteredPrincipal } from "@/lib/api/types";
 
 /**
- * Register a developer (Sesi 4.1). Forwards to the backend, then logs the user
+ * Register a developer (Session 4.1). Forwards to the backend, then logs the user
  * in by setting the httpOnly session cookie. The api_key is returned to the
  * page ONCE for the user to copy — after that it only lives in the cookie.
  */

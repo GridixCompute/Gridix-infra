@@ -2,7 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 
 /**
- * Server-only session handling (Sesi 4.2 / 4.5). The developer API key lives in
+ * Server-only session handling (Session 4.2 / 4.5). The developer API key lives in
  * an httpOnly cookie so browser JS can never read it. A separate, non-sensitive
  * cookie carries the display name only.
  */

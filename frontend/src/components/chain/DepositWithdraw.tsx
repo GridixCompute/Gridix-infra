@@ -16,8 +16,8 @@ import { track } from "@/lib/observability/report";
 type Mode = "deposit" | "withdraw";
 
 /**
- * Deposit (approve → deposit, Sesi 6.2) or withdraw (Sesi 6.4), with an honest
- * tx lifecycle (Sesi 5.4): signing → pending (hash + explorer) → confirmed.
+ * Deposit (approve → deposit, Session 6.2) or withdraw (Session 6.4), with an honest
+ * tx lifecycle (Session 5.4): signing → pending (hash + explorer) → confirmed.
  * Never shows success before the chain confirms.
  */
 export function DepositWithdraw({ mode }: { mode: Mode }) {

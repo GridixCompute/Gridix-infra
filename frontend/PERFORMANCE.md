@@ -1,4 +1,4 @@
-# Frontend performance budget (Sesi 13.4)
+# Frontend performance budget (Session 13.4)
 
 Budgets we hold the app to. CI builds print per-route First Load JS; a regression
 that blows the budget should be treated as a bug, not normalised.

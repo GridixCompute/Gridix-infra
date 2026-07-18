@@ -4,7 +4,7 @@ import { AddressDisplay } from "./AddressDisplay";
 export type TxState = "idle" | "signing" | "pending" | "confirmed" | "failed";
 
 /**
- * On-chain transaction status (Sesi 2.4 / 5.4). NEVER shows "confirmed" until
+ * On-chain transaction status (Session 2.4 / 5.4). NEVER shows "confirmed" until
  * the chain actually confirms — pending shows the hash + explorer link.
  */
 const CONFIG: Record<
