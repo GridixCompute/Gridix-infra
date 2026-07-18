@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { loginAs, mockApi, makeJob } from "./support";
 
 /**
- * Mobile usability (Sesi 13.3): people check job status from a phone, so no main
+ * Mobile usability (Session 13.3): people check job status from a phone, so no main
  * page may overflow horizontally at 375px. Wide content (tables) must scroll
  * inside its own container, never the page body.
  */

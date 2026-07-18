@@ -1,5 +1,5 @@
 /**
- * Error taxonomy (Sesi 1.5). Every failure class maps to a distinct internal
+ * Error taxonomy (Session 1.5). Every failure class maps to a distinct internal
  * shape and a message that tells the user WHAT went wrong and HOW to fix it.
  * FastAPI 422 validation detail is parsed into per-field errors.
  */
@@ -38,7 +38,7 @@ export class ApiError extends Error {
     this.retryable = init.retryable ?? false;
   }
 
-  /** Look up the message for a specific form field (Sesi 1.5 / 7.5). */
+  /** Look up the message for a specific form field (Session 1.5 / 7.5). */
   fieldError(field: string): string | undefined {
     return this.fieldErrors.find((f) => f.field === field)?.message;
   }

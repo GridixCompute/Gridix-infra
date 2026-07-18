@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * Security headers gate (Sesi 14.5 / pentest C2+H13): every response carries the
+ * Security headers gate (Session 14.5 / pentest C2+H13): every response carries the
  * hardening headers, and the CSP is strict — script-src is nonce-based with NO
  * 'unsafe-inline', so an injected inline script can't execute. Verified on a real
  * response (not the config), the lesson from the header cache-hit bug.

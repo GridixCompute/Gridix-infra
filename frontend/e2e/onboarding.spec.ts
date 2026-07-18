@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { loginAs, mockApi, makeJob } from "./support";
 
 /**
- * First-run onboarding (Sesi 14.2): a new developer is guided to their first
+ * First-run onboarding (Session 14.2): a new developer is guided to their first
  * job without asking — a getting-started checklist and a one-click sample.
  */
 test.describe("onboarding", () => {

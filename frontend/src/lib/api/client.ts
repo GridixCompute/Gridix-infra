@@ -1,12 +1,12 @@
 /**
- * Central API client (Sesi 1.4). Single place that:
+ * Central API client (Session 1.4). Single place that:
  *  - resolves the base URL from validated env,
  *  - injects the API key (server-side only — see note below),
  *  - enforces a timeout via AbortController,
  *  - retries lightly, but ONLY idempotent GETs,
  *  - returns generated OpenAPI types (never hand-written).
  *
- * Auth note: the browser must not read the API key (Sesi 4.2 — httpOnly cookie).
+ * Auth note: the browser must not read the API key (Session 4.2 — httpOnly cookie).
  * So the browser instance points at our own same-origin route handlers under
  * `/api/gw/*`, which read the httpOnly cookie and attach `Authorization: Bearer`
  * server-side. No credential ever touches browser JS. See src/lib/api/server.ts

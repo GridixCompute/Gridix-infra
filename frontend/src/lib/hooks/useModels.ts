@@ -5,7 +5,7 @@ import { listModels } from "@/lib/inference/client";
 import { queryKeys } from "@/lib/query/keys";
 
 /**
- * The models the network serves, with their rate card (Sesi 4.1 / 5.4).
+ * The models the network serves, with their rate card (Session 4.1 / 5.4).
  *
  * Long stale time on purpose: the catalogue and its prices change on the order of releases,
  * not seconds — unlike balance, which must stay fresh. Availability can flip when providers

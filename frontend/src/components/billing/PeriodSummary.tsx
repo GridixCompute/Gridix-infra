@@ -8,7 +8,7 @@ import { USDCAmount } from "@/components/domain/USDCAmount";
 import { useBillingSummary } from "@/lib/hooks/useBilling";
 
 /**
- * Period totals from the backend ledger (Sesi 10.3). Every figure is the
+ * Period totals from the backend ledger (Session 10.3). Every figure is the
  * backend's — the UI only lays them out. `total_spent` breaks down exactly into
  * provider payments, protocol fees and data charges.
  */

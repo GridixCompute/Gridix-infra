@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { useEscrowBalance } from "@/lib/chain/hooks";
 
 /**
- * First-run onboarding (Sesi 14.2). Shown to a developer who hasn't run a job
+ * First-run onboarding (Session 14.2). Shown to a developer who hasn't run a job
  * yet: a two-step path to their first result — fund escrow, then submit a
  * sample job in one click — so a new user gets there without asking.
  */

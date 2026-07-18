@@ -1,7 +1,7 @@
 import type { BillingLedgerEntry } from "@/lib/api/types";
 
 /**
- * Client-side shaping of the raw ledger (Sesi 10.1/10.2/10.4). The backend owns
+ * Client-side shaping of the raw ledger (Session 10.1/10.2/10.4). The backend owns
  * the numbers; here we only group and sum the exact rows it returned — never
  * invent or round a figure. A per-job breakdown derived from the same legs is
  * guaranteed to reconcile to the total charged.
@@ -59,7 +59,7 @@ export function groupByJob(entries: BillingLedgerEntry[]): JobBreakdown[] {
   return groups;
 }
 
-/** Serialise ledger legs to CSV for spreadsheet/accounting import (Sesi 10.4). */
+/** Serialise ledger legs to CSV for spreadsheet/accounting import (Session 10.4). */
 export function toCsv(entries: BillingLedgerEntry[]): string {
   const header = [
     "created_at",

@@ -5,7 +5,7 @@ import { MOCK_MODELS } from "@/lib/inference/mock";
 import type { ChatParams } from "@/lib/inference/types";
 
 /**
- * The balance gate (Sesi 4.5).
+ * The balance gate (Session 4.5).
  *
  * Covered here rather than in the browser because the gate needs a real balance, which comes
  * from the on-chain escrow plus the backend ledger — neither of which runs in the dev

@@ -1,4 +1,4 @@
-# Deploying the GRIDIX frontend (Sesi 14.3)
+# Deploying the GRIDIX frontend (Session 14.3)
 
 The app is a Next 15 App Router site. It talks to the coordinator only through
 same-origin route handlers (`/api/*`), so the browser never holds an API key.

@@ -5,7 +5,7 @@ import { activeChain } from "@/lib/chain/config";
 import { Button } from "@/components/ui/Button";
 
 /**
- * Network guard (Sesi 5.2 / 13.5). Blocks on-chain actions with a clear reason
+ * Network guard (Session 5.2 / 13.5). Blocks on-chain actions with a clear reason
  * when the wallet is on the wrong chain, and warns — without breaking — when the
  * chain RPC is unreachable, so on-chain reads/writes can't silently misbehave.
  * Children render only when connected AND on the right chain.

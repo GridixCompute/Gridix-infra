@@ -4,7 +4,7 @@ import { Card, CardBody, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { IMAGE_SIZES, type ImageParams, type ImageSize } from "@/lib/inference/types";
 
-/** Image generation knobs (Sesi 5.2). `seed` pins determinism, same as chat. */
+/** Image generation knobs (Session 5.2). `seed` pins determinism, same as chat. */
 
 type Props = {
   params: ImageParams;

@@ -1,5 +1,5 @@
 /**
- * Client-side cost estimate (Sesi 7.3). Mirrors the backend pricing model
+ * Client-side cost estimate (Session 7.3). Mirrors the backend pricing model
  * (app/pricing.py) so the number shown before submit is close to what settles.
  * The backend remains the source of truth at settlement — this is an estimate.
  *

@@ -1,5 +1,5 @@
 /**
- * Cost estimation for a chat turn (Sesi 4.3 / 4.5).
+ * Cost estimation for a chat turn (Session 4.3 / 4.5).
  *
  * The estimate is what gates the send button; the CHARGE is whatever the backend reports in
  * the stream's `usage` frame. These must never be conflated — an estimate that quietly

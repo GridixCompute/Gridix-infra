@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { isApiError } from "@/lib/api/errors";
 
 /**
- * Honest connectivity banner (Sesi 3.5 / 13.5). Two distinct, non-silent states:
+ * Honest connectivity banner (Session 3.5 / 13.5). Two distinct, non-silent states:
  * the browser is offline (navigator), or the browser is online but GRIDIX's
  * backend is unreachable (every query is failing with a network/5xx error).
  * Neither leaves the user staring at a broken screen wondering what happened.

@@ -5,7 +5,7 @@ import { Card, CardBody, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 
 /**
- * Generation knobs (Sesi 4.4). `seed` is the interesting one: pinning it makes a completion
+ * Generation knobs (Session 4.4). `seed` is the interesting one: pinning it makes a completion
  * reproducible, which is what the backend's canary determinism check relies on.
  */
 

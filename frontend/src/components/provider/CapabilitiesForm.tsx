@@ -8,7 +8,7 @@ import { isApiError } from "@/lib/api/errors";
 import type { Provider } from "@/lib/api/types";
 
 /**
- * Declare/edit the hardware the scheduler matches against (Sesi 11.3). Memory
+ * Declare/edit the hardware the scheduler matches against (Session 11.3). Memory
  * and VRAM are entered in GB for humans and converted to the MB the API expects.
  */
 export function CapabilitiesForm({ provider, onDone }: { provider: Provider; onDone: () => void }) {
