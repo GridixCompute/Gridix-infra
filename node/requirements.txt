@@ -1,0 +1,5 @@
+# Runtime dependencies for the GRIDIX thin inference node.
+# No transformers / torch: that is a vLLM concern. This node only speaks HTTP to a local
+# Ollama server, so it needs nothing more than a WebSocket client and an HTTP client.
+websockets>=15
+httpx>=0.27
