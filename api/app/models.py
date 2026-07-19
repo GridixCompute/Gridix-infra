@@ -66,6 +66,21 @@ class OwnerType(enum.StrEnum):
     provider = "provider"
 
 
+class ApiKeyKind(enum.StrEnum):
+    """How a credential was obtained, which decides what it is allowed to do.
+
+    Recorded explicitly rather than inferred from ``expires_at``: minting is gated on
+    holding a ``session``, and a guard reading "has an expiry" would silently open up the
+    day we issue an expiring programmatic key. The property being enforced is "you signed
+    a challenge with the wallet", so that is what the column states.
+    """
+
+    # Minted by wallet sign-in. Lives in the browser's httpOnly cookie and expires.
+    session = "session"
+    # Minted on request by a signed-in developer, for scripts and CI. Long-lived.
+    programmatic = "programmatic"
+
+
 class AttemptOutcome(enum.StrEnum):
     """Terminal (or in-flight) outcome of a single execution attempt."""
 
@@ -244,6 +259,13 @@ class ApiKey(Base):
     key_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     prefix: Mapped[str] = mapped_column(String(16), nullable=False)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # What this credential is allowed to do beyond authenticating: only a `session` may
+    # mint new keys. See ApiKeyKind for why this is a column and not `expires_at IS NULL`.
+    kind: Mapped[ApiKeyKind] = mapped_column(
+        Enum(ApiKeyKind, name="api_key_kind", native_enum=False, length=20),
+        default=ApiKeyKind.programmatic,
+        nullable=False,
+    )
     # A wallet sign-in mints one of these as the browser session (label "session"), so the
     # UI and the agent CLI authenticate through the SAME path and require_developer needs
     # no second mechanism. NULL = never expires — what a user-generated CLI key is.
