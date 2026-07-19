@@ -3790,6 +3790,53 @@
         "title": "CacheReport",
         "description": "Agent reports the digests it currently has cached (Session 8.5)."
       },
+      "ChatChoice": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index",
+            "default": 0
+          },
+          "message": {
+            "$ref": "#/components/schemas/ChatCompletionMessage"
+          },
+          "finish_reason": {
+            "type": "string",
+            "enum": [
+              "stop",
+              "length"
+            ],
+            "title": "Finish Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "finish_reason"
+        ],
+        "title": "ChatChoice",
+        "description": "One completion. The network returns exactly one: ``n`` is not offered on the\nrequest, so there is never a second choice to report."
+      },
+      "ChatCompletionMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "const": "assistant",
+            "title": "Role",
+            "default": "assistant"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "ChatCompletionMessage",
+        "description": "The assistant's reply, in the envelope an OpenAI client expects to unwrap."
+      },
       "ChatCompletionRequest": {
         "properties": {
           "model": {
@@ -3859,13 +3906,31 @@
       },
       "ChatCompletionResponse": {
         "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "object": {
+            "type": "string",
+            "const": "chat.completion",
+            "title": "Object",
+            "default": "chat.completion"
+          },
+          "created": {
+            "type": "integer",
+            "title": "Created",
+            "description": "Unix seconds, as OpenAI reports it."
+          },
           "model": {
             "type": "string",
             "title": "Model"
           },
-          "content": {
-            "type": "string",
-            "title": "Content"
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/ChatChoice"
+            },
+            "type": "array",
+            "title": "Choices"
           },
           "usage": {
             "$ref": "#/components/schemas/ChatUsage"
@@ -3883,14 +3948,16 @@
         },
         "type": "object",
         "required": [
+          "id",
+          "created",
           "model",
-          "content",
+          "choices",
           "usage",
           "cost_usdc",
           "provider_id"
         ],
         "title": "ChatCompletionResponse",
-        "description": "A completed chat request, with what it cost and which node served it."
+        "description": "A completed chat request, shaped as the OpenAI API shapes it.\n\nThis sits at an OpenAI path and accepts an OpenAI request, so it has to answer with an\nOpenAI response. The previous shape (``{model, content, usage, ...}``) was close enough\nto invite an SDK and wrong enough to break it on the first read of ``choices`` \u2014 and\nthat break lands *after* a developer has integrated, which is worse than an interface\nthat is plainly different from the start.\n\n``cost_usdc`` and ``provider_id`` stay as top-level EXTRAS, the pattern OpenRouter uses:\nan OpenAI client ignores fields it does not know, so nothing breaks, and the two\nGridix-specific facts a developer actually wants \u2014 what this cost, who served it \u2014 stay\none field away instead of being discarded for the sake of conformance."
       },
       "ChatMessage": {
         "properties": {
@@ -3929,15 +3996,21 @@
             "type": "integer",
             "minimum": 0.0,
             "title": "Completion Tokens"
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens",
+            "readOnly": true
           }
         },
         "type": "object",
         "required": [
           "prompt_tokens",
-          "completion_tokens"
+          "completion_tokens",
+          "total_tokens"
         ],
         "title": "ChatUsage",
-        "description": "Tokens the request actually consumed \u2014 what it is billed on."
+        "description": "Tokens the request actually consumed \u2014 what it is billed on.\n\n``total_tokens`` is a computed field rather than a plain property because OpenAI carries\nit on the wire, and a property is invisible to serialisation: a client reading\n``usage.total_tokens`` would find nothing there."
       },
       "CreateApiKeyRequest": {
         "properties": {
@@ -4167,6 +4240,20 @@
         "title": "EndpointInfo",
         "description": "The coordinator-issued routed URL + capability token for an endpoint job."
       },
+      "GeneratedImage": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "GeneratedImage",
+        "description": "One generated image.\n\nOnly ``url`` is populated: nodes return a reference to the stored artefact, never\ninline bytes. ``b64_json`` \u2014 the other half of OpenAI's image object \u2014 is deliberately\nabsent rather than present-and-always-null, because a field that is always null is a\npromise the network does not keep."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -4384,16 +4471,21 @@
       },
       "ImageGenerationResponse": {
         "properties": {
+          "created": {
+            "type": "integer",
+            "title": "Created",
+            "description": "Unix seconds, as OpenAI reports it."
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/GeneratedImage"
+            },
+            "type": "array",
+            "title": "Data"
+          },
           "model": {
             "type": "string",
             "title": "Model"
-          },
-          "images": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Images"
           },
           "cost_usdc": {
             "type": "string",
@@ -4408,13 +4500,14 @@
         },
         "type": "object",
         "required": [
+          "created",
+          "data",
           "model",
-          "images",
           "cost_usdc",
           "provider_id"
         ],
         "title": "ImageGenerationResponse",
-        "description": "Generated images, billed per image actually returned."
+        "description": "Generated images, shaped as the OpenAI images API shapes them.\n\nSame reasoning as ChatCompletionResponse: OpenAI path, OpenAI request, so an OpenAI\nenvelope \u2014 ``{created, data:[...]}`` \u2014 with the Gridix facts kept as extras."
       },
       "JobArgs": {
         "properties": {
