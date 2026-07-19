@@ -4,7 +4,7 @@ import { injected } from "wagmi/connectors";
 import { env } from "@/lib/config/env";
 
 /**
- * wagmi config (Sesi 5.1). Single injected connector (MetaMask & friends), RPC
+ * wagmi config (Session 5.1). Single injected connector (MetaMask & friends), RPC
  * from validated env. GRIDIX settles on Sepolia; NEXT_PUBLIC_CHAIN_ID must be
  * 11155111 to match (env validation defaults to it).
  */

@@ -4,11 +4,11 @@ import type { NextRequest } from "next/server";
 /**
  * Middleware does two jobs:
  *
- * 1. Security headers (Sesi 14.5) on EVERY response — CSP, HSTS, and friends.
+ * 1. Security headers (Session 14.5) on EVERY response — CSP, HSTS, and friends.
  *    They live here, not in next.config `headers()`, because that path silently
  *    drops CSP/HSTS on full-route-cache hits; middleware applies uniformly to
  *    static, dynamic, and cached responses.
- * 2. Auth routing (Sesi 4.3 / 11.1): a request to a private area without a
+ * 2. Auth routing (Session 4.3 / 11.1): a request to a private area without a
  *    session cookie is redirected to /login; a signed-in principal that lands in
  *    the other role's area is sent to its own home.
  */

@@ -10,7 +10,7 @@ import { ConnectWallet } from "@/components/chain/ConnectWallet";
 import { NetworkGuard } from "@/components/chain/NetworkGuard";
 
 // Lazy-load the wallet write path (wagmi/actions) so it ships only when a
-// signed-in developer opens the deposit/withdraw panel (Sesi 13.4).
+// signed-in developer opens the deposit/withdraw panel (Session 13.4).
 const DepositWithdraw = dynamic(
   () => import("@/components/chain/DepositWithdraw").then((m) => m.DepositWithdraw),
   { ssr: false, loading: () => <Skeleton className="h-56" /> },

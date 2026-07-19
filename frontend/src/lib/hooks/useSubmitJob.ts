@@ -6,7 +6,7 @@ import { queryKeys } from "@/lib/query/keys";
 import type { Job, SubmitJobRequest } from "@/lib/api/types";
 
 /**
- * Submit a job (Sesi 3.2) with an optimistic insert + clean rollback (Sesi 3.3).
+ * Submit a job (Session 3.2) with an optimistic insert + clean rollback (Session 3.3).
  * On failure the temporary row is removed — no ghost jobs left behind.
  */
 export function useSubmitJob() {

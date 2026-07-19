@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { reportError } from "@/lib/observability/report";
 
 /**
- * Route error boundary (Sesi 14.4). Catches render/runtime errors below the root
+ * Route error boundary (Session 14.4). Catches render/runtime errors below the root
  * layout, reports them (scrubbed of any secrets), and offers a real recovery —
  * never a blank white screen.
  */

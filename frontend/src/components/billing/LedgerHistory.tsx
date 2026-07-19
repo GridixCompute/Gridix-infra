@@ -15,8 +15,8 @@ import type { BillingLedgerEntry } from "@/lib/api/types";
 
 /**
  * Per-job ledger with the escrow-hold → charge → refund story and an exact cost
- * breakdown (Sesi 10.1/10.2). Every group's legs are one click away so the
- * double entry is auditable. Export to CSV for accounting (Sesi 10.4).
+ * breakdown (Session 10.1/10.2). Every group's legs are one click away so the
+ * double entry is auditable. Export to CSV for accounting (Session 10.4).
  */
 export function LedgerHistory() {
   const { data: entries, isLoading, isError, refetch } = useBillingLedger(200);

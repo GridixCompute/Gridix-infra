@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
 /**
- * Provider registration (Sesi 11.1). Creates a provider account and reveals the
+ * Provider registration (Session 11.1). Creates a provider account and reveals the
  * agent API key exactly once — the operator pastes it into their node's
  * environment (GRIDIX_PROVIDER_KEY) during onboarding.
  */

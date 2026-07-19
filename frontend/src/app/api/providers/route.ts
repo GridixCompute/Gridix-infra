@@ -4,7 +4,7 @@ import { setSession } from "@/lib/auth/session";
 import type { RegisteredPrincipal } from "@/lib/api/types";
 
 /**
- * Register a provider (Sesi 11.1). Mirrors developer registration: forwards to
+ * Register a provider (Session 11.1). Mirrors developer registration: forwards to
  * the backend, logs the provider in via the httpOnly session cookie, and
  * returns the agent API key ONCE for the operator to copy into their node's
  * environment. After that the key only lives in the cookie.

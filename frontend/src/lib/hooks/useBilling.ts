@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/browser";
 import { queryKeys } from "@/lib/query/keys";
 
-/** Authoritative period totals derived from the backend ledger (Sesi 10.3). */
+/** Authoritative period totals derived from the backend ledger (Session 10.3). */
 export function useBillingSummary() {
   return useQuery({
     queryKey: queryKeys.billing.summary,
@@ -13,7 +13,7 @@ export function useBillingSummary() {
   });
 }
 
-/** Every ledger leg across the developer's jobs (Sesi 10.1). */
+/** Every ledger leg across the developer's jobs (Session 10.1). */
 export function useBillingLedger(limit = 200) {
   return useQuery({
     queryKey: queryKeys.billing.ledger(limit),

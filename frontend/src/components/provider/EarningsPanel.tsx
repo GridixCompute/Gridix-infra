@@ -11,7 +11,7 @@ import { USDCAmount } from "@/components/domain/USDCAmount";
 import { TxStatus } from "@/components/domain/TxStatus";
 
 /**
- * Withdraw settled earnings (Sesi 11.4). The coordinator credits earnings via
+ * Withdraw settled earnings (Session 11.4). The coordinator credits earnings via
  * settleBatch on-chain; the provider withdraws them to its own wallet, paying
  * its own gas. `withdraw()` takes the full balance — no partial withdrawals.
  */

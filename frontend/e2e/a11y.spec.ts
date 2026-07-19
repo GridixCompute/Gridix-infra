@@ -3,7 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { loginAs, mockApi, makeJob } from "./support";
 
 /**
- * Accessibility gate (Sesi 13.2): the main pages must pass an axe audit against
+ * Accessibility gate (Session 13.2): the main pages must pass an axe audit against
  * WCAG 2.1 A/AA. A regression here fails CI. Usable without a mouse is covered
  * separately by the keyboard test below.
  */

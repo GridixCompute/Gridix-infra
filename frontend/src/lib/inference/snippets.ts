@@ -1,5 +1,5 @@
 /**
- * Turn a request the playground is about to send into copyable code (Sesi 5.3).
+ * Turn a request the playground is about to send into copyable code (Session 5.3).
  *
  * The whole point is that the snippet is the *same request*, not a hand-written imitation of
  * one. Both take the exact object the client passes to `fetch`, so they cannot drift from it
@@ -7,7 +7,7 @@
  * the first time either changes. `snippets.test.ts` pins that equivalence.
  *
  * ⚠️ What they cannot be yet is *runnable*: `/v1/*` does not exist, so the URL these print
- * 404s. Sesi 5.3's DoD ("the code shown can actually be run") is met only for the "matches
+ * 404s. Session 5.3's DoD ("the code shown can actually be run") is met only for the "matches
  * the real request" half. It becomes true when the backend lands — with no change here.
  */
 

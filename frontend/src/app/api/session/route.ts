@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, role: "developer" });
 }
 
-/** Logout (Sesi 4.2): clear the session cookies. */
+/** Logout (Session 4.2): clear the session cookies. */
 export async function DELETE() {
   await clearSession();
   return NextResponse.json({ ok: true });

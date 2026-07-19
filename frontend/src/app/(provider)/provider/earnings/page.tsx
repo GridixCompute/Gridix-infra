@@ -7,7 +7,7 @@ import { ConnectWallet } from "@/components/chain/ConnectWallet";
 import { NetworkGuard } from "@/components/chain/NetworkGuard";
 
 // Lazy-load the on-chain staking/earnings write paths (wagmi/actions) so the
-// wallet code ships only when this page's panels mount (Sesi 13.4).
+// wallet code ships only when this page's panels mount (Session 13.4).
 const StakePanel = dynamic(
   () => import("@/components/provider/StakePanel").then((m) => m.StakePanel),
   { ssr: false, loading: () => <Skeleton className="h-72" /> },
@@ -18,7 +18,7 @@ const EarningsPanel = dynamic(
 );
 
 /**
- * Provider economics (Sesi 11.4 / 11.5). Stake, earnings and withdraw all live
+ * Provider economics (Session 11.4 / 11.5). Stake, earnings and withdraw all live
  * on-chain in GridixStaking — the same wallet-driven pattern as developer
  * deposits. The provider's connected wallet is the staker and settlement payee.
  */

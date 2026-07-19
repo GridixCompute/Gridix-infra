@@ -1,7 +1,7 @@
 import type { Provider } from "@/lib/api/types";
 
 /**
- * Derive an agent's live connection state from its provider record (Sesi 11.2).
+ * Derive an agent's live connection state from its provider record (Session 11.2).
  * The backend flags a provider unreachable once `last_seen` ages past the
  * connection timeout (default 30s, always > 2× the 10s heartbeat), so a 45s
  * window keeps a healthy, heartbeating agent green without flapping.

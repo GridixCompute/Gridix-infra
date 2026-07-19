@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Button } from "./Button";
 
-/** Empty state = a call to action, never a dead "no data" (Sesi 2.5 / 13.1). */
+/** Empty state = a call to action, never a dead "no data" (Session 2.5 / 13.1). */
 export function EmptyState({
   icon,
   title,
@@ -34,7 +34,7 @@ export function EmptyState({
   );
 }
 
-/** Honest error state — explains what failed and offers a retry (Sesi 3.5). */
+/** Honest error state — explains what failed and offers a retry (Session 3.5). */
 export function ErrorState({
   title = "Something went wrong",
   message,

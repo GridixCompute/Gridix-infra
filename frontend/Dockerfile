@@ -1,4 +1,4 @@
-# Production image for the GRIDIX frontend (Sesi 14.3).
+# Production image for the GRIDIX frontend (Session 14.3).
 # Multi-stage: install deps, build the Next standalone server, run it as non-root.
 #
 # NEXT_PUBLIC_* values are inlined at build time, so pass them as build args:
