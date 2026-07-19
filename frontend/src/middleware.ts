@@ -86,7 +86,10 @@ export function middleware(req: NextRequest) {
   // Auth routing for private areas (redirects carry no HTML, so no nonce needed).
   if (isProviderArea || isDeveloperArea) {
     if (!req.cookies.has(SESSION_COOKIE)) {
-      const loginUrl = new URL("/login", req.url);
+      // Each area has its own way in: developers sign a wallet challenge at /login,
+      // providers paste their agent key at /provider-login. Sending a signed-out
+      // provider to the wallet page would be a dead end — they have no wallet identity.
+      const loginUrl = new URL(isProviderArea ? "/provider-login" : "/login", req.url);
       loginUrl.searchParams.set("next", pathname + search);
       return setSecurityHeaders(NextResponse.redirect(loginUrl), csp);
     }

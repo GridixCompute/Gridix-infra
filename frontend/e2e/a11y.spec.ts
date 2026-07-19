@@ -19,7 +19,7 @@ test.describe("accessibility", () => {
   // axe scans in one test sits right on the 30s budget, so it passed alone and failed under
   // the full suite. A gate that fails on load rather than on merit teaches people to re-run
   // it instead of read it.
-  for (const path of ["/", "/docs", "/login", "/register", "/provider-register"]) {
+  for (const path of ["/", "/docs", "/login", "/provider-login", "/provider-register"]) {
     test(`${path} has no axe violations`, async ({ page }) => {
       await page.goto(path);
       const violations = await scan(page);

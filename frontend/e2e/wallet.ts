@@ -18,6 +18,8 @@ export const TEST_ADDRESS = "0x1111111111111111111111111111111111111111";
 export const SEPOLIA_HEX = "0xaa36a7"; // 11155111
 const OTHER_CHAIN_HEX = "0x1"; // mainnet — used for the wrong-network path
 export const TX_HASH = "0x" + "ab".repeat(32);
+/** A well-formed 65-byte secp256k1 signature. Never verified here — /auth/verify is mocked. */
+export const SIGNATURE = "0x" + "11".repeat(65);
 
 /** ABI-encode a uint256 as a 32-byte return value. */
 function uint256(value: bigint): string {
@@ -29,6 +31,8 @@ export type WalletOptions = {
   wrongChain?: boolean;
   /** Make the wallet refuse to sign, as a user clicking "reject" does. */
   rejectTx?: boolean;
+  /** Refuse the SIWE `personal_sign` prompt — the sign-in equivalent of rejectTx. */
+  rejectSign?: boolean;
   /**
    * What every `balanceOf` returns, in base units (6dp) — escrow AND wallet USDC alike.
    *
@@ -51,10 +55,16 @@ export type WalletOptions = {
  * Must be called before `page.goto`.
  */
 export async function mockWallet(page: Page, opts: WalletOptions = {}): Promise<void> {
-  const { wrongChain = false, rejectTx = false, balanceOf = 25_000_000n, allowance = 0n } = opts;
+  const {
+    wrongChain = false,
+    rejectTx = false,
+    rejectSign = false,
+    balanceOf = 25_000_000n,
+    allowance = 0n,
+  } = opts;
 
   await page.addInitScript(
-    ({ address, chainHex, reject, txHash }) => {
+    ({ address, chainHex, reject, rejectSignature, txHash, signature }) => {
       const listeners: Record<string, ((...a: unknown[]) => void)[]> = {};
       let chain = chainHex;
 
@@ -72,6 +82,14 @@ export async function mockWallet(page: Page, opts: WalletOptions = {}): Promise<
               chain = "0xaa36a7";
               for (const cb of listeners["chainChanged"] ?? []) cb(chain);
               return null;
+            case "personal_sign":
+              // SIWE sign-in. Rejecting looks exactly like rejecting a transaction.
+              if (rejectSignature) {
+                const err = new Error("User rejected the request.") as Error & { code: number };
+                err.code = 4001;
+                throw err;
+              }
+              return signature;
             case "eth_estimateGas":
               return "0x5208";
             case "eth_sendTransaction":
@@ -100,7 +118,9 @@ export async function mockWallet(page: Page, opts: WalletOptions = {}): Promise<
       address: TEST_ADDRESS,
       chainHex: wrongChain ? OTHER_CHAIN_HEX : SEPOLIA_HEX,
       reject: rejectTx,
+      rejectSignature: rejectSign,
       txHash: TX_HASH,
+      signature: SIGNATURE,
     },
   );
 
