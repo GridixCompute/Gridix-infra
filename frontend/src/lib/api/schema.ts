@@ -71,6 +71,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/developers/me/keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Api Keys
+         * @description List this developer's programmatic keys. No plaintext — it is not recoverable.
+         */
+        get: operations["list_api_keys_developers_me_keys_get"];
+        put?: never;
+        /**
+         * Create Api Key
+         * @description Mint a long-lived key and return its plaintext — the only time it is ever shown.
+         */
+        post: operations["create_api_key_developers_me_keys_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/developers/me/keys/{key_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Api Key
+         * @description Revoke a key. It stops authenticating on the next request that presents it.
+         */
+        delete: operations["revoke_api_key_developers_me_keys__key_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/models": {
         parameters: {
             query?: never;
@@ -1125,6 +1169,33 @@ export interface components {
             status: "running";
         };
         /**
+         * ApiKeyResponse
+         * @description A programmatic key as listed in /settings. The secret is NOT included — it is
+         *     returned once, by the create call, and never again.
+         */
+        ApiKeyResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string | null;
+            /** Prefix */
+            prefix: string;
+            /** Revoked */
+            revoked: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Expires At */
+            expires_at: string | null;
+        };
+        /**
          * AttemptRecord
          * @description One execution attempt in a job's audit trail.
          */
@@ -1376,6 +1447,34 @@ export interface components {
             prompt_tokens: number;
             /** Completion Tokens */
             completion_tokens: number;
+        };
+        /**
+         * CreateApiKeyRequest
+         * @description Mint a programmatic key for the agent/API.
+         */
+        CreateApiKeyRequest: {
+            /** Label */
+            label: string;
+        };
+        /**
+         * CreatedApiKey
+         * @description The one and only time a programmatic key's plaintext is returned.
+         */
+        CreatedApiKey: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string | null;
+            /** Prefix */
+            prefix: string;
+            /**
+             * Api Key
+             * @description Store this now — it is never shown again.
+             */
+            api_key: string;
         };
         /**
          * DataKeyResponse
@@ -2182,6 +2281,103 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SessionResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_api_keys_developers_me_keys_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_api_key_developers_me_keys_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateApiKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedApiKey"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_api_key_developers_me_keys__key_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                key_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

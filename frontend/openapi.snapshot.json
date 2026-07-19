@@ -115,6 +115,171 @@
         }
       }
     },
+    "/developers/me/keys": {
+      "post": {
+        "tags": [
+          "api-keys"
+        ],
+        "summary": "Create Api Key",
+        "description": "Mint a long-lived key and return its plaintext \u2014 the only time it is ever shown.",
+        "operationId": "create_api_key_developers_me_keys_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedApiKey"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "api-keys"
+        ],
+        "summary": "List Api Keys",
+        "description": "List this developer's programmatic keys. No plaintext \u2014 it is not recoverable.",
+        "operationId": "list_api_keys_developers_me_keys_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiKeyResponse"
+                  },
+                  "title": "Response List Api Keys Developers Me Keys Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/developers/me/keys/{key_id}": {
+      "delete": {
+        "tags": [
+          "api-keys"
+        ],
+        "summary": "Revoke Api Key",
+        "description": "Revoke a key. It stops authenticating on the next request that presents it.",
+        "operationId": "revoke_api_key_developers_me_keys__key_id__delete",
+        "parameters": [
+          {
+            "name": "key_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Key Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/models": {
       "get": {
         "tags": [
@@ -3104,6 +3269,75 @@
         "title": "AgentStatusRequest",
         "description": "Agent reports it has started executing (``running``)."
       },
+      "ApiKeyResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "prefix": {
+            "type": "string",
+            "title": "Prefix"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "prefix",
+          "revoked",
+          "created_at",
+          "last_used_at",
+          "expires_at"
+        ],
+        "title": "ApiKeyResponse",
+        "description": "A programmatic key as listed in /settings. The secret is NOT included \u2014 it is\nreturned once, by the create call, and never again."
+      },
       "AttemptRecord": {
         "properties": {
           "provider_id": {
@@ -3644,6 +3878,60 @@
         ],
         "title": "ChatUsage",
         "description": "Tokens the request actually consumed \u2014 what it is billed on."
+      },
+      "CreateApiKeyRequest": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "CreateApiKeyRequest",
+        "description": "Mint a programmatic key for the agent/API."
+      },
+      "CreatedApiKey": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "prefix": {
+            "type": "string",
+            "title": "Prefix"
+          },
+          "api_key": {
+            "type": "string",
+            "title": "Api Key",
+            "description": "Store this now \u2014 it is never shown again."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "prefix",
+          "api_key"
+        ],
+        "title": "CreatedApiKey",
+        "description": "The one and only time a programmatic key's plaintext is returned."
       },
       "DataKeyResponse": {
         "properties": {
