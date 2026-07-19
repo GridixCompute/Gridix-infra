@@ -137,6 +137,57 @@ async def require_wallet_session(
     return developer
 
 
+async def provider_for_address(session: AsyncSession, address: str | None) -> Provider | None:
+    """The provider a wallet address owns, if it owns one.
+
+    This is what "being a provider" means now: not a separate account with its own
+    credential, but a capability attached to an address. The same address can hold the
+    developer side too — one identity, two capabilities.
+    """
+    if not address:
+        return None
+    return await session.scalar(select(Provider).where(Provider.wallet_address == address))
+
+
+async def require_provider_principal(
+    session: SessionDep,
+    settings: SettingsDep,
+    authorization: Annotated[str | None, Header()] = None,
+) -> Provider:
+    """A provider, authenticated EITHER by its node's agent key OR by the wallet session
+    of the address that owns it.
+
+    The console is driven by a person and the node by a machine, and they hold different
+    credentials on purpose — a human signs a challenge, a daemon reads a key out of its
+    environment. Both resolve to the same Provider row here, so the operator does not need
+    a second login just to read their own earnings.
+
+    Machine-only routes (everything under /agent) deliberately keep ``require_provider``:
+    a browser session has no business claiming a job or uploading a result.
+    """
+    key = await _resolve_key(authorization, session, settings)
+
+    if key.owner_type is OwnerType.provider and key.provider_id is not None:
+        provider = await session.get(Provider, key.provider_id)
+        if provider is None:
+            raise _UNAUTHORIZED
+        return provider
+
+    if key.owner_type is OwnerType.developer and key.developer_id is not None:
+        developer = await session.get(Developer, key.developer_id)
+        if developer is not None:
+            provider = await provider_for_address(session, developer.wallet_address)
+            if provider is not None:
+                return provider
+
+    # An address with no Provider record is simply not one. Refused rather than served an
+    # empty console, which would read as "you have no earnings" instead of "you are not
+    # registered" — two very different things to an operator.
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN, detail="Provider credentials required."
+    )
+
+
 async def require_provider(
     session: SessionDep,
     settings: SettingsDep,
@@ -170,6 +221,7 @@ async def provider_signing_key(
 DeveloperDep = Annotated[Developer, Depends(require_developer)]
 WalletSessionDep = Annotated[Developer, Depends(require_wallet_session)]
 ProviderDep = Annotated[Provider, Depends(require_provider)]
+ProviderPrincipalDep = Annotated[Provider, Depends(require_provider_principal)]
 ProviderKeyDep = Annotated[str, Depends(provider_signing_key)]
 
 
