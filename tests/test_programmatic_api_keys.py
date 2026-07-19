@@ -188,7 +188,7 @@ class TestAMintedKeyCanActuallyCallTheApi:
             )
 
         assert res.status_code == 200, res.text
-        assert res.json()["content"] == "hello"
+        assert res.json()["choices"][0]["message"]["content"] == "hello"
 
     async def test_it_is_billed_to_the_wallet_that_minted_it(
         self, client: AsyncClient, session
