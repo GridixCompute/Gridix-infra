@@ -73,7 +73,7 @@ export default function DocsPage() {
               />
               <p className="text-sm text-[var(--color-ink-faint)]">
                 Prefer a UI?{" "}
-                <Link href="/register" className="text-[var(--color-signal-bright)] underline">
+                <Link href="/login" className="text-[var(--color-signal-bright)] underline">
                   Create your account
                 </Link>{" "}
                 in the dashboard instead.
@@ -281,7 +281,7 @@ ENTRYPOINT ["python", "train.py"]`}
             </div>
             <div className="mt-4 flex justify-center gap-3">
               <Link
-                href="/register"
+                href="/login"
                 className="rounded-[var(--radius-sm)] bg-[var(--color-signal)] px-4 py-2 text-sm font-medium text-black"
               >
                 Create an account

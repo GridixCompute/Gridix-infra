@@ -33,7 +33,7 @@ export function SiteHeader() {
               Sign in
             </Button>
           </Link>
-          <Link href="/register">
+          <Link href="/login">
             <Button size="sm">Start building</Button>
           </Link>
         </div>

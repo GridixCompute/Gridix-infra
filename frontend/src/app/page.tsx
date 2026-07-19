@@ -97,7 +97,7 @@ function Hero() {
             containerized GPU workloads on a trustless grid — and pay only for what you use.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-4">
-            <Link href="/register">
+            <Link href="/login">
               <Button size="lg">Start building</Button>
             </Link>
             <Link href="/docs#quickstart">
@@ -283,7 +283,7 @@ function CtaBand() {
           Register, deposit USDC, and run your first job in minutes — no sales call, no waitlist.
         </p>
         <div className="mt-9 flex flex-wrap justify-center gap-4">
-          <Link href="/register">
+          <Link href="/login">
             <Button size="lg">Create an account</Button>
           </Link>
           <Link href="/docs">
