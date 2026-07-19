@@ -7,7 +7,7 @@ import { useBillingSummary } from "@/lib/hooks/useBilling";
 import { toBaseUnits } from "@/lib/format/usdc";
 
 /**
- * On-chain vs off-chain reconciliation (Sesi 10.5). The on-chain escrow balance
+ * On-chain vs off-chain reconciliation (Session 10.5). The on-chain escrow balance
  * must cover what the off-chain ledger says is held; the ledger's own groups
  * must balance. Any divergence is surfaced loudly — the backend alerts on it and
  * the UI must not stay silent.

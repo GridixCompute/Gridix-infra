@@ -1,5 +1,5 @@
 /**
- * Client observability (Sesi 14.4). Provider-agnostic: errors and funnel events
+ * Client observability (Session 14.4). Provider-agnostic: errors and funnel events
  * are scrubbed of anything sensitive, then handed to a pluggable sink. Point the
  * sink at Sentry (or any backend) by calling `initObservability` once at boot;
  * until then it logs in dev and is a no-op in production. Crucially, an API key
@@ -68,7 +68,7 @@ export function reportError(error: unknown, context?: Record<string, unknown>): 
 }
 
 /**
- * Record a funnel event (Sesi 14.4): register → deposit → first job. Props are
+ * Record a funnel event (Session 14.4): register → deposit → first job. Props are
  * scrubbed; never pass raw keys or addresses.
  */
 export function track(name: string, props?: Record<string, unknown>): void {

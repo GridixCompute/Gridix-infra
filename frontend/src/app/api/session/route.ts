@@ -3,7 +3,7 @@ import { backendFetch } from "@/lib/api/server";
 import { setSession, clearSession, type Role } from "@/lib/auth/session";
 
 /**
- * Login (Sesi 4.2 / 11.1): validate an API key against the backend, then store
+ * Login (Session 4.2 / 11.1): validate an API key against the backend, then store
  * it in an httpOnly cookie. There is no whoami endpoint, so we validate by
  * calling an authenticated route and infer the role from which one accepts the
  * key: developers own GET /jobs, providers own GET /providers/me. A 403 on the
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, role });
 }
 
-/** Logout (Sesi 4.2): clear the session cookies. */
+/** Logout (Session 4.2): clear the session cookies. */
 export async function DELETE() {
   await clearSession();
   return NextResponse.json({ ok: true });

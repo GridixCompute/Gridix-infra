@@ -89,7 +89,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Visible keyboard focus — required across the whole app (Sesi 2.3). */
+  /* Visible keyboard focus — required across the whole app (Session 2.3). */
   :focus-visible {
     outline: 2px solid var(--color-signal);
     outline-offset: 2px;
@@ -101,7 +101,7 @@
     color: var(--color-void);
   }
 
-  /* Honor reduced-motion globally (Sesi 2.3 / 13.2). */
+  /* Honor reduced-motion globally (Session 2.3 / 13.2). */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

@@ -226,7 +226,7 @@ jobs:
       - name: Production build
         run: pnpm build
 
-  # End-to-end tests (Sesi 12): hermetic Playwright suite — every backend call is
+  # End-to-end tests (Session 12): hermetic Playwright suite — every backend call is
   # mocked at the network layer, so it needs no live backend or chain. A PR that
   # breaks the main flow (auth, submit, job lifecycle, failure paths) fails here.
   e2e:

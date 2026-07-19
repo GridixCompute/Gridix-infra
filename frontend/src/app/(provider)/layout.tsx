@@ -2,7 +2,7 @@ import { Providers } from "@/lib/query/Providers";
 import { ProviderHeader } from "@/components/provider/ProviderHeader";
 import { ConnectivityBanner } from "@/components/app/ConnectivityBanner";
 
-/** Provider console shell (Sesi 11) — data provider + chrome for the supply side. */
+/** Provider console shell (Session 11) — data provider + chrome for the supply side. */
 export default function ProviderLayout({ children }: { children: React.ReactNode }) {
   return (
     <Providers>

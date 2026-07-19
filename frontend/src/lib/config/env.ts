@@ -4,7 +4,7 @@
  * or boot with a clear message, never surface later as a mysterious runtime bug.
  *
  * Only NEXT_PUBLIC_* vars are readable in the browser. Secrets (API keys) never
- * live here — they are handled server-side via httpOnly cookies (Sesi 4).
+ * live here — they are handled server-side via httpOnly cookies (Session 4).
  */
 
 type RawEnv = {

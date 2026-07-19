@@ -1,5 +1,5 @@
 /**
- * USDC formatting — CRITICAL (Sesi 6.6). USDC has 6 decimals, NOT 18.
+ * USDC formatting — CRITICAL (Session 6.6). USDC has 6 decimals, NOT 18.
  * Every parse/format of a token amount in the app goes through this single
  * module so the number in the UI equals the number on-chain, exactly.
  *
