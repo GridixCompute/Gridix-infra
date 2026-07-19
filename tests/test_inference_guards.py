@@ -386,7 +386,7 @@ class TestTheCeilingIsReal:
 
         assert res.status_code == 200, res.text
         assert Decimal(res.json()["cost_usdc"]) == Decimal("0.01")
-        assert len(res.json()["images"]) == 1
+        assert len(res.json()["data"]) == 1
         session.expire_all()
         assert await developer_balance(session, dev) == Decimal("9.99")
 

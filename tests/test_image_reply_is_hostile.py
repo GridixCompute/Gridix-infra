@@ -43,7 +43,7 @@ async def test_real_images_are_still_billed(client: AsyncClient, session):
 
     res = await _generate(client, key, {"images": ["u1", "u2", "u3"]})
     assert res.status_code == 200, res.text
-    assert res.json()["images"] == ["u1", "u2", "u3"]
+    assert [i["url"] for i in res.json()["data"]] == ["u1", "u2", "u3"]
 
     session.expire_all()
     assert before - await developer_balance(session, dev) > 0, "a real generation was free"
@@ -65,7 +65,7 @@ async def test_a_reply_that_is_not_a_list_of_images_pays_nothing(
 
     res = await _generate(client, key, {"images": images})
     assert res.status_code == 200, res.text
-    assert res.json()["images"] == [], f"{images!r} was turned into {res.json()['images']}"
+    assert res.json()["data"] == [], f"{images!r} was turned into {res.json()['data']}"
 
     session.expire_all()
     charged = before - await developer_balance(session, dev)

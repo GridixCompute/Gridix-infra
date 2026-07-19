@@ -9,7 +9,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.models import DataTier, JobKind, JobStatus
 
@@ -151,22 +151,61 @@ class ChatCompletionRequest(BaseModel):
 
 
 class ChatUsage(BaseModel):
-    """Tokens the request actually consumed — what it is billed on."""
+    """Tokens the request actually consumed — what it is billed on.
+
+    ``total_tokens`` is a computed field rather than a plain property because OpenAI carries
+    it on the wire, and a property is invisible to serialisation: a client reading
+    ``usage.total_tokens`` would find nothing there.
+    """
 
     prompt_tokens: int = Field(ge=0)
     completion_tokens: int = Field(ge=0)
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def total_tokens(self) -> int:
         return self.prompt_tokens + self.completion_tokens
 
 
-class ChatCompletionResponse(BaseModel):
-    """A completed chat request, with what it cost and which node served it."""
+class ChatCompletionMessage(BaseModel):
+    """The assistant's reply, in the envelope an OpenAI client expects to unwrap."""
 
-    model: str
+    role: Literal["assistant"] = "assistant"
     content: str
+
+
+class ChatChoice(BaseModel):
+    """One completion. The network returns exactly one: ``n`` is not offered on the
+    request, so there is never a second choice to report."""
+
+    index: int = 0
+    message: ChatCompletionMessage
+    finish_reason: Literal["stop", "length"]
+
+
+class ChatCompletionResponse(BaseModel):
+    """A completed chat request, shaped as the OpenAI API shapes it.
+
+    This sits at an OpenAI path and accepts an OpenAI request, so it has to answer with an
+    OpenAI response. The previous shape (``{model, content, usage, ...}``) was close enough
+    to invite an SDK and wrong enough to break it on the first read of ``choices`` — and
+    that break lands *after* a developer has integrated, which is worse than an interface
+    that is plainly different from the start.
+
+    ``cost_usdc`` and ``provider_id`` stay as top-level EXTRAS, the pattern OpenRouter uses:
+    an OpenAI client ignores fields it does not know, so nothing breaks, and the two
+    Gridix-specific facts a developer actually wants — what this cost, who served it — stay
+    one field away instead of being discarded for the sake of conformance.
+    """
+
+    id: str
+    object: Literal["chat.completion"] = "chat.completion"
+    created: int = Field(description="Unix seconds, as OpenAI reports it.")
+    model: str
+    choices: list[ChatChoice]
     usage: ChatUsage
+
+    # ── Gridix extras (ignored by OpenAI clients) ──────────────────────────────────
     cost_usdc: Decimal
     provider_id: uuid.UUID
 
@@ -181,11 +220,30 @@ class ImageGenerationRequest(BaseModel):
     data_tier: DataTier = DataTier.public
 
 
-class ImageGenerationResponse(BaseModel):
-    """Generated images, billed per image actually returned."""
+class GeneratedImage(BaseModel):
+    """One generated image.
 
+    Only ``url`` is populated: nodes return a reference to the stored artefact, never
+    inline bytes. ``b64_json`` — the other half of OpenAI's image object — is deliberately
+    absent rather than present-and-always-null, because a field that is always null is a
+    promise the network does not keep.
+    """
+
+    url: str
+
+
+class ImageGenerationResponse(BaseModel):
+    """Generated images, shaped as the OpenAI images API shapes them.
+
+    Same reasoning as ChatCompletionResponse: OpenAI path, OpenAI request, so an OpenAI
+    envelope — ``{created, data:[...]}`` — with the Gridix facts kept as extras.
+    """
+
+    created: int = Field(description="Unix seconds, as OpenAI reports it.")
+    data: list[GeneratedImage]
+
+    # ── Gridix extras (ignored by OpenAI clients) ──────────────────────────────────
     model: str
-    images: list[str]
     cost_usdc: Decimal
     provider_id: uuid.UUID
 

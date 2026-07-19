@@ -18,6 +18,7 @@ only number the developer's balance was ever checked against, and it binds the b
 """
 
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, status
 from loguru import logger
@@ -34,9 +35,12 @@ from app.dispatch import (
 )
 from app.models import DataTier
 from app.schemas import (
+    ChatChoice,
+    ChatCompletionMessage,
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatUsage,
+    GeneratedImage,
     ImageGenerationRequest,
     ImageGenerationResponse,
     ModelInfo,
@@ -244,12 +248,31 @@ async def chat_completions(
             await release_reservation(session, developer_id=developer.id, held=held)
 
     return ChatCompletionResponse(
+        id=f"chatcmpl-{uuid.uuid4().hex}",
+        created=int(utcnow().timestamp()),
         model=body.model,
-        content=str(reply.get("content", "")),
+        choices=[
+            ChatChoice(
+                message=ChatCompletionMessage(content=str(reply.get("content", ""))),
+                finish_reason=_finish_reason(usage, max_output_tokens=max_output),
+            )
+        ],
         usage=usage,
         cost_usdc=cost,
         provider_id=provider_id,
     )
+
+
+def _finish_reason(usage: ChatUsage, *, max_output_tokens: int) -> Literal["stop", "length"]:
+    """Why generation ended — derived, because nodes do not report it and clients read it.
+
+    The ceiling we imposed is the only evidence available: a node that used every token it
+    was allowed was cut off; anything less stopped on its own. This can be wrong in exactly
+    one direction — a reply that happens to end on the limit reads as truncated — which is
+    the safe way round, since reporting a truncated answer as complete is what would
+    actually mislead a caller.
+    """
+    return "length" if usage.completion_tokens >= max_output_tokens else "stop"
 
 
 @router.post("/images/generations", response_model=ImageGenerationResponse)
@@ -325,7 +348,11 @@ async def image_generations(
             await release_reservation(session, developer_id=developer.id, held=held)
 
     return ImageGenerationResponse(
-        model=body.model, images=images, cost_usdc=cost, provider_id=provider_id
+        created=int(utcnow().timestamp()),
+        data=[GeneratedImage(url=u) for u in images],
+        model=body.model,
+        cost_usdc=cost,
+        provider_id=provider_id,
     )
 
 

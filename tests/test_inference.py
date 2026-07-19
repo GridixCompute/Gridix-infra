@@ -104,9 +104,13 @@ class TestChat:
 
         assert res.status_code == 200, res.text
         body = res.json()
-        assert body["content"] == "hello"
+        assert body["choices"][0]["message"]["content"] == "hello"
         assert body["provider_id"] == str(node.id)
-        assert body["usage"] == {"prompt_tokens": 10, "completion_tokens": 100}
+        assert body["usage"] == {
+            "prompt_tokens": 10,
+            "completion_tokens": 100,
+            "total_tokens": 110,
+        }
 
     async def test_charges_actual_usage_not_the_estimate(
         self, client: AsyncClient, session

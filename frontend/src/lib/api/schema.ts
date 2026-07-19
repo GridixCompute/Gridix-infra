@@ -1409,6 +1409,38 @@ export interface components {
             cached?: string[];
         };
         /**
+         * ChatChoice
+         * @description One completion. The network returns exactly one: ``n`` is not offered on the
+         *     request, so there is never a second choice to report.
+         */
+        ChatChoice: {
+            /**
+             * Index
+             * @default 0
+             */
+            index: number;
+            message: components["schemas"]["ChatCompletionMessage"];
+            /**
+             * Finish Reason
+             * @enum {string}
+             */
+            finish_reason: "stop" | "length";
+        };
+        /**
+         * ChatCompletionMessage
+         * @description The assistant's reply, in the envelope an OpenAI client expects to unwrap.
+         */
+        ChatCompletionMessage: {
+            /**
+             * Role
+             * @default assistant
+             * @constant
+             */
+            role: "assistant";
+            /** Content */
+            content: string;
+        };
+        /**
          * ChatCompletionRequest
          * @description A chat request. Bounded at the edge: these numbers size the balance gate, and an
          *     unbounded max_tokens would make the worst case unknowable.
@@ -1437,13 +1469,37 @@ export interface components {
         };
         /**
          * ChatCompletionResponse
-         * @description A completed chat request, with what it cost and which node served it.
+         * @description A completed chat request, shaped as the OpenAI API shapes it.
+         *
+         *     This sits at an OpenAI path and accepts an OpenAI request, so it has to answer with an
+         *     OpenAI response. The previous shape (``{model, content, usage, ...}``) was close enough
+         *     to invite an SDK and wrong enough to break it on the first read of ``choices`` — and
+         *     that break lands *after* a developer has integrated, which is worse than an interface
+         *     that is plainly different from the start.
+         *
+         *     ``cost_usdc`` and ``provider_id`` stay as top-level EXTRAS, the pattern OpenRouter uses:
+         *     an OpenAI client ignores fields it does not know, so nothing breaks, and the two
+         *     Gridix-specific facts a developer actually wants — what this cost, who served it — stay
+         *     one field away instead of being discarded for the sake of conformance.
          */
         ChatCompletionResponse: {
+            /** Id */
+            id: string;
+            /**
+             * Object
+             * @default chat.completion
+             * @constant
+             */
+            object: "chat.completion";
+            /**
+             * Created
+             * @description Unix seconds, as OpenAI reports it.
+             */
+            created: number;
             /** Model */
             model: string;
-            /** Content */
-            content: string;
+            /** Choices */
+            choices: components["schemas"]["ChatChoice"][];
             usage: components["schemas"]["ChatUsage"];
             /** Cost Usdc */
             cost_usdc: string;
@@ -1469,12 +1525,18 @@ export interface components {
         /**
          * ChatUsage
          * @description Tokens the request actually consumed — what it is billed on.
+         *
+         *     ``total_tokens`` is a computed field rather than a plain property because OpenAI carries
+         *     it on the wire, and a property is invisible to serialisation: a client reading
+         *     ``usage.total_tokens`` would find nothing there.
          */
         ChatUsage: {
             /** Prompt Tokens */
             prompt_tokens: number;
             /** Completion Tokens */
             completion_tokens: number;
+            /** Total Tokens */
+            readonly total_tokens: number;
         };
         /**
          * CreateApiKeyRequest
@@ -1578,6 +1640,19 @@ export interface components {
             token: string;
             /** Port */
             port: number;
+        };
+        /**
+         * GeneratedImage
+         * @description One generated image.
+         *
+         *     Only ``url`` is populated: nodes return a reference to the stored artefact, never
+         *     inline bytes. ``b64_json`` — the other half of OpenAI's image object — is deliberately
+         *     absent rather than present-and-always-null, because a field that is always null is a
+         *     promise the network does not keep.
+         */
+        GeneratedImage: {
+            /** Url */
+            url: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1693,13 +1768,21 @@ export interface components {
         };
         /**
          * ImageGenerationResponse
-         * @description Generated images, billed per image actually returned.
+         * @description Generated images, shaped as the OpenAI images API shapes them.
+         *
+         *     Same reasoning as ChatCompletionResponse: OpenAI path, OpenAI request, so an OpenAI
+         *     envelope — ``{created, data:[...]}`` — with the Gridix facts kept as extras.
          */
         ImageGenerationResponse: {
+            /**
+             * Created
+             * @description Unix seconds, as OpenAI reports it.
+             */
+            created: number;
+            /** Data */
+            data: components["schemas"]["GeneratedImage"][];
             /** Model */
             model: string;
-            /** Images */
-            images: string[];
             /** Cost Usdc */
             cost_usdc: string;
             /**
