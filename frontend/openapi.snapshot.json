@@ -1348,6 +1348,66 @@
         }
       }
     },
+    "/providers/onboard": {
+      "post": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "Onboard Provider",
+        "description": "Add the provider capability to the signed-in address, and mint its node's agent key.\n\nGated on a wallet session rather than merely on developer credentials: this mints a\ncredential, and a key that can mint keys makes revocation meaningless (see\n``require_wallet_session``). A leaked API key must not be able to stand up a node.\n\nThe returned key is for the NODE \u2014 a machine that reads it from its environment. The\noperator never signs into the console with it; they sign in with the same wallet they\nused here.",
+        "operationId": "onboard_provider_providers_onboard_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterProviderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisteredPrincipal"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/providers/me": {
       "get": {
         "tags": [
