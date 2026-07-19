@@ -12,7 +12,7 @@ from loguru import logger
 from sqlalchemy import select, update
 
 from app.deps import SessionDep, SettingsDep
-from app.models import ApiKey, AuthNonce, Developer, OwnerType
+from app.models import ApiKey, ApiKeyKind, AuthNonce, Developer, OwnerType
 from app.schemas import NonceResponse, SessionResponse, VerifyRequest
 from app.security import generate_api_key, hash_api_key, key_prefix
 from app.siwe import (
@@ -174,6 +174,7 @@ async def _mint_session_key(
             developer_id=developer.id,
             key_hash=hash_api_key(plaintext, settings.api_hmac_key),
             prefix=key_prefix(plaintext),
+            kind=ApiKeyKind.session,
             label="session",
             expires_at=expires_at,
         )

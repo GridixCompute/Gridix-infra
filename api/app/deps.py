@@ -5,7 +5,7 @@ looked up; the row's ``owner_type`` gates access to developer- vs provider-only 
 """
 
 import hmac
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.models import ApiKey, Developer, OwnerType, Provider
+from app.models import ApiKey, ApiKeyKind, Developer, OwnerType, Provider
 from app.security import hash_api_key
 from app.siwe import as_utc
 
@@ -57,7 +57,27 @@ async def _resolve_key(
     key = await session.scalar(select(ApiKey).where(ApiKey.key_hash == digest))
     if key is None or key.revoked or _is_expired(key):
         raise _UNAUTHORIZED
+    _touch(key)
     return key
+
+
+# How stale last_used_at may get before a request refreshes it. Without this every
+# authenticated call would issue an UPDATE on the hot path to move a timestamp by
+# milliseconds; with it, "last used" is accurate to the minute, which is the resolution
+# anyone revoking a forgotten key actually reads it at.
+_LAST_USED_RESOLUTION = timedelta(seconds=60)
+
+
+def _touch(key: ApiKey) -> None:
+    """Record that the key authenticated a request, at minute resolution.
+
+    Left on the ORM object rather than issued as its own statement: the request session
+    commits on a normal return, so a request that fails rolls this back with everything
+    else — which is the honest answer, the key did not serve that call.
+    """
+    now = datetime.now(UTC)
+    if key.last_used_at is None or now - as_utc(key.last_used_at) >= _LAST_USED_RESOLUTION:
+        key.last_used_at = now
 
 
 def _is_expired(key: ApiKey) -> bool:
@@ -77,6 +97,39 @@ async def require_developer(
     if key.owner_type is not OwnerType.developer or key.developer_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Developer credentials required."
+        )
+    developer = await session.get(Developer, key.developer_id)
+    if developer is None:
+        raise _UNAUTHORIZED
+    return developer
+
+
+async def require_wallet_session(
+    session: SessionDep,
+    settings: SettingsDep,
+    authorization: Annotated[str | None, Header()] = None,
+) -> Developer:
+    """Authenticate a developer who signed in with their wallet on this very credential.
+
+    Managing credentials is gated on this rather than on ``require_developer``, so that an
+    API key cannot mint another API key. If it could, a leaked key would be permanent:
+    revoke it and the holder — who has been quietly minting spares — still has one, and
+    revocation stops meaning anything. A session cannot be obtained that way, because
+    getting one means signing a fresh challenge with the wallet's private key, which
+    holding a leaked API key does not give you.
+
+    This is the whole point of separating the two credentials. A key that could mint keys
+    would collapse them back into one.
+    """
+    key = await _resolve_key(authorization, session, settings)
+    if key.owner_type is not OwnerType.developer or key.developer_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Developer credentials required."
+        )
+    if key.kind is not ApiKeyKind.session:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Wallet sign-in required. An API key cannot manage API keys.",
         )
     developer = await session.get(Developer, key.developer_id)
     if developer is None:
@@ -115,6 +168,7 @@ async def provider_signing_key(
 
 
 DeveloperDep = Annotated[Developer, Depends(require_developer)]
+WalletSessionDep = Annotated[Developer, Depends(require_wallet_session)]
 ProviderDep = Annotated[Provider, Depends(require_provider)]
 ProviderKeyDep = Annotated[str, Depends(provider_signing_key)]
 
