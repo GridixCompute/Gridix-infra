@@ -3,7 +3,7 @@ import { backendFetch } from "@/lib/api/server";
 import { getSessionKey } from "@/lib/auth/session";
 
 /**
- * Authenticated proxy (Sesi 4.2 / 4.5). The browser calls same-origin
+ * Authenticated proxy (Session 4.2 / 4.5). The browser calls same-origin
  * `/api/gw/<backend-path>`; this reads the httpOnly session cookie and forwards
  * to the FastAPI backend with `Authorization: Bearer`. The key never reaches
  * browser JS. Only forwards to the fixed backend base — no open redirect/SSRF.

@@ -1,4 +1,4 @@
-# Frontend security posture (Sesi 14.5)
+# Frontend security posture (Session 14.5)
 
 ## Credential handling
 

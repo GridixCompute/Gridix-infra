@@ -4,7 +4,7 @@ import { generateImage } from "./client";
 import type { ImageRequest } from "./types";
 
 /**
- * Sesi 5.3's DoD is that the code shown "can actually be run — it matches the real request".
+ * Session 5.3's DoD is that the code shown "can actually be run — it matches the real request".
  *
  * The runnable half is not testable and not true yet: `/v1/*` does not exist, so any snippet
  * 404s today. What IS testable is the half that would still be a bug once the backend lands —

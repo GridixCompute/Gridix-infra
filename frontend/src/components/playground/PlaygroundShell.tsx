@@ -17,11 +17,11 @@ import { ImageSettingsPanel } from "./ImageSettingsPanel";
 import { MockBanner } from "./MockBanner";
 
 /**
- * Playground shell (Sesi 4.1): mode + model selection around a panel.
+ * Playground shell (Session 4.1): mode + model selection around a panel.
  *
  * Balance is the app's real one — on-chain escrow minus what the ledger holds, the same
  * derivation the billing page reconciles against. The inference product's own deposit-address
- * balance (Sesi 6) does not exist yet, and inventing a number here would have made the
+ * balance (Session 6) does not exist yet, and inventing a number here would have made the
  * balance gate a prop.
  */
 

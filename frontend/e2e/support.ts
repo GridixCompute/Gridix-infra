@@ -1,7 +1,7 @@
 import type { BrowserContext, Page, Route } from "@playwright/test";
 
 /**
- * Shared E2E helpers (Sesi 12). Auth is simulated by setting the same cookies
+ * Shared E2E helpers (Session 12). Auth is simulated by setting the same cookies
  * the login route would set; all backend traffic is mocked at the network layer
  * so tests are deterministic and need no live backend or chain.
  */

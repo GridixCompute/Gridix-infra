@@ -9,7 +9,7 @@ import type { ImageParams, ImageRequest, InferenceModel } from "@/lib/inference/
 import { CodeViewDialog } from "./CodeViewDialog";
 
 /**
- * Image generation (Sesi 5.2).
+ * Image generation (Session 5.2).
  *
  * Unlike chat there is no partial output, so the wait is the whole experience: a real
  * progress state, cancellable, and the price known up front (per image, not per token —

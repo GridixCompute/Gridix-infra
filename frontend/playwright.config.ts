@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * E2E config (Sesi 12). The suite is hermetic: every backend call is mocked at
+ * E2E config (Session 12). The suite is hermetic: every backend call is mocked at
  * the network boundary (see e2e/support), so it needs no live backend or chain
  * and runs deterministically in CI on Node alone. It exercises the real app —
  * routing, middleware, forms, error handling — against controlled responses.

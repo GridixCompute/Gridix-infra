@@ -1,7 +1,7 @@
 import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils/cn";
 
-/** Content-shaped loading placeholder — never a bare spinner (Sesi 13.1). */
+/** Content-shaped loading placeholder — never a bare spinner (Session 13.1). */
 export function Skeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div

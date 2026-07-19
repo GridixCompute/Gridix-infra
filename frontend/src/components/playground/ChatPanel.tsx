@@ -9,7 +9,7 @@ import type { ChatMessage, ChatParams, ChatRequest, InferenceModel } from "@/lib
 import { CodeViewDialog } from "./CodeViewDialog";
 
 /**
- * The conversation surface (Sesi 4.3).
+ * The conversation surface (Session 4.3).
  *
  * Turns carry their own cost: the ESTIMATE while generating, replaced by the charge the
  * backend reports when the stream closes. Never show one as the other — see pricing.ts.

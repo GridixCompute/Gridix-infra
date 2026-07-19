@@ -4,7 +4,7 @@ import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { Button } from "@/components/ui/Button";
 import { AddressDisplay } from "@/components/domain/AddressDisplay";
 
-/** Connect / disconnect an injected wallet (Sesi 5.1). */
+/** Connect / disconnect an injected wallet (Session 5.1). */
 export function ConnectWallet() {
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending } = useConnect();

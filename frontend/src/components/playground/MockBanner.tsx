@@ -1,7 +1,7 @@
 import { isMockInference } from "@/lib/inference/mock";
 
 /**
- * States plainly that nothing here is real (Sesi 4.2 / 5.4).
+ * States plainly that nothing here is real (Session 4.2 / 5.4).
  *
  * The build plan allows a marked mock while the inference backend does not exist. "Marked"
  * has to mean visible to whoever is looking at the screen — a comment in the source does not

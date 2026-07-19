@@ -3,7 +3,7 @@ import { env } from "@/lib/config/env";
 
 /**
  * Server→backend client. The ONLY place the developer API key is attached to a
- * request, as `Authorization: Bearer` (Sesi 4). Used by route handlers; never
+ * request, as `Authorization: Bearer` (Session 4). Used by route handlers; never
  * imported into a client component.
  */
 export type BackendInit = {

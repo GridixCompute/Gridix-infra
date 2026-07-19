@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { isTerminal } from "@/lib/api/types";
 
 // First-run only, and it reads on-chain escrow — keep its wallet code off the
-// hot dashboard bundle for returning users (Sesi 13.4 / 14.2).
+// hot dashboard bundle for returning users (Session 13.4 / 14.2).
 const GettingStarted = dynamic(
   () => import("@/components/app/GettingStarted").then((m) => m.GettingStarted),
   { ssr: false },

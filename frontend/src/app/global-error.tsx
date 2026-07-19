@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { reportError } from "@/lib/observability/report";
 
 /**
- * Root error boundary (Sesi 14.4). Catches failures in the root layout itself —
+ * Root error boundary (Session 14.4). Catches failures in the root layout itself —
  * it must render its own <html>/<body>. Reports the error (scrubbed) and gives
  * the user a way out.
  */

@@ -8,7 +8,7 @@ import { wagmiConfig } from "@/lib/chain/config";
 import { isApiError } from "@/lib/api/errors";
 
 /**
- * App-wide data provider (Sesi 3.1 / 3.5). Sensible cache defaults plus one
+ * App-wide data provider (Session 3.1 / 3.5). Sensible cache defaults plus one
  * global error policy: a 401 anywhere ends the session and sends the user to
  * login — no infinite spinners, no half-authenticated UI.
  */
