@@ -1,32 +1,121 @@
-"""Provider self-service endpoints: declare capabilities, read back state, bandwidth."""
+"""Provider self-service endpoints: onboard, declare capabilities, read back state.
 
-from fastapi import APIRouter, Query
+Everything here is the *console* — the surface a human operator uses. It authenticates
+with either the wallet session of the address that owns the provider or the node's agent
+key (see ``require_provider_principal``). The machine-only surface lives in agent.py and
+stays agent-key-only.
+"""
+
+from fastapi import APIRouter, HTTPException, Query, status
+from loguru import logger
 from sqlalchemy import select
 
 from app.bandwidth import provider_bandwidth
 from app.benchmark import trust_source
-from app.deps import ProviderDep, SessionDep
-from app.models import BenchmarkReport, Job, JobAttempt, ReputationEvent
+from app.deps import (
+    ProviderPrincipalDep,
+    SessionDep,
+    SettingsDep,
+    WalletSessionDep,
+    provider_for_address,
+)
+from app.models import (
+    ApiKey,
+    ApiKeyKind,
+    BenchmarkReport,
+    Job,
+    JobAttempt,
+    OwnerType,
+    Provider,
+    ReputationEvent,
+)
 from app.schemas import (
     BandwidthResponse,
     BenchmarkResponse,
     ProviderCapabilities,
     ProviderJobAttempt,
     ProviderResponse,
+    RegisteredPrincipal,
+    RegisterProviderRequest,
     ReputationEventResponse,
 )
+from app.security import generate_api_key, hash_api_key, key_prefix
 
 router = APIRouter(tags=["providers"])
 
 
+@router.post(
+    "/providers/onboard", response_model=RegisteredPrincipal, status_code=status.HTTP_201_CREATED
+)
+async def onboard_provider(
+    body: RegisterProviderRequest,
+    developer: WalletSessionDep,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> RegisteredPrincipal:
+    """Add the provider capability to the signed-in address, and mint its node's agent key.
+
+    Gated on a wallet session rather than merely on developer credentials: this mints a
+    credential, and a key that can mint keys makes revocation meaningless (see
+    ``require_wallet_session``). A leaked API key must not be able to stand up a node.
+
+    The returned key is for the NODE — a machine that reads it from its environment. The
+    operator never signs into the console with it; they sign in with the same wallet they
+    used here.
+    """
+    if developer.wallet_address is None:
+        # Unreachable via wallet sign-in, which always sets the address. Explicit anyway:
+        # binding a provider to "no address" would create a record nobody could claim.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="A wallet address is required to become a provider.",
+        )
+
+    existing = await provider_for_address(session, developer.wallet_address)
+    if existing is not None:
+        # One address, one provider. Silently creating a second would split earnings and
+        # reputation across two records the operator experiences as one identity.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This address is already registered as a provider.",
+        )
+
+    provider = Provider(name=body.name, region=body.region, wallet_address=developer.wallet_address)
+    session.add(provider)
+    await session.flush()  # assign provider.id
+
+    plaintext = generate_api_key()
+    session.add(
+        ApiKey(
+            owner_type=OwnerType.provider,
+            provider_id=provider.id,
+            key_hash=hash_api_key(plaintext, settings.api_hmac_key),
+            prefix=key_prefix(plaintext),
+            # A machine credential: long-lived, and barred from managing credentials
+            # because require_wallet_session only ever accepts a session.
+            kind=ApiKeyKind.programmatic,
+            label="node agent",
+        )
+    )
+    logger.info(
+        "developer {} onboarded provider {} for wallet {}",
+        developer.id,
+        provider.id,
+        developer.wallet_address,
+    )
+    return RegisteredPrincipal(id=provider.id, name=provider.name, api_key=plaintext)
+
+
 @router.get("/providers/me", response_model=ProviderResponse)
-async def get_me(provider: ProviderDep):
+async def get_me(provider: ProviderPrincipalDep):
     """Return the authenticated provider's current record."""
     return provider
 
 
 @router.patch("/providers/me", response_model=ProviderResponse)
-async def update_me(body: ProviderCapabilities, provider: ProviderDep, session: SessionDep):
+async def update_me(
+    body: ProviderCapabilities, provider: ProviderPrincipalDep, session: SessionDep
+):
     """Partially update declared capabilities. Only provided fields change."""
     updates = body.model_dump(exclude_unset=True)
     for field, value in updates.items():
@@ -36,7 +125,7 @@ async def update_me(body: ProviderCapabilities, provider: ProviderDep, session: 
 
 
 @router.get("/providers/me/bandwidth", response_model=BandwidthResponse)
-async def my_bandwidth(provider: ProviderDep, session: SessionDep) -> BandwidthResponse:
+async def my_bandwidth(provider: ProviderPrincipalDep, session: SessionDep) -> BandwidthResponse:
     """Return this provider's byte counters — lifetime and for the current session."""
     lifetime = await provider_bandwidth(session, provider.id)
     session_bw = await provider_bandwidth(session, provider.id, since=provider.connected_at)
@@ -50,7 +139,9 @@ async def my_bandwidth(provider: ProviderDep, session: SessionDep) -> BandwidthR
 
 
 @router.get("/providers/me/benchmark", response_model=BenchmarkResponse | None)
-async def my_benchmark(provider: ProviderDep, session: SessionDep) -> BenchmarkReport | None:
+async def my_benchmark(
+    provider: ProviderPrincipalDep, session: SessionDep
+) -> BenchmarkReport | None:
     """Return the provider's latest benchmark report, or null if none submitted."""
     return await session.scalar(
         select(BenchmarkReport)
@@ -62,7 +153,7 @@ async def my_benchmark(provider: ProviderDep, session: SessionDep) -> BenchmarkR
 
 @router.get("/providers/me/jobs", response_model=list[ProviderJobAttempt])
 async def my_jobs(
-    provider: ProviderDep,
+    provider: ProviderPrincipalDep,
     session: SessionDep,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -101,7 +192,7 @@ async def my_jobs(
 
 @router.get("/providers/me/reputation", response_model=list[ReputationEventResponse])
 async def my_reputation(
-    provider: ProviderDep,
+    provider: ProviderPrincipalDep,
     session: SessionDep,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -118,7 +209,7 @@ async def my_reputation(
 
 
 @router.get("/providers/me/trust")
-async def my_trust(provider: ProviderDep, session: SessionDep) -> dict:
+async def my_trust(provider: ProviderPrincipalDep, session: SessionDep) -> dict:
     """Report the provider's trust source (Session 11.3): attested / benchmark / self_report."""
     has_valid = await session.scalar(
         select(BenchmarkReport)

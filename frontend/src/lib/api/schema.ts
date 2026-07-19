@@ -466,6 +466,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/providers/onboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Onboard Provider
+         * @description Add the provider capability to the signed-in address, and mint its node's agent key.
+         *
+         *     Gated on a wallet session rather than merely on developer credentials: this mints a
+         *     credential, and a key that can mint keys makes revocation meaningless (see
+         *     ``require_wallet_session``). A leaked API key must not be able to stand up a node.
+         *
+         *     The returned key is for the NODE — a machine that reads it from its environment. The
+         *     operator never signs into the console with it; they sign in with the same wallet they
+         *     used here.
+         */
+        post: operations["onboard_provider_providers_onboard_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/providers/me": {
         parameters: {
             query?: never;
@@ -2986,6 +3014,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    onboard_provider_providers_onboard_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterProviderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisteredPrincipal"];
                 };
             };
             /** @description Validation Error */
