@@ -2,7 +2,7 @@
  * Friendly aliases over the generated OpenAPI schema. These are the ONLY names
  * the app imports for domain types — never hand-write a shape the backend owns.
  * Regenerate with `pnpm gen:types` when the backend schema changes (CI gate,
- * Sesi 1.3, fails the build if this drifts).
+ * Session 1.3, fails the build if this drifts).
  */
 import type { components } from "./schema";
 

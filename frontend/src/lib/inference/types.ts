@@ -45,7 +45,7 @@ export type ChatMessage = {
   content: string;
 };
 
-/** Knobs the settings panel drives (Sesi 4.4). `seed` ties to backend canary determinism. */
+/** Knobs the settings panel drives (Session 4.4). `seed` ties to backend canary determinism. */
 export type ChatParams = {
   temperature: number;
   maxTokens: number;
@@ -90,7 +90,7 @@ export type ChatStreamEvent =
   | { type: "delta"; content: string }
   | { type: "done"; usage: ChatUsage | null; finishReason: "stop" | "length" | null };
 
-// ── images (Sesi 5) ─────────────────────────────────────────────────────────────────
+// ── images (Session 5) ─────────────────────────────────────────────────────────────────
 
 /** Sizes the UI offers. The real endpoint decides what it actually accepts. */
 export const IMAGE_SIZES = ["512x512", "768x768", "1024x1024"] as const;

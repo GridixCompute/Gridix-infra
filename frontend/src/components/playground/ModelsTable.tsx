@@ -11,7 +11,7 @@ import type { InferenceModel } from "@/lib/inference/types";
 import { MockBanner } from "./MockBanner";
 
 /**
- * The catalogue and its rate card (Sesi 5.4).
+ * The catalogue and its rate card (Session 5.4).
  *
  * Chat is priced per token and image per image, so the two cannot share a price column
  * honestly — one row would have to lie about its unit. They get separate tables instead.

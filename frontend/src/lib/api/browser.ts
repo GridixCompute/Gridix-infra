@@ -12,7 +12,7 @@ import type {
 import type { JobFilters } from "@/lib/query/keys";
 
 /**
- * Browser API surface (Sesi 3.2). Every call goes through the same-origin
+ * Browser API surface (Session 3.2). Every call goes through the same-origin
  * authenticated proxy (/api/gw). Components never call fetch directly and never
  * see the API key. All return types come from the generated OpenAPI schema.
  */

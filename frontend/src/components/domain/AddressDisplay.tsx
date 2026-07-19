@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils/cn";
 
 /**
  * Renders a 0x address or tx hash: truncated, monospace, copy button, and a
- * link to the block explorer (Sesi 2.4). Used everywhere — no ad-hoc hex.
+ * link to the block explorer (Session 2.4). Used everywhere — no ad-hoc hex.
  */
 export function AddressDisplay({
   value,

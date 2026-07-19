@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { loginAs, mockApi } from "./support";
 
 /**
- * The failure paths matter most (Sesi 12.4): each must show a correct message,
+ * The failure paths matter most (Session 12.4): each must show a correct message,
  * never a broken screen.
  */
 test.describe("failure paths", () => {

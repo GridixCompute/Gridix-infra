@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils/cn";
 
 /**
  * The single, app-wide rendering of a job status. Colors are meaningful, not
- * arbitrary (Sesi 2.4): green = live/done, red = failed, amber = timeout,
+ * arbitrary (Session 2.4): green = live/done, red = failed, amber = timeout,
  * blue = dispatched, grey = waiting. Backend defines exactly 6 statuses.
  */
 const CONFIG: Record<

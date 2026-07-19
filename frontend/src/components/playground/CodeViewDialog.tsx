@@ -7,7 +7,7 @@ import { isMockInference } from "@/lib/inference/mock";
 import { renderSnippet, SNIPPET_LANGS, type SnippetLang } from "@/lib/inference/snippets";
 
 /**
- * Shows the request the playground just built, as code you can paste (Sesi 5.3).
+ * Shows the request the playground just built, as code you can paste (Session 5.3).
  *
  * The bridge from playground to API: whatever you tuned here, this is the call that does the
  * same thing from your own program. `body` is the actual request object the client sends —

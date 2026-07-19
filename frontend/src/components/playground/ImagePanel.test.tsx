@@ -5,7 +5,7 @@ import { MOCK_MODELS } from "@/lib/inference/mock";
 import type { ImageParams } from "@/lib/inference/types";
 
 /**
- * The image balance gate (Sesi 5.2), covered here for the same reason as ChatPanel's: the
+ * The image balance gate (Session 5.2), covered here for the same reason as ChatPanel's: the
  * gate needs a real balance (on-chain escrow + backend ledger), which the dev environment
  * cannot supply, so the browser pass only ever exercises the balance-unknown path.
  *
