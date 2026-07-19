@@ -30,6 +30,12 @@ dev = [
     "pytest-asyncio",
     "httpx>=0.27",
     "aiosqlite>=0.20",
+    # The real OpenAI SDK, used as a TEST INSTRUMENT — never imported by the app. The
+    # product's central promise is that pointing an OpenAI client at /v1 just works, and
+    # the only way to know that is to let the actual client parse an actual response.
+    # Asserting on JSON keys by hand proves the shape we believe in, not the shape the
+    # library requires.
+    "openai>=1.40",
 ]
 # S3 / S3-compatible (MinIO) blob storage backend. Install with `.[s3]` when
 # GRIDIX_STORAGE_BACKEND=s3 (the S3ObjectStore imports aioboto3 lazily).
