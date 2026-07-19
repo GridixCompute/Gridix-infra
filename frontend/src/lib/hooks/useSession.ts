@@ -13,6 +13,13 @@ function readNameCookie(): string | null {
   return match ? decodeURIComponent(match[1]!) : null;
 }
 
+/** Where signing out lands: providers can't use the wallet page, so send them their own. */
+function signInPath(): string {
+  return /(?:^|;\s*)gridix_role=provider(?:;|$)/.test(document.cookie)
+    ? "/provider-login"
+    : "/login";
+}
+
 export function useSession() {
   const router = useRouter();
   const [name, setName] = useState<string | null>(null);
@@ -22,8 +29,10 @@ export function useSession() {
   }, []);
 
   const logout = useCallback(async () => {
+    // Read the role before clearing, or the cookie is already gone.
+    const dest = signInPath();
     await fetch("/api/session", { method: "DELETE" }).catch(() => {});
-    router.replace("/login");
+    router.replace(dest);
     router.refresh();
   }, [router]);
 

@@ -3,10 +3,16 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useAccount, useSignMessage } from "wagmi";
 import { Card, CardBody } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { ConnectWallet } from "@/components/chain/ConnectWallet";
 import { safeNext } from "@/lib/auth/safe-next";
+
+/** EIP-1193 rejection, i.e. the user clicked "reject" in the wallet. */
+function isUserRejection(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: number }).code === 4001;
+}
 
 function LoginForm() {
   const router = useRouter();
@@ -16,39 +22,51 @@ function LoginForm() {
   const next =
     typeof window === "undefined" ? null : safeNext(params.get("next"), window.location.origin);
 
-  const [apiKey, setApiKey] = useState("");
+  const { address, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [signing, setSigning] = useState(false);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function onSignIn() {
+    if (!address) return;
     setError(null);
-    setSubmitting(true);
+    setSigning(true);
     try {
+      // 1. Challenge. The message text is composed by the backend, never here.
+      const nonceRes = await fetch(`/api/session/nonce?address=${encodeURIComponent(address)}`);
+      const challenge = (await nonceRes.json().catch(() => ({}))) as {
+        nonce?: string;
+        message?: string;
+      };
+      if (!nonceRes.ok || !challenge.nonce || !challenge.message) {
+        setError("Couldn't start sign-in. Try again.");
+        return;
+      }
+
+      // 2. The wallet signs it verbatim.
+      const signature = await signMessageAsync({ message: challenge.message });
+
+      // 3. Exchange the signature for a session cookie.
       const res = await fetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey }),
+        body: JSON.stringify({ address, nonce: challenge.nonce, signature }),
       });
       if (res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { role?: string };
-        // Honour an explicit redirect target; otherwise send each role home.
-        const dest =
-          next && next !== "/dashboard"
-            ? next
-            : data.role === "provider"
-              ? "/provider"
-              : "/dashboard";
-        router.replace(dest);
+        router.replace(next ?? "/dashboard");
         router.refresh();
         return;
       }
       const data = (await res.json().catch(() => ({}))) as { message?: string };
-      setError(data.message ?? "That API key isn't valid.");
-    } catch {
-      setError("Can't reach GRIDIX. Check your connection and try again.");
+      setError(data.message ?? "Couldn't sign you in. Try again.");
+    } catch (err) {
+      setError(
+        isUserRejection(err)
+          ? "You declined the signature. Sign the message to continue."
+          : "Can't reach GRIDIX. Check your connection and try again.",
+      );
     } finally {
-      setSubmitting(false);
+      setSigning(false);
     }
   }
 
@@ -60,30 +78,32 @@ function LoginForm() {
             Sign in
           </h1>
           <p className="mt-1 text-sm text-[var(--color-ink-faint)]">
-            Paste your developer or provider API key — we detect which. It&apos;s stored in a secure
-            httpOnly cookie, never exposed to the browser.
+            Connect your wallet and sign a message to prove it&apos;s yours. No password, no API
+            key. First time here? Signing in creates your account — the same address you deposit
+            USDC from.
           </p>
         </div>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <Input
-            label="API key"
-            type="password"
-            placeholder="grdx_…"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            error={error ?? undefined}
-            mono
-            autoFocus
-            required
-          />
-          <Button type="submit" className="w-full" loading={submitting} disabled={!apiKey.trim()}>
-            Sign in
+
+        <div className="flex justify-center">
+          <ConnectWallet />
+        </div>
+
+        {isConnected && (
+          <Button className="w-full" onClick={onSignIn} loading={signing}>
+            Sign in with wallet
           </Button>
-        </form>
+        )}
+
+        {error && (
+          <p role="alert" className="text-sm text-[var(--color-danger)]">
+            {error}
+          </p>
+        )}
+
         <p className="text-center text-sm text-[var(--color-ink-faint)]">
-          No account yet?{" "}
-          <Link href="/register" className="text-[var(--color-signal-bright)] underline">
-            Create one
+          Running a node?{" "}
+          <Link href="/provider-login" className="text-[var(--color-signal-bright)] underline">
+            Provider sign-in
           </Link>{" "}
           ·{" "}
           <Link href="/provider-register" className="text-[var(--color-signal-bright)] underline">

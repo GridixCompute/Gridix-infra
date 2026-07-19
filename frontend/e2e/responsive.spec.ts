@@ -31,7 +31,7 @@ async function expectNoOverflow(
 
 test.describe("responsive @ 375px", () => {
   test("public pages don't overflow horizontally", async ({ page }) => {
-    for (const path of ["/", "/docs", "/login", "/register", "/provider-register"]) {
+    for (const path of ["/", "/docs", "/login", "/provider-login", "/provider-register"]) {
       await expectNoOverflow(page, path);
     }
   });

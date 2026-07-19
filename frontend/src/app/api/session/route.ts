@@ -1,49 +1,56 @@
 import { NextResponse } from "next/server";
-import { backendFetch } from "@/lib/api/server";
-import { setSession, clearSession, type Role } from "@/lib/auth/session";
+import { backendJson } from "@/lib/api/server";
+import { setSession, clearSession } from "@/lib/auth/session";
+import type { SessionResponse } from "@/lib/api/types";
 
 /**
- * Login (Sesi 4.2 / 11.1): validate an API key against the backend, then store
- * it in an httpOnly cookie. There is no whoami endpoint, so we validate by
- * calling an authenticated route and infer the role from which one accepts the
- * key: developers own GET /jobs, providers own GET /providers/me. A 403 on the
- * developer route means the key is valid but belongs to a provider, so we try
- * the provider route before rejecting.
+ * Developer sign-in: the wallet is the only way in.
+ *
+ * The browser has already fetched a challenge (GET /api/session/nonce) and had the
+ * wallet sign it. This forwards address + nonce + signature to POST /auth/verify,
+ * which recovers the signer, resolves-or-creates the developer, and mints a session
+ * credential. That credential goes straight into the httpOnly cookie — it is never
+ * returned to the page.
+ *
+ * There is deliberately NO API-key branch here. An API key lives in scripts, CI, and
+ * .env files; if it could also open the dashboard, one leaked key would carry billing
+ * and withdraw with it. Keys call the inference API and nothing else. Providers, which
+ * have no wallet identity backend-side, sign in at /api/session/provider.
  */
-async function detectRole(apiKey: string): Promise<Role | "invalid" | "error"> {
-  const asDev = await backendFetch("/jobs?limit=1", { apiKey });
-  if (asDev.status === 200) return "developer";
-  if (asDev.status !== 401 && asDev.status !== 403) return "error";
-
-  const asProvider = await backendFetch("/providers/me", { apiKey });
-  if (asProvider.status === 200) return "provider";
-  if (asProvider.status === 401 || asProvider.status === 403) return "invalid";
-  return "error";
-}
+type VerifyBody = { address?: string; nonce?: string; signature?: string };
 
 export async function POST(req: Request) {
-  let apiKey = "";
+  let body: VerifyBody = {};
   try {
-    const body = (await req.json()) as { apiKey?: string };
-    apiKey = body.apiKey ?? "";
+    body = (await req.json()) as VerifyBody;
   } catch {
-    /* fall through */
-  }
-  apiKey = apiKey.trim();
-  if (!apiKey) {
-    return NextResponse.json({ message: "Paste your API key." }, { status: 422 });
+    /* fall through to validation */
   }
 
-  const role = await detectRole(apiKey);
-  if (role === "invalid") {
-    return NextResponse.json({ message: "That API key isn't valid." }, { status: 401 });
-  }
-  if (role === "error") {
-    return NextResponse.json({ message: "Couldn't verify your key. Try again." }, { status: 502 });
+  const address = body.address?.trim() ?? "";
+  const nonce = body.nonce?.trim() ?? "";
+  const signature = body.signature?.trim() ?? "";
+  if (!address || !nonce || !signature) {
+    return NextResponse.json({ message: "Sign the message to continue." }, { status: 422 });
   }
 
-  await setSession(apiKey, role === "provider" ? "Provider" : "Developer", role);
-  return NextResponse.json({ ok: true, role });
+  const { status, data } = await backendJson<SessionResponse>("/auth/verify", {
+    method: "POST",
+    json: { address, nonce, signature },
+  });
+
+  if (status === 401) {
+    return NextResponse.json(
+      { message: "That signature didn't check out. Try connecting again." },
+      { status: 401 },
+    );
+  }
+  if (status < 200 || status >= 300) {
+    return NextResponse.json({ message: "Couldn't sign you in. Try again." }, { status: 502 });
+  }
+
+  await setSession(data.api_key, data.name, "developer");
+  return NextResponse.json({ ok: true, role: "developer" });
 }
 
 /** Logout (Sesi 4.2): clear the session cookies. */
