@@ -24,6 +24,18 @@ async function internalLinks(page: import("@playwright/test").Page): Promise<str
 }
 
 test.describe("link integrity", () => {
+  test("the header Playground link opens the sign-in funnel, not a dead end", async ({ page }) => {
+    // /playground is private, so a logged-out visitor is redirected to /login. That is the
+    // intended funnel — but "redirected to login" and "404" look equally broken to the
+    // generic gate below, which only rejects 404s. This pins the destination.
+    await page.goto("/");
+    await page.getByRole("navigation", { name: "Primary" }).getByText("Playground").click();
+
+    await expect(page).toHaveURL(/\/login\?next=%2Fplayground/);
+    // And the funnel terminates: /login is public, so it does not bounce onward.
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  });
+
   for (const path of PAGES) {
     test(`${path} links only to pages that exist`, async ({ page }) => {
       await page.goto(path);

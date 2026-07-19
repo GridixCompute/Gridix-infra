@@ -2,10 +2,14 @@ import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/Button";
 
+// Playground is a private route: a logged-out visitor is sent to /login by the
+// middleware, which is the point — it is the top of the sign-in funnel, not a dead
+// link. Plain <a> like the rest of this list, which is mostly landing-page anchors.
 const NAV = [
   { label: "Product", href: "#product" },
   { label: "How it works", href: "#how" },
   { label: "Proof", href: "#proof" },
+  { label: "Playground", href: "/playground" },
   { label: "Docs", href: "/docs" },
 ];
 
