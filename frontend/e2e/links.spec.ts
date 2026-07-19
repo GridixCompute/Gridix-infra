@@ -13,7 +13,7 @@ import { test, expect } from "@playwright/test";
  * scrolling nowhere and no other test would notice.
  */
 
-const PAGES = ["/", "/docs", "/login", "/register", "/provider-register"];
+const PAGES = ["/", "/docs", "/login", "/provider-login", "/provider-register"];
 
 /** Internal, non-empty, non-hash-only targets — a bare "#" is a real pattern, not a broken link. */
 async function internalLinks(page: import("@playwright/test").Page): Promise<string[]> {

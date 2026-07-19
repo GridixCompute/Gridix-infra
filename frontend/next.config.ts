@@ -6,6 +6,11 @@ const nextConfig: NextConfig = {
   // Emit a minimal self-contained server (.next/standalone) for the Docker image
   // (Sesi 14.3). Vercel ignores this and builds its own way.
   output: "standalone",
+  // /register is gone: POST /auth/verify resolves-or-creates the developer, so signing
+  // in with a new wallet IS registration. Old links and bookmarks land on /login.
+  async redirects() {
+    return [{ source: "/register", destination: "/login", permanent: true }];
+  },
   webpack: (config) => {
     // @wagmi/connectors imports optional wallet SDKs (porto, etc.) we don't use.
     // Alias them to false so the bundle doesn't try to resolve them.
