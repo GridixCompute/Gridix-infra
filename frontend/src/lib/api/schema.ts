@@ -236,11 +236,12 @@ export interface paths {
         };
         /**
          * Image Quota
-         * @description How much of today's image allowance this visitor has left.
+         * @description How much of today's image allowance this WALLET has left.
          *
-         *     Readable even though generation is closed, because the counter is what the UI shows and
-         *     the reset boundary is what a visitor asks about. Issues the visitor cookie if absent, so
-         *     the anchor exists before the first generation rather than being minted mid-request.
+         *     Gated on the same wallet session as generation itself: the allowance belongs to an
+         *     address, so there is no answer to give a caller who has not proved they hold one. It
+         *     also means the number the UI shows is the number that will actually be enforced, rather
+         *     than a guess made against a different anchor.
          */
         get: operations["image_quota_public_images_quota_get"];
         put?: never;
@@ -262,20 +263,22 @@ export interface paths {
         put?: never;
         /**
          * Public Image
-         * @description Generate a free image — CLOSED, and closed by the safety system rather than a flag.
+         * @description Generate an image. Requires a WALLET SESSION — unlike chat, which stays anonymous.
          *
-         *     Two independent reasons this cannot serve anything today, and the check order matters:
+         *     The asymmetry is the point. Chat is cheap to serve and cheap to get wrong, so it is
+         *     open. Image generation is neither: it is the surface where a prompt filter has to hold,
+         *     and a filter is worth far more when the request belongs to an identity than when it
+         *     comes from an address behind a NAT. Requiring a session is what makes the quota
+         *     countable, the refusals attributable, and repeat abuse something that can be acted on.
          *
-         *     1. NO MODERATION IS CONFIGURED. `image_generation_available()` is false whenever the
-         *        moderator cannot make decisions, and the default moderator cannot. Public,
-         *        unauthenticated image generation without CSAM and NCII screening is not something to
-         *        ship behind a TODO, so the door is shut by the absence of the control rather than by
-         *        a boolean someone could flip without noticing what it guards.
-         *     2. NOTHING CAN GENERATE AN IMAGE. The node package serves chat only and answers
-         *        `images.generations` with 501; no node advertises an image model.
+         *     Order of checks, each refusing before the next costs anything:
+         *       1. a wallet session at all (the dependency),
+         *       2. prompt screening — before a node, before the quota is spent,
+         *       3. the daily allowance for this wallet.
          *
-         *     The quota below it is real and tested regardless, so that enabling this route later is
-         *     supplying a moderator — not also discovering that the limit was never written.
+         *     Screening runs BEFORE the quota so a refused prompt does not consume an allowance. A
+         *     caller whose prompt is rejected has not had an image, and charging them for one would
+         *     turn the filter into a way to burn someone else's day.
          */
         post: operations["public_image_public_images_post"];
         delete?: never;
@@ -2802,7 +2805,9 @@ export interface operations {
     image_quota_public_images_quota_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2819,12 +2824,23 @@ export interface operations {
                     };
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     public_image_public_images_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };

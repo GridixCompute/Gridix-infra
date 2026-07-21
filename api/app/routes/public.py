@@ -23,32 +23,29 @@ What bounds it instead:
 
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from app.deps import SessionDep, SettingsDep
+from app.deps import SessionDep, SettingsDep, WalletSessionDep
 from app.dispatch import DispatchError, NoNodeAvailableError, dispatch_stream, select_node
 from app.free_capacity import CapacityFull, get_capacity
 from app.free_tier import (
     FREE_CHAT_MODEL,
-    anchor_for,
     consume_daily,
     is_free_chat_model,
-    new_visitor_id,
     used_today,
+    wallet_anchor,
 )
 from app.models import DataTier
-from app.moderation import image_generation_available
+from app.moderation import get_moderator, image_generation_available
 from app.ratelimit import check_rate_limit
 from app.schemas import ChatMessage
 from app.siwe import utcnow
 from app.streaming_chat import sse
 
 router = APIRouter(prefix="/public", tags=["public"])
-
-VISITOR_COOKIE = "gridix_visitor"
 
 
 class PublicChatRequest(BaseModel):
@@ -201,27 +198,23 @@ def _done() -> dict:
 
 @router.get("/images/quota")
 async def image_quota(
-    request: Request, response: Response, session: SessionDep, settings: SettingsDep
+    developer: WalletSessionDep, session: SessionDep, settings: SettingsDep
 ) -> dict:
-    """How much of today's image allowance this visitor has left.
+    """How much of today's image allowance this WALLET has left.
 
-    Readable even though generation is closed, because the counter is what the UI shows and
-    the reset boundary is what a visitor asks about. Issues the visitor cookie if absent, so
-    the anchor exists before the first generation rather than being minted mid-request.
+    Gated on the same wallet session as generation itself: the allowance belongs to an
+    address, so there is no answer to give a caller who has not proved they hold one. It
+    also means the number the UI shows is the number that will actually be enforced, rather
+    than a guess made against a different anchor.
     """
-    cookie = request.cookies.get(VISITOR_COOKIE)
-    if not cookie:
-        cookie = new_visitor_id()
-        response.set_cookie(
-            VISITOR_COOKIE,
-            cookie,
-            max_age=60 * 60 * 24 * 400,
-            httponly=True,
-            samesite="lax",
-            secure=settings.is_prod,
+    if developer.wallet_address is None:
+        # Unreachable via wallet sign-in, which always sets it. Explicit because a quota
+        # counted against "no address" would be one shared allowance for everybody.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="A wallet address is required.",
         )
-    cookie_anchor, _ = anchor_for(_client_ip(request), cookie)
-    used = await used_today(session, anchor=cookie_anchor, kind="image")
+    used = await used_today(session, anchor=wallet_anchor(developer.wallet_address), kind="image")
     return {
         "limit": settings.free_images_per_day,
         "used": used,
@@ -238,47 +231,60 @@ class PublicImageRequest(BaseModel):
 @router.post("/images")
 async def public_image(
     body: PublicImageRequest,
-    request: Request,
+    developer: WalletSessionDep,
     session: SessionDep,
     settings: SettingsDep,
 ) -> dict:
-    """Generate a free image — CLOSED, and closed by the safety system rather than a flag.
+    """Generate an image. Requires a WALLET SESSION — unlike chat, which stays anonymous.
 
-    Two independent reasons this cannot serve anything today, and the check order matters:
+    The asymmetry is the point. Chat is cheap to serve and cheap to get wrong, so it is
+    open. Image generation is neither: it is the surface where a prompt filter has to hold,
+    and a filter is worth far more when the request belongs to an identity than when it
+    comes from an address behind a NAT. Requiring a session is what makes the quota
+    countable, the refusals attributable, and repeat abuse something that can be acted on.
 
-    1. NO MODERATION IS CONFIGURED. `image_generation_available()` is false whenever the
-       moderator cannot make decisions, and the default moderator cannot. Public,
-       unauthenticated image generation without CSAM and NCII screening is not something to
-       ship behind a TODO, so the door is shut by the absence of the control rather than by
-       a boolean someone could flip without noticing what it guards.
-    2. NOTHING CAN GENERATE AN IMAGE. The node package serves chat only and answers
-       `images.generations` with 501; no node advertises an image model.
+    Order of checks, each refusing before the next costs anything:
+      1. a wallet session at all (the dependency),
+      2. prompt screening — before a node, before the quota is spent,
+      3. the daily allowance for this wallet.
 
-    The quota below it is real and tested regardless, so that enabling this route later is
-    supplying a moderator — not also discovering that the limit was never written.
+    Screening runs BEFORE the quota so a refused prompt does not consume an allowance. A
+    caller whose prompt is rejected has not had an image, and charging them for one would
+    turn the filter into a way to burn someone else's day.
     """
-    if not image_generation_available():
+    if developer.wallet_address is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="A wallet address is required.",
+        )
+
+    moderator = get_moderator()
+    if not moderator.is_configured():
+        # Fail-closed at the gate: no screening, no generation.
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Image generation is unavailable.",
+        )
+
+    verdict = await moderator.check_prompt(body.prompt)
+    if not verdict.allowed:
+        logger.warning(
+            "refused image prompt from developer {} ({})", developer.id, verdict.category
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                "Free image generation isn't available yet. It stays closed until content "
-                "screening is in place."
+                "That prompt was refused. GRIDIX won't generate sexual material involving "
+                "minors, or sexual content depicting real people."
             ),
         )
 
-    # Unreachable while the gate above holds. Kept, exercised by tests with a moderator
-    # installed, and deliberately written before the route opens: a quota added at the same
-    # time as the feature is a quota nobody has ever seen fail.
-    cookie = request.cookies.get(VISITOR_COOKIE) or new_visitor_id()
-    cookie_anchor, ip_anchor = anchor_for(_client_ip(request), cookie)
-
-    within_visitor = await consume_daily(
-        session, anchor=cookie_anchor, kind="image", limit=settings.free_images_per_day
-    )
-    within_ip = await consume_daily(
-        session, anchor=ip_anchor, kind="image", limit=settings.free_images_per_ip_per_day
-    )
-    if not (within_visitor and within_ip):
+    if not await consume_daily(
+        session,
+        anchor=wallet_anchor(developer.wallet_address),
+        kind="image",
+        limit=settings.free_images_per_day,
+    ):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=(
@@ -287,6 +293,10 @@ async def public_image(
             ),
         )
 
+    # Everything above is real and enforced. This is where generation would go, and there is
+    # nothing to dispatch to: the node package serves chat only and answers
+    # `images.generations` with 501, and no node advertises an image model. Reported as 503
+    # rather than pretended around.
     raise HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail="No node can generate images yet.",

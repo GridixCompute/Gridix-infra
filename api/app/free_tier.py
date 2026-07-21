@@ -13,7 +13,13 @@ and the relay — and is bounded by RATE instead of by money:
   * a model allowlist, so the paid catalogue is unreachable from here,
   * a per-IP request rate, so "unlimited chat" cannot mean "one script owns the GPU",
   * a concurrency cap with a bounded queue, so load waits its turn instead of thrashing,
-  * a daily counter for image generation, anchored per visitor.
+  * a daily counter for image generation, anchored per WALLET.
+
+Chat and images are bounded differently because they carry different risk. Chat is anonymous
+and unmetered by design, so an IP rate is the only ceiling available. Image generation
+requires a wallet session, so its limit can be counted against a real identity — which is
+also what makes prompt screening meaningful, since a refused request now belongs to someone
+rather than to an address behind a NAT.
 
 THE FREE MODEL IS NOT IN ``CATALOG``. The catalogue is what GRIDIX sells, with prices, and
 is what ``/v1/models`` advertises and what the billing gate prices against. Adding a
@@ -23,7 +29,6 @@ not the catalogue, so a free model can be servable without being sellable.
 """
 
 import hashlib
-import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -35,11 +40,6 @@ from app.models import FreeTierUsage
 # so one A4500 can hold several copies in parallel and serve many visitors at once, where a
 # single 8B generation would monopolise the card.
 FREE_CHAT_MODEL = "llama3.2-3b"
-
-# Image models the free tier would serve. Empty, and the route is closed: nothing can
-# generate an image yet (the node package serves chat only), and the moderation this would
-# require is not in place. See `moderation.py`.
-FREE_IMAGE_MODELS: frozenset[str] = frozenset()
 
 
 def is_free_chat_model(model: str | None) -> bool:
@@ -60,38 +60,30 @@ def utc_day(now: datetime | None = None) -> str:
     return (now or datetime.now(UTC)).astimezone(UTC).strftime("%Y-%m-%d")
 
 
-def anchor_for(ip: str | None, visitor_cookie: str | None) -> tuple[str, str]:
-    """The two identities a daily quota is counted against, hashed.
+def wallet_anchor(address: str) -> str:
+    """The identity an image quota is counted against: one wallet, one allowance.
 
-    Returns ``(cookie_anchor, ip_anchor)``, and the caller charges BOTH — because either
-    alone is trivially defeated or unfairly shared:
+    This replaces the cookie+IP pair the quota used while image generation was anonymous.
+    That scheme existed to make a limit mean something without an identity, and it was a
+    deterrent at best — a cookie wipe reset it, and a shared NAT address made the IP half
+    unfair to everyone behind it. Requiring a wallet session removes the problem rather than
+    mitigating it: the caller HAS an identity, so the quota is counted against that and
+    nothing else. Both anchors are gone rather than kept "just in case", because a second
+    way to count the same limit is a second way for it to disagree with itself.
 
-      * COOKIE alone: clearing it resets the quota, so the limit is advisory.
-      * IP alone: an office, a university, or a mobile carrier NAT is one address shared by
-        hundreds of people, so a 5/day limit would be 5/day for all of them together.
+    Lowercased first: EIP-55 checksummed and all-lowercase spellings of an address are the
+    same account, and counting them separately would hand out ten images a day to anyone who
+    noticed.
 
-    Charging both, with a much higher ceiling on the IP, gives a per-visitor limit that a
-    cookie wipe cannot erase while a shared address still gets a usable allowance. It is a
-    deterrent, not an identity system: someone determined will rotate both. The IP ceiling
-    is what bounds how far that gets them.
-
-    Hashed, and salted by kind, so the stored row is a counter rather than a visitor log —
-    the table can answer "has this anchor had five?" without holding an address.
+    Still hashed, so the counter table stays a counter rather than a record of which wallet
+    generated what and when. The address is public on-chain; the association between it and
+    this activity does not have to be.
     """
-    cookie = visitor_cookie or ""
-    return (
-        _hash("cookie", cookie) if cookie else _hash("cookie", "anonymous"),
-        _hash("ip", ip or "unknown"),
-    )
+    return _hash("wallet", address.strip().lower())
 
 
 def _hash(kind: str, value: str) -> str:
     return hashlib.sha256(f"gridix-free-tier:{kind}:{value}".encode()).hexdigest()[:64]
-
-
-def new_visitor_id() -> str:
-    """An opaque id for a first-time visitor's cookie. Carries nothing about them."""
-    return uuid.uuid4().hex
 
 
 async def consume_daily(

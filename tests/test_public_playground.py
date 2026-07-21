@@ -11,17 +11,16 @@ the rate limit, and no image generation while its safety control is unconfigured
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
 from app.dispatch import reset_inflight
 from app.free_capacity import CapacityFull, FreeCapacity, reset_capacity
-from app.free_tier import FREE_CHAT_MODEL, anchor_for, consume_daily, is_free_chat_model, utc_day
+from app.free_tier import FREE_CHAT_MODEL, is_free_chat_model
 from app.ledger import deposit_stake
 from app.models import LedgerEntry, Provider, ProviderModel
-from app.moderation import UnconfiguredModerator, get_moderator, set_moderator
 from httpx import AsyncClient
 from sqlalchemy import func, select
 
@@ -43,7 +42,6 @@ def _clean():
     _local_windows.clear()
     reset_inflight()
     reset_capacity()
-    set_moderator(UnconfiguredModerator())
 
 
 async def make_free_node(session, *, models=(FREE_CHAT_MODEL,)):
@@ -208,97 +206,13 @@ class TestRateLimit:
         assert res.headers.get("Retry-After") == "60"
 
 
-class TestDailyImageQuota:
-    """Five per day, resetting at 00:00 UTC. Tested through the store, since the route is shut."""
-
-    async def test_it_holds_on_the_sixth(self, session) -> None:
-        anchor, _ = anchor_for("1.2.3.4", "visitor-a")
-        allowed = [
-            await consume_daily(session, anchor=anchor, kind="image", limit=5) for _ in range(6)
-        ]
-        assert allowed == [True, True, True, True, True, False], allowed
-
-    async def test_it_resets_at_midnight_utc(self, session) -> None:
-        anchor, _ = anchor_for("1.2.3.4", "visitor-b")
-        day1 = datetime(2026, 7, 21, 23, 59, 59, tzinfo=UTC)
-        day2 = datetime(2026, 7, 22, 0, 0, 1, tzinfo=UTC)
-
-        for _ in range(5):
-            assert await consume_daily(session, anchor=anchor, kind="image", limit=5, now=day1)
-        assert not await consume_daily(session, anchor=anchor, kind="image", limit=5, now=day1)
-
-        # One second past midnight UTC, the allowance is whole again.
-        assert await consume_daily(session, anchor=anchor, kind="image", limit=5, now=day2)
-
-    async def test_the_boundary_is_utc_not_local(self) -> None:
-        """The reset is 00:00 UTC by definition, so the day must be computed in UTC.
-
-        The zones here are FIXED OFFSETS, not the machine's. An earlier version used
-        `.astimezone()`, which reads the runner's timezone — so it caught a
-        "use local time" regression on a UTC+7 laptop and would have missed it entirely on
-        a UTC CI runner. A test whose power depends on where it runs is not a test of this
-        behaviour.
-        """
-        just_before = datetime(2026, 7, 21, 23, 59, tzinfo=UTC)
-        assert utc_day(just_before) == "2026-07-21"
-        assert utc_day(just_before + timedelta(minutes=2)) == "2026-07-22"
-
-        # 07:00 on the 22nd in UTC+9 is still 22:00 on the 21st in UTC — the allowance has
-        # NOT reset yet for this caller, wherever they happen to be sitting.
-        tokyo = timezone(timedelta(hours=9))
-        assert utc_day(datetime(2026, 7, 22, 7, 0, tzinfo=tokyo)) == "2026-07-21"
-
-        # And the mirror: 20:00 on the 21st in UTC-5 is already the 22nd in UTC.
-        chicago = timezone(timedelta(hours=-5))
-        assert utc_day(datetime(2026, 7, 21, 20, 0, tzinfo=chicago)) == "2026-07-22"
-
-    async def test_two_visitors_have_separate_allowances(self, session) -> None:
-        a, _ = anchor_for("1.2.3.4", "visitor-a")
-        b, _ = anchor_for("1.2.3.4", "visitor-b")
-        for _ in range(5):
-            await consume_daily(session, anchor=a, kind="image", limit=5)
-        assert not await consume_daily(session, anchor=a, kind="image", limit=5)
-        # b is a different cookie on the same IP, and still has its own five.
-        assert await consume_daily(session, anchor=b, kind="image", limit=5)
-
-    async def test_the_anchor_stores_no_raw_address(self) -> None:
-        """The table is a counter, not a visitor log."""
-        cookie_anchor, ip_anchor = anchor_for("203.0.113.9", "visitor-c")
-        for anchor in (cookie_anchor, ip_anchor):
-            assert "203.0.113.9" not in anchor
-            assert "visitor-c" not in anchor
-            assert len(anchor) == 64
-
-
-class TestImageGenerationIsClosed:
-    """Closed by the absence of a safety control, not by a flag."""
-
-    async def test_the_route_refuses_while_moderation_is_unconfigured(
-        self, client: AsyncClient
-    ) -> None:
-        res = await client.post("/public/images", json={"prompt": "a cat"})
-        assert res.status_code == 503
-        assert "screening" in res.text.lower()
-
-    async def test_the_default_moderator_refuses_everything(self) -> None:
-        """A safety component that fails OPEN is not a safety component.
-
-        The common shape of that bug is exactly a placeholder that passes everything through
-        so development is not blocked. This one refuses, including for input that is
-        obviously fine — because "obviously fine" is a judgement it cannot make.
-        """
-        moderator = get_moderator()
-        assert not moderator.is_configured()
-        assert not (await moderator.check_prompt("a photograph of a sunset")).allowed
-        assert not (await moderator.check_image(b"\x89PNG")).allowed
-
-    async def test_availability_is_reported_honestly(self, client: AsyncClient) -> None:
-        res = await client.get("/public/models")
-        assert res.status_code == 200
-        body = res.json()
-        assert body["images"] == []
-        assert body["images_available"] is False
-        assert body["chat"][0]["id"] == FREE_CHAT_MODEL
+# The daily image quota and the "image generation is closed" tests used to live here, when
+# image generation was anonymous and bounded by a cookie+IP anchor. Images now require a
+# wallet session and are counted per wallet, so those tests moved WHOLESALE to
+# tests/test_image_requires_wallet.py rather than being adapted — they were describing a
+# world with no identity in it, and adapting them would have kept that shape alive under new
+# names. What remains here is what is still true: the free path is anonymous, unmetered
+# chat that never touches the ledger.
 
 
 class TestCapacity:
