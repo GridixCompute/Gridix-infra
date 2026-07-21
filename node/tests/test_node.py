@@ -76,12 +76,13 @@ async def test_full_flow_auth_dispatch_reply() -> None:
         await run(config, http=http, stop_after=1)
         await asyncio.wait_for(done.wait(), timeout=5)
 
-    # Auth advertises the catalogue id the node serves.
-    assert captured["auth"] == {
-        "type": "auth",
-        "key": "grdx_test_key",
-        "models": ["llama-3.1-8b"],
-    }
+    # Auth advertises every id the node serves — now the paid model AND the free tier's,
+    # side by side. Serving the free model must not cost the paid one its listing: the
+    # coordinator routes on this list, so a node that dropped one would stop being selected
+    # for it.
+    assert captured["auth"]["type"] == "auth"
+    assert captured["auth"]["key"] == "grdx_test_key"
+    assert set(captured["auth"]["models"]) == {"llama-3.1-8b", "llama3.2-3b"}
     # The node mapped the catalogue id to the Ollama tag before calling the backend.
     assert ollama_seen["body"]["model"] == "llama3.1:8b"
     assert ollama_seen["body"]["messages"] == [{"role": "user", "content": "hi"}]

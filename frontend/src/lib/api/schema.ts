@@ -184,6 +184,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Models
+         * @description What the free tier serves. Deliberately not the paid catalogue.
+         */
+        get: operations["public_models_public_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Public Chat
+         * @description Stream a free chat completion. No account, no balance, no ledger entry.
+         *
+         *     Streamed rather than unary because it is what makes the queue tolerable: a caller who
+         *     waited for a slot starts seeing tokens the moment they get one.
+         */
+        post: operations["public_chat_public_chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/images/quota": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Image Quota
+         * @description How much of today's image allowance this visitor has left.
+         *
+         *     Readable even though generation is closed, because the counter is what the UI shows and
+         *     the reset boundary is what a visitor asks about. Issues the visitor cookie if absent, so
+         *     the anchor exists before the first generation rather than being minted mid-request.
+         */
+        get: operations["image_quota_public_images_quota_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Public Image
+         * @description Generate a free image — CLOSED, and closed by the safety system rather than a flag.
+         *
+         *     Two independent reasons this cannot serve anything today, and the check order matters:
+         *
+         *     1. NO MODERATION IS CONFIGURED. `image_generation_available()` is false whenever the
+         *        moderator cannot make decisions, and the default moderator cannot. Public,
+         *        unauthenticated image generation without CSAM and NCII screening is not something to
+         *        ship behind a TODO, so the door is shut by the absence of the control rather than by
+         *        a boolean someone could flip without noticing what it guards.
+         *     2. NOTHING CAN GENERATE AN IMAGE. The node package serves chat only and answers
+         *        `images.generations` with 501; no node advertises an image model.
+         *
+         *     The quota below it is real and tested regardless, so that enabling this route later is
+         *     supplying a moderator — not also discovering that the limit was never written.
+         */
+        post: operations["public_image_public_images_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/developers": {
         parameters: {
             query?: never;
@@ -2113,6 +2213,34 @@ export interface components {
             created_at: string;
         };
         /**
+         * PublicChatRequest
+         * @description A free chat turn.
+         *
+         *     ``model`` is accepted but not trusted: whatever arrives, the served model is the free
+         *     one. Taking the caller's value would make the allowlist a suggestion.
+         */
+        PublicChatRequest: {
+            /** Messages */
+            messages: components["schemas"]["ChatMessage"][];
+            /** Model */
+            model?: string | null;
+            /**
+             * Max Tokens
+             * @default 512
+             */
+            max_tokens: number;
+            /**
+             * Temperature
+             * @default 0.7
+             */
+            temperature: number;
+        };
+        /** PublicImageRequest */
+        PublicImageRequest: {
+            /** Prompt */
+            prompt: string;
+        };
+        /**
          * RegisterDeveloperRequest
          * @description Register a new developer account.
          */
@@ -2603,6 +2731,118 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImageGenerationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_models_public_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    public_chat_public_chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    image_quota_public_images_quota_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    public_image_public_images_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicImageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
