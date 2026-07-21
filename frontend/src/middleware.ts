@@ -8,15 +8,21 @@ import type { NextRequest } from "next/server";
  *    They live here, not in next.config `headers()`, because that path silently
  *    drops CSP/HSTS on full-route-cache hits; middleware applies uniformly to
  *    static, dynamic, and cached responses.
- * 2. Auth routing (Session 4.3 / 11.1): a request to a private area without a
- *    session cookie is redirected to /login; a signed-in principal that lands in
- *    the other role's area is sent to its own home.
+ * 2. Auth routing: a request to a private area without a session cookie is
+ *    redirected to /login — the only way in, for everyone. Inside the provider
+ *    console, an address that is not a provider yet is sent to onboarding.
+ *
+ * The old model gave developers and providers separate sign-in pages and bounced
+ * each out of the other's area, because a principal was one role or the other. One
+ * address is now one identity that may hold BOTH capabilities, so bouncing is wrong:
+ * it would lock a developer who also runs a node out of half their own account.
  */
 const SESSION_COOKIE = "gridix_session";
-const ROLE_COOKIE = "gridix_role";
+const CAPS_COOKIE = "gridix_caps";
 const DEVELOPER_AREAS = ["/dashboard", "/playground", "/models", "/jobs", "/billing", "/settings"];
 const PROVIDER_HOME = "/provider";
-const DEVELOPER_HOME = "/dashboard";
+/** Where an address without the provider capability goes to acquire it. */
+const PROVIDER_ONBOARDING = "/provider/onboarding";
 
 function matches(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -86,19 +92,25 @@ export function middleware(req: NextRequest) {
   // Auth routing for private areas (redirects carry no HTML, so no nonce needed).
   if (isProviderArea || isDeveloperArea) {
     if (!req.cookies.has(SESSION_COOKIE)) {
-      // Each area has its own way in: developers sign a wallet challenge at /login,
-      // providers paste their agent key at /provider-login. Sending a signed-out
-      // provider to the wallet page would be a dead end — they have no wallet identity.
-      const loginUrl = new URL(isProviderArea ? "/provider-login" : "/login", req.url);
+      // One way in, for everyone. There is no second sign-in page to choose between.
+      const loginUrl = new URL("/login", req.url);
       loginUrl.searchParams.set("next", pathname + search);
       return setSecurityHeaders(NextResponse.redirect(loginUrl), csp);
     }
-    const role = req.cookies.get(ROLE_COOKIE)?.value;
-    if (isProviderArea && role === "developer") {
-      return setSecurityHeaders(NextResponse.redirect(new URL(DEVELOPER_HOME, req.url)), csp);
-    }
-    if (isDeveloperArea && role === "provider") {
-      return setSecurityHeaders(NextResponse.redirect(new URL(PROVIDER_HOME, req.url)), csp);
+
+    // Developer areas need nothing beyond a session: wallet sign-in resolves-or-creates a
+    // developer, so every signed-in address has that capability by construction.
+    if (isProviderArea && !matches(pathname, PROVIDER_ONBOARDING)) {
+      const caps = req.cookies.get(CAPS_COOKIE)?.value?.split(",") ?? [];
+      if (!caps.includes("provider")) {
+        // Signed in, but this address owns no Provider record yet. Onboarding is the way
+        // to acquire one, so send them there rather than to the dashboard — a bare bounce
+        // would read as "you are not allowed" when the truth is "not yet".
+        return setSecurityHeaders(
+          NextResponse.redirect(new URL(PROVIDER_ONBOARDING, req.url)),
+          csp,
+        );
+      }
     }
   }
 

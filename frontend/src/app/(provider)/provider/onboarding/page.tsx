@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { CodeBlock } from "@/components/provider/CodeBlock";
 import { Timestamp } from "@/components/domain/Timestamp";
+import { BecomeProvider } from "@/components/provider/BecomeProvider";
 import { useProviderMe } from "@/lib/hooks/useProvider";
+import { useSession } from "@/lib/hooks/useSession";
 import { agentConnection } from "@/lib/provider/connection";
 import { env } from "@/lib/config/env";
 
@@ -20,6 +22,30 @@ const ENV_ROWS: Array<[string, string, string]> = [
 ];
 
 export default function OnboardingPage() {
+  const { isProvider } = useSession();
+
+  /**
+   * This page has two jobs, because it is the one place the provider console opens to an
+   * address that is not a provider yet — the middleware sends them here rather than bouncing
+   * them out, since "not yet" is not the same as "not allowed".
+   *
+   * A full navigation rather than router.refresh() after onboarding: the capability cookie
+   * is set server-side, and the client hook reads cookies once on mount, so only a real
+   * reload picks it up. Refreshing would leave the operator looking at the signup form they
+   * just completed.
+   */
+  if (!isProvider) {
+    return (
+      <div className="mx-auto max-w-xl space-y-6 py-4">
+        <BecomeProvider onComplete={() => window.location.assign("/provider/onboarding")} />
+      </div>
+    );
+  }
+
+  return <NodeSetupGuide />;
+}
+
+function NodeSetupGuide() {
   const { data: provider, isLoading } = useProviderMe();
   const conn = agentConnection(provider);
 

@@ -111,45 +111,69 @@ test.describe("wallet sign-in", () => {
   });
 });
 
-test.describe("provider sign-in", () => {
-  test("the provider area sends signed-out operators to their own sign-in", async ({ page }) => {
-    // Providers have no wallet identity backend-side, so the wallet page would be a dead end.
+test.describe("the provider console opens on the wallet, not a second account", () => {
+  test("a signed-out operator is sent to the one sign-in page", async ({ page }) => {
+    // There is no /provider-login any more. Node operators are wallet identities like
+    // everyone else, so the provider area funnels into the same page as everything else.
     await page.goto("/provider");
-    await expect(page).toHaveURL(/\/provider-login\?next=%2Fprovider/);
+    await expect(page).toHaveURL(/\/login\?next=%2Fprovider/);
   });
 
-  test("a valid agent key opens the provider area", async ({ page, context }) => {
+  test("an address that owns a provider reaches the console", async ({ page, context }) => {
     await loginAs(context, "provider");
-    await mockApi(page); // the provider area fetches on mount; keep it off the network
-    await page.route("**/api/session/provider", (route) =>
+    await mockApi(page); // the console fetches on mount; keep it off the network
+    await page.goto("/provider");
+    await expect(page).toHaveURL(/\/provider$/);
+  });
+
+  test("an address that is not a provider yet is sent to onboarding, not bounced", async ({
+    page,
+    context,
+  }) => {
+    // "Not yet" is not "not allowed": a developer who wants to run a node should land on
+    // the page that lets them, rather than being pushed back to the dashboard with no
+    // explanation of what went wrong.
+    await loginAs(context, "developer");
+    await mockApi(page);
+    await page.goto("/provider/earnings");
+    await expect(page).toHaveURL(/\/provider\/onboarding/);
+  });
+
+  test("onboarding itself stays reachable without the provider capability", async ({
+    page,
+    context,
+  }) => {
+    // The one page inside the provider area that must open to a non-provider — otherwise
+    // acquiring the capability requires already having it.
+    await loginAs(context, "developer");
+    await mockApi(page);
+    await page.goto("/provider/onboarding");
+    await expect(page).toHaveURL(/\/provider\/onboarding/);
+    await expect(page.getByRole("button", { name: "Register node" })).toBeVisible();
+  });
+
+  test("registering reveals the node key once, labelled as machine credentials", async ({
+    page,
+    context,
+  }) => {
+    await loginAs(context, "developer");
+    await mockApi(page);
+    await page.route("**/api/providers/onboard", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ ok: true, role: "provider" }),
+        body: JSON.stringify({ id: "p-1", name: "Aurora", apiKey: "grdx_node_key_once" }),
       }),
     );
 
-    await page.goto("/provider-login");
-    await page.getByLabel("Agent key").fill("grdx_provider_key");
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.goto("/provider/onboarding");
+    await page.getByLabel(/Node name/).fill("Aurora");
+    await page.getByRole("button", { name: "Register node" }).click();
 
-    await expect(page).toHaveURL(/\/provider/);
-  });
-
-  test("an invalid agent key shows an error and stays put", async ({ page }) => {
-    await page.route("**/api/session/provider", (route) =>
-      route.fulfill({
-        status: 401,
-        contentType: "application/json",
-        body: JSON.stringify({ message: "That agent key isn't valid." }),
-      }),
-    );
-
-    await page.goto("/provider-login");
-    await page.getByLabel("Agent key").fill("grdx_wrong");
-    await page.getByRole("button", { name: "Sign in" }).click();
-
-    await expect(page.getByText("That agent key isn't valid.")).toBeVisible();
-    await expect(page).toHaveURL(/\/provider-login/);
+    await expect(page.getByText("grdx_node_key_once")).toBeVisible();
+    // The distinction the deleted flow blurred: this key is for a machine, not a login.
+    await expect(page.getByRole("note")).toContainText(/not for signing in/i);
+    // And it cannot be dismissed until the operator says they saved it.
+    await expect(page.getByRole("button", { name: "Continue to setup" })).toBeDisabled();
   });
 });

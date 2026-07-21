@@ -16,7 +16,7 @@ export function SiteFooter() {
           links={[
             { label: "Submit a job", href: "/jobs/new" },
             { label: "Pricing", href: "/docs#pricing" },
-            { label: "Run a node", href: "/provider-register" },
+            { label: "Run a node", href: "/provider/onboarding" },
           ]}
         />
         <FooterCol
