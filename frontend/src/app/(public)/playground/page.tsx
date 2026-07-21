@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { PlaygroundShell } from "@/components/playground/PlaygroundShell";
+import { FreePlayground } from "@/components/playground/FreePlayground";
 
 export const metadata: Metadata = {
   title: "Playground — GRIDIX",
-  description: "Call a model on the GRIDIX network and pay per use in USDC.",
+  description: "Chat with a model running on the GRIDIX network. Free, no account needed.",
 };
 
 export default function PlaygroundPage() {
@@ -14,11 +14,11 @@ export default function PlaygroundPage() {
           Playground
         </h1>
         <p className="mt-1 text-sm text-[var(--color-ink-faint)]">
-          Send a prompt to a model running on the network. You pay per use, in USDC — per token for
-          chat, per image for generation.
+          Chat is free and needs no account. Image generation is free too — 5 a day — and needs a
+          connected wallet so the allowance can be counted.
         </p>
       </div>
-      <PlaygroundShell />
+      <FreePlayground />
     </div>
   );
 }

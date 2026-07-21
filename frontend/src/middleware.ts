@@ -19,7 +19,10 @@ import type { NextRequest } from "next/server";
  */
 const SESSION_COOKIE = "gridix_session";
 const CAPS_COOKIE = "gridix_caps";
-const DEVELOPER_AREAS = ["/dashboard", "/playground", "/models", "/jobs", "/billing", "/settings"];
+// /playground is NOT here: it is public now. The free tier is the whole point of it —
+// anyone can chat without an account — so redirecting a signed-out visitor to /login would
+// send away exactly the person it was built for.
+const DEVELOPER_AREAS = ["/dashboard", "/models", "/jobs", "/billing", "/settings"];
 const PROVIDER_HOME = "/provider";
 /** Where an address without the provider capability goes to acquire it. */
 const PROVIDER_ONBOARDING = "/provider/onboarding";
