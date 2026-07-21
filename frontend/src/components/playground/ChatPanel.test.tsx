@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ChatPanel } from "./ChatPanel";
 import { MOCK_MODELS } from "@/lib/inference/mock";
-import type { ChatParams } from "@/lib/inference/types";
+import type { ChatParams } from "@/lib/inference/params";
 
 /**
  * The balance gate (Session 4.5).
@@ -17,8 +17,8 @@ import type { ChatParams } from "@/lib/inference/types";
  * affordable case is what shows the block is caused by the balance.
  */
 
-const CHAT_MODEL = MOCK_MODELS.find((m) => m.kind === "chat" && m.available)!;
-const PARAMS: ChatParams = { temperature: 0.7, maxTokens: 512, topP: 1, seed: null };
+const CHAT_MODEL = MOCK_MODELS.find((m) => m.modality === "chat" && m.available)!;
+const PARAMS: ChatParams = { temperature: 0.7, maxTokens: 512, seed: null };
 
 describe("ChatPanel — balance gate", () => {
   it("blocks sending when the estimate exceeds the balance", () => {
@@ -31,7 +31,7 @@ describe("ChatPanel — balance gate", () => {
   });
 
   it("allows sending when the balance covers the estimate", () => {
-    // 1 USDC — comfortably above a 512-token turn on the mock rate card.
+    // 1 USDC — comfortably above a 512-token turn at 0.08 USDC / 1M output tokens.
     render(<ChatPanel model={CHAT_MODEL} params={PARAMS} availableBase={1_000_000n} />);
 
     expect(screen.queryByText(/more than your balance/i)).not.toBeInTheDocument();
@@ -50,7 +50,7 @@ describe("ChatPanel — balance gate", () => {
   });
 
   it("blocks a model no provider is serving, and says so", () => {
-    const offline = MOCK_MODELS.find((m) => m.kind === "chat" && !m.available)!;
+    const offline = MOCK_MODELS.find((m) => m.modality === "chat" && !m.available)!;
     render(<ChatPanel model={offline} params={PARAMS} availableBase={1_000_000n} />);
 
     expect(screen.getByRole("alert")).toHaveTextContent(/no provider is serving/i);

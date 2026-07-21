@@ -1,44 +1,57 @@
 /**
- * Inference client — chat completions over SSE (Session 4.2) and image generation (Session 5.1).
+ * Inference client for `/v1/models`, `/v1/chat/completions` and `/v1/images/generations`.
  *
- * The real path is written out in full even though nothing serves it yet: the mock and the
- * backend expose the *same* generator contract, so landing `/v1/chat/completions` is a flag
- * flip (`NEXT_PUBLIC_INFERENCE_MOCK=false`), not a rewrite. Everything above this module —
- * ChatPanel, cost display, the stop button — is already talking to the real shape.
+ * Types come from `./contract`, which aliases the generated schema. Nothing here restates a
+ * wire shape.
  *
- * ⚠️ The request/response shapes come from `./types`, which is a GUESS (see its header). The
- * real endpoint may disagree; the compiler cannot warn you, because there is no generated
- * schema to check against.
+ * ⚠️ CHAT IS UNARY. The backend answers `stream=true` with **501 Not Implemented** — it cannot
+ * forward partial results yet — so this module does not stream, does not parse SSE, and does
+ * not offer a streaming entry point. The SSE parser that used to live here decoded an event
+ * shape (`chat.completion.chunk`) the backend has never emitted. Streaming arrives when the
+ * relay can forward frames; until then the honest surface is one request, one complete reply.
  */
 
 import { env } from "@/lib/config/env";
-import { isMockInference, mockChatStream, mockGenerateImage, mockListModels } from "./mock";
+import { isMockInference, mockChatCompletion, mockGenerateImage, mockListModels } from "./mock";
 import type {
-  ChatRequest,
-  ChatStreamChunk,
-  ChatStreamEvent,
-  ImageRequest,
-  ImageResponse,
-  InferenceModel,
-} from "./types";
+  ChatCompletionRequest,
+  ChatCompletionResponse,
+  ImageGenerationRequest,
+  ImageGenerationResponse,
+  ModelInfo,
+  ModelsResponse,
+} from "./contract";
 
-/** Errors the playground must react to differently (Session 4.2). */
+/**
+ * Errors the playground must react to differently.
+ *
+ * Mapped from the statuses the backend actually returns — verified against
+ * `api/app/routes/inference.py`, not assumed. The previous mapping had two live bugs: it read
+ * **403** as "insufficient balance" (the backend uses **402**; 403 is a credentials problem)
+ * and had no case for **503**, the code returned when a model exists but nothing is serving
+ * it. Both would have shown the wrong message the first time a real request failed.
+ */
 export type InferenceErrorKind =
-  | "insufficient_balance" // 403 — top up
-  | "node_timeout" // 504 — the provider took too long
-  | "node_error" // 502 — the provider failed
-  | "model_unavailable" // 404 — nobody is serving it
+  | "insufficient_balance" // 402 — top up
+  | "unauthorized" // 401 — not signed in
+  | "forbidden" // 403 — signed in, wrong credentials for this route
+  | "unknown_model" // 404 — the catalogue has no such model
   | "rate_limited" // 429
-  | "unauthorized" // 401
+  | "not_implemented" // 501 — e.g. stream=true, confidential_tee
+  | "node_error" // 502 — the provider failed
+  | "no_node" // 503 — the model exists, nothing is serving it
+  | "node_timeout" // 504 — the provider took too long
   | "network" // never reached the coordinator
   | "unknown";
 
 export class InferenceError extends Error {
   readonly kind: InferenceErrorKind;
-  constructor(kind: InferenceErrorKind, message: string) {
+  readonly status?: number;
+  constructor(kind: InferenceErrorKind, message: string, status?: number) {
     super(message);
     this.name = "InferenceError";
     this.kind = kind;
+    this.status = status;
   }
 }
 
@@ -46,14 +59,20 @@ function kindFromStatus(status: number): InferenceErrorKind {
   switch (status) {
     case 401:
       return "unauthorized";
-    case 403:
+    case 402:
       return "insufficient_balance";
+    case 403:
+      return "forbidden";
     case 404:
-      return "model_unavailable";
+      return "unknown_model";
     case 429:
       return "rate_limited";
+    case 501:
+      return "not_implemented";
     case 502:
       return "node_error";
+    case 503:
+      return "no_node";
     case 504:
       return "node_timeout";
     default:
@@ -63,11 +82,14 @@ function kindFromStatus(status: number): InferenceErrorKind {
 
 const MESSAGES: Record<InferenceErrorKind, string> = {
   insufficient_balance: "Not enough USDC to cover this request. Top up to continue.",
-  node_timeout: "The provider running this model didn't respond in time. Try again.",
-  node_error: "The provider running this model failed. Try again or pick another model.",
-  model_unavailable: "No provider is serving this model right now.",
-  rate_limited: "Too many requests. Wait a moment and try again.",
   unauthorized: "Your session expired. Sign in again.",
+  forbidden: "This account isn't allowed to run inference.",
+  unknown_model: "GRIDIX doesn't serve that model.",
+  rate_limited: "Too many requests. Wait a moment and try again.",
+  not_implemented: "The network can't serve this request yet.",
+  node_error: "The provider running this model failed. Try again or pick another model.",
+  no_node: "No provider is serving this model right now.",
+  node_timeout: "The provider running this model didn't respond in time. Try again.",
   network: "Can't reach GRIDIX. Check your connection.",
   unknown: "Inference failed. Try again.",
 };
@@ -76,123 +98,75 @@ export function inferenceErrorMessage(err: unknown): string {
   return err instanceof InferenceError ? err.message : MESSAGES.unknown;
 }
 
-export async function listModels(signal?: AbortSignal): Promise<InferenceModel[]> {
-  if (isMockInference) return mockListModels();
-
-  const res = await fetch(`${env.apiUrl}/v1/models`, { signal, credentials: "include" });
-  if (!res.ok)
-    throw new InferenceError(kindFromStatus(res.status), MESSAGES[kindFromStatus(res.status)]);
-  const body = (await res.json()) as { data: InferenceModel[] };
-  return body.data;
+function failed(status: number): InferenceError {
+  const kind = kindFromStatus(status);
+  return new InferenceError(kind, MESSAGES[kind], status);
 }
 
-/**
- * Generate one image (Session 5.1).
- *
- * Unary, not streamed: there is no partial image to show, so the panel renders a progress
- * state and this resolves once. `signal` maps to cancel; an aborted request throws
- * AbortError, which the caller distinguishes from a real failure.
- */
-export async function generateImage(
-  req: ImageRequest,
-  signal?: AbortSignal,
-): Promise<ImageResponse> {
-  if (isMockInference) return mockGenerateImage(req, signal);
-
-  let res: Response;
+/** An aborted request is the caller's own doing — rethrow it untouched, never as a failure. */
+async function send(url: string, init: RequestInit): Promise<Response> {
   try {
-    res = await fetch(`${env.apiUrl}/v1/images/generations`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req),
-      credentials: "include",
-      signal,
-    });
+    return await fetch(url, init);
   } catch (e) {
     if ((e as Error)?.name === "AbortError") throw e;
     throw new InferenceError("network", MESSAGES.network);
   }
+}
 
-  if (!res.ok) {
-    const kind = kindFromStatus(res.status);
-    throw new InferenceError(kind, MESSAGES[kind]);
-  }
-  return (await res.json()) as ImageResponse;
+export async function listModels(signal?: AbortSignal): Promise<ModelInfo[]> {
+  if (isMockInference) return mockListModels();
+
+  const res = await send(`${env.apiUrl}/v1/models`, { signal, credentials: "include" });
+  if (!res.ok) throw failed(res.status);
+  // `{models: [...]}`, not `{data: [...]}` — the hand-written types guessed the OpenAI
+  // envelope here and the backend does not use it on this route.
+  const body = (await res.json()) as ModelsResponse;
+  return body.models;
 }
 
 /**
- * Stream a chat completion, yielding one event per token batch.
+ * Run one chat completion and return the whole reply.
  *
- * Parses the SSE frames by hand rather than using EventSource, which is GET-only and cannot
- * send the request body. `signal` maps to the stop button: aborting mid-stream ends the
- * generator, and the tokens already yielded stay on screen and stay billable.
+ * `stream` is forced false rather than taken from the caller: the only other value the
+ * backend accepts is a 501, and letting a caller ask for streaming would mean shipping a
+ * request we know is refused. See the module header.
  */
-export async function* streamChat(
-  req: ChatRequest,
+export async function createChatCompletion(
+  req: ChatCompletionRequest,
   signal?: AbortSignal,
-): AsyncGenerator<ChatStreamEvent> {
-  if (isMockInference) {
-    yield* mockChatStream(req, signal);
-    return;
-  }
+): Promise<ChatCompletionResponse> {
+  if (isMockInference) return mockChatCompletion(req, signal);
 
-  let res: Response;
-  try {
-    res = await fetch(`${env.apiUrl}/v1/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-      body: JSON.stringify(req),
-      credentials: "include",
-      signal,
-    });
-  } catch (e) {
-    if ((e as Error)?.name === "AbortError") return;
-    throw new InferenceError("network", MESSAGES.network);
-  }
+  const res = await send(`${env.apiUrl}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...req, stream: false }),
+    credentials: "include",
+    signal,
+  });
+  if (!res.ok) throw failed(res.status);
+  return (await res.json()) as ChatCompletionResponse;
+}
 
-  if (!res.ok || !res.body) {
-    const kind = kindFromStatus(res.status);
-    throw new InferenceError(kind, MESSAGES[kind]);
-  }
+/**
+ * Generate one image.
+ *
+ * Unary for the same reason chat now is, plus a real one: there is no partial image to show,
+ * so the panel renders a progress state and this resolves once.
+ */
+export async function generateImage(
+  req: ImageGenerationRequest,
+  signal?: AbortSignal,
+): Promise<ImageGenerationResponse> {
+  if (isMockInference) return mockGenerateImage(req, signal);
 
-  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-  let buffer = "";
-  let usage: ChatStreamChunk["usage"] = undefined;
-  let finishReason: "stop" | "length" | null = null;
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += value;
-
-      // SSE frames are separated by a blank line; a frame may span several reads.
-      const frames = buffer.split("\n\n");
-      buffer = frames.pop() ?? "";
-
-      for (const frame of frames) {
-        const line = frame.split("\n").find((l) => l.startsWith("data:"));
-        if (!line) continue;
-        const payload = line.slice(5).trim();
-        if (payload === "[DONE]") continue;
-
-        let chunk: ChatStreamChunk;
-        try {
-          chunk = JSON.parse(payload) as ChatStreamChunk;
-        } catch {
-          continue; // a malformed frame must not kill a live stream
-        }
-
-        if (chunk.usage) usage = chunk.usage;
-        const choice = chunk.choices?.[0];
-        if (choice?.finish_reason) finishReason = choice.finish_reason;
-        const content = choice?.delta?.content;
-        if (content) yield { type: "delta", content };
-      }
-    }
-  } finally {
-    reader.cancel().catch(() => {});
-  }
-
-  yield { type: "done", usage: usage ?? null, finishReason };
+  const res = await send(`${env.apiUrl}/v1/images/generations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+    credentials: "include",
+    signal,
+  });
+  if (!res.ok) throw failed(res.status);
+  return (await res.json()) as ImageGenerationResponse;
 }
