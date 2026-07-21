@@ -3,32 +3,38 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { USDCAmount } from "@/components/domain/USDCAmount";
-import { inferenceErrorMessage, streamChat } from "@/lib/inference/client";
-import { estimateChatCost, microToBase } from "@/lib/inference/pricing";
-import type { ChatMessage, ChatParams, ChatRequest, InferenceModel } from "@/lib/inference/types";
+import { createChatCompletion, inferenceErrorMessage } from "@/lib/inference/client";
+import { estimateChatCost } from "@/lib/inference/pricing";
+import { toBaseUnits } from "@/lib/format/usdc";
+import type { ChatCompletionRequest, ChatMessage, ModelInfo } from "@/lib/inference/contract";
+import type { ChatParams } from "@/lib/inference/params";
 import { CodeViewDialog } from "./CodeViewDialog";
 
 /**
- * The conversation surface (Session 4.3).
+ * The conversation surface.
  *
- * Turns carry their own cost: the ESTIMATE while generating, replaced by the charge the
- * backend reports when the stream closes. Never show one as the other — see pricing.ts.
+ * Turns carry their own cost: the ESTIMATE before sending, replaced by the `cost_usdc` the
+ * backend reports on the response. Never show one as the other — see pricing.ts.
+ *
+ * ⚠️ NOT STREAMED. The backend answers `stream=true` with 501, so a reply arrives whole. The
+ * panel previously rendered a token-by-token typewriter fed by the mock alone; against the
+ * real API it would have shown a caret that never moved and then the entire reply at once.
+ * Cancel therefore discards the turn rather than keeping a partial one — there is no partial
+ * one to keep, and nothing is billed for a request whose response was never read.
  */
 
 type Turn = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  /** Micro-USDC actually charged, once the stream reports it. */
-  costMicro?: number;
-  /** True while tokens are still arriving. */
-  streaming?: boolean;
-  /** Set when the user hit stop — the partial reply is kept and still billable. */
-  stopped?: boolean;
+  /** USDC base units actually charged, once the response reports it. */
+  costBase?: bigint;
+  /** True while the request is in flight. */
+  pending?: boolean;
 };
 
 type Props = {
-  model: InferenceModel | undefined;
+  model: ModelInfo | undefined;
   params: ChatParams;
   /** Available balance in base units (6dp), or null when it can't be read. */
   availableBase: bigint | null;
@@ -42,18 +48,20 @@ const nextId = () => `turn-${++turnSeq}`;
  * actually made, not a re-typed lookalike that drifts the first time either changes.
  */
 function buildRequest(
-  model: InferenceModel,
+  model: ModelInfo,
   messages: ChatMessage[],
   params: ChatParams,
-): ChatRequest {
+): ChatCompletionRequest {
   return {
     model: model.id,
     messages,
-    stream: true,
+    // False, not a toggle: `stream=true` is a 501. `top_p` is absent because
+    // ChatCompletionRequest has no such field — the panel used to send one.
+    stream: false,
     temperature: params.temperature,
     max_tokens: params.maxTokens,
-    top_p: params.topP,
     seed: params.seed,
+    data_tier: "public",
   };
 }
 
@@ -84,7 +92,7 @@ export function ChatPanel({ model, params, availableBase }: Props) {
   const estimate = estimateChatCost(model, pending, params.maxTokens);
 
   const unaffordable =
-    availableBase !== null && model !== undefined && microToBase(estimate.micro) > availableBase;
+    availableBase !== null && model !== undefined && estimate.base > availableBase;
   const blocked = !model?.available || unaffordable;
 
   const send = useCallback(async () => {
@@ -92,7 +100,7 @@ export function ChatPanel({ model, params, availableBase }: Props) {
     if (!text || !model || busy || blocked) return;
 
     const userTurn: Turn = { id: nextId(), role: "user", content: text };
-    const replyTurn: Turn = { id: nextId(), role: "assistant", content: "", streaming: true };
+    const replyTurn: Turn = { id: nextId(), role: "assistant", content: "", pending: true };
     setTurns((prev) => [...prev, userTurn, replyTurn]);
     setDraft("");
     setError(null);
@@ -102,38 +110,22 @@ export function ChatPanel({ model, params, availableBase }: Props) {
     abortRef.current = controller;
 
     try {
-      const stream = streamChat(
+      const res = await createChatCompletion(
         buildRequest(model, [...history, { role: "user", content: text }], params),
         controller.signal,
       );
-
-      for await (const ev of stream) {
-        if (ev.type === "delta") {
-          setTurns((prev) =>
-            prev.map((t) =>
-              t.id === replyTurn.id ? { ...t, content: t.content + ev.content } : t,
-            ),
-          );
-        } else {
-          setTurns((prev) =>
-            prev.map((t) =>
-              t.id === replyTurn.id
-                ? {
-                    ...t,
-                    streaming: false,
-                    stopped: controller.signal.aborted,
-                    costMicro: ev.usage?.cost_micro_usdc,
-                  }
-                : t,
-            ),
-          );
-        }
-      }
+      const reply = res.choices[0]?.message.content ?? "";
+      setTurns((prev) =>
+        prev.map((t) =>
+          t.id === replyTurn.id
+            ? { ...t, content: reply, pending: false, costBase: toBaseUnits(res.cost_usdc) }
+            : t,
+        ),
+      );
     } catch (e) {
-      setError(inferenceErrorMessage(e));
-      // Drop the empty reply rather than leave a blank bubble behind.
-      setTurns((prev) => prev.filter((t) => t.id !== replyTurn.id || t.content !== ""));
-      setTurns((prev) => prev.map((t) => (t.id === replyTurn.id ? { ...t, streaming: false } : t)));
+      // A cancel is not a failure: drop the placeholder and say nothing.
+      if ((e as Error)?.name !== "AbortError") setError(inferenceErrorMessage(e));
+      setTurns((prev) => prev.filter((t) => t.id !== replyTurn.id));
     } finally {
       setBusy(false);
       abortRef.current = null;
@@ -153,7 +145,7 @@ export function ChatPanel({ model, params, availableBase }: Props) {
     setDraft(lastUser.content);
   };
 
-  const spentMicro = turns.reduce((sum, t) => sum + (t.costMicro ?? 0), 0);
+  const spentBase = turns.reduce((sum, t) => sum + (t.costBase ?? 0n), 0n);
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -180,18 +172,18 @@ export function ChatPanel({ model, params, availableBase }: Props) {
                 ].join(" ")}
               >
                 {turn.content}
-                {turn.streaming && (
+                {/* A whole reply arrives at once, so this is a wait indicator, not a
+                    typewriter caret pretending tokens are trickling in. */}
+                {turn.pending && (
                   <span
-                    aria-label="generating"
-                    className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse bg-[var(--color-signal)]"
+                    role="status"
+                    aria-label="Generating"
+                    className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--color-hairline-strong)] border-t-[var(--color-signal)]"
                   />
                 )}
-                {(turn.costMicro !== undefined || turn.stopped) && (
+                {turn.costBase !== undefined && (
                   <span className="mt-1.5 flex items-center gap-2 text-xs text-[var(--color-ink-faint)]">
-                    {turn.costMicro !== undefined && (
-                      <USDCAmount base={microToBase(turn.costMicro)} minFractionDigits={6} />
-                    )}
-                    {turn.stopped && <span>· stopped</span>}
+                    <USDCAmount base={turn.costBase} minFractionDigits={6} />
                   </span>
                 )}
               </div>
@@ -209,9 +201,8 @@ export function ChatPanel({ model, params, availableBase }: Props) {
       {/* 4.5 — refuse before the request, not after the node does. */}
       {unaffordable && (
         <p role="alert" className="text-sm text-[var(--color-warning)]">
-          This turn costs about{" "}
-          <USDCAmount base={microToBase(estimate.micro)} minFractionDigits={6} /> — more than your
-          balance.{" "}
+          This turn costs about <USDCAmount base={estimate.base} minFractionDigits={6} /> — more
+          than your balance.{" "}
           <a href="/billing" className="text-[var(--color-signal-bright)] underline">
             Top up
           </a>{" "}
@@ -220,7 +211,7 @@ export function ChatPanel({ model, params, availableBase }: Props) {
       )}
       {model && !model.available && (
         <p role="alert" className="text-sm text-[var(--color-warning)]">
-          No provider is serving {model.name} right now. Pick another model.
+          No provider is serving {model.id} right now. Pick another model.
         </p>
       )}
 
@@ -239,9 +230,11 @@ export function ChatPanel({ model, params, availableBase }: Props) {
         />
 
         <div className="flex flex-wrap items-center gap-3">
+          {/* "Cancel", not "Stop": there is no partial reply to stop — the request is
+              abandoned and the turn discarded. */}
           {busy ? (
             <Button variant="secondary" onClick={stop}>
-              Stop
+              Cancel
             </Button>
           ) : (
             <Button onClick={() => void send()} disabled={!draft.trim() || blocked}>
@@ -278,11 +271,11 @@ export function ChatPanel({ model, params, availableBase }: Props) {
 
           <span className="ml-auto flex items-center gap-3 text-xs text-[var(--color-ink-faint)]">
             <span title="Worst case: prompt + the full max_tokens reply">
-              est. <USDCAmount base={microToBase(estimate.micro)} minFractionDigits={6} />
+              est. <USDCAmount base={estimate.base} minFractionDigits={6} />
             </span>
-            {spentMicro > 0 && (
+            {spentBase > 0n && (
               <span>
-                spent <USDCAmount base={microToBase(spentMicro)} minFractionDigits={6} />
+                spent <USDCAmount base={spentBase} minFractionDigits={6} />
               </span>
             )}
             {availableBase !== null && (

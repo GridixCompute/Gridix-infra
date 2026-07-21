@@ -1,28 +1,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderSnippet, toCurl, toPython, toTypeScript } from "./snippets";
-import { generateImage } from "./client";
-import type { ImageRequest } from "./types";
+import type { ImageGenerationRequest } from "./contract";
 
 /**
- * Session 5.3's DoD is that the code shown "can actually be run — it matches the real request".
+ * The code shown must be the request actually sent — same path, same bytes.
  *
- * The runnable half is not testable and not true yet: `/v1/*` does not exist, so any snippet
- * 404s today. What IS testable is the half that would still be a bug once the backend lands —
- * that the snippet carries the same bytes the client actually POSTs. So the key test drives
- * the real client against a stubbed fetch, captures the body it sent, and asserts the curl
- * snippet embeds exactly that. A snippet built from a re-typed lookalike would pass a
- * shape-check and fail this.
+ * The key test drives the real client against a stubbed fetch, captures the body it sent, and
+ * asserts the curl snippet embeds exactly that. A snippet built from a re-typed lookalike
+ * would pass a shape-check and fail this.
+ *
+ * The fixture is typed as the GENERATED `ImageGenerationRequest`, which is what makes this
+ * test worth anything now: it previously carried `size` and `steps`, fields the API does not
+ * accept, and asserted that the snippet faithfully reproduced them. It was a green test
+ * pinning a request the backend would have rejected.
  */
 
 const BASE = "https://api.gridix.dev";
 
-const REQ: ImageRequest = {
-  model: "gridix/sdxl-turbo",
+const REQ: ImageGenerationRequest = {
+  model: "sdxl-turbo",
   prompt: "a wireframe globe",
-  size: "768x768",
-  steps: 20,
   seed: 42,
   n: 1,
+  data_tier: "public",
 };
 
 describe("snippets carry the request the client really sends", () => {
@@ -41,10 +41,19 @@ describe("snippets carry the request the client really sends", () => {
 
   it("curl embeds byte-for-byte what generateImage POSTs", async () => {
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ created: 0, data: [{ b64_json: "x" }] }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
+      new Response(
+        JSON.stringify({
+          created: 0,
+          data: [{ url: "https://cdn.gridix.dev/img/1.png" }],
+          model: "sdxl-turbo",
+          cost_usdc: "0.010000",
+          provider_id: "00000000-0000-0000-0000-000000000000",
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
     );
 
     const { generateImage: realGenerate } = await import("./client");
@@ -60,7 +69,16 @@ describe("snippets carry the request the client really sends", () => {
 
   it("targets the same path the client calls", async () => {
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ created: 0, data: [{ b64_json: "x" }] }), { status: 200 }),
+      new Response(
+        JSON.stringify({
+          created: 0,
+          data: [{ url: "https://cdn.gridix.dev/img/1.png" }],
+          model: "sdxl-turbo",
+          cost_usdc: "0.010000",
+          provider_id: "00000000-0000-0000-0000-000000000000",
+        }),
+        { status: 200 },
+      ),
     );
     const { generateImage: realGenerate } = await import("./client");
     await realGenerate(REQ);
@@ -92,8 +110,8 @@ describe("snippet rendering", () => {
   it("keeps the params the user tuned", () => {
     const ts = toTypeScript(BASE, "/v1/images/generations", REQ);
     expect(ts).toContain('"seed": 42');
-    expect(ts).toContain('"steps": 20');
-    expect(ts).toContain('"size": "768x768"');
+    expect(ts).toContain('"model": "sdxl-turbo"');
+    expect(ts).toContain('"n": 1');
   });
 
   it("points at the configured API host", () => {

@@ -4,30 +4,35 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { USDCAmount } from "@/components/domain/USDCAmount";
 import { generateImage, inferenceErrorMessage } from "@/lib/inference/client";
-import { microToBase } from "@/lib/inference/pricing";
-import type { ImageParams, ImageRequest, InferenceModel } from "@/lib/inference/types";
+import { imagePriceBase } from "@/lib/inference/pricing";
+import { toBaseUnits } from "@/lib/format/usdc";
+import type { ImageGenerationRequest, ModelInfo } from "@/lib/inference/contract";
+import type { ImageParams } from "@/lib/inference/params";
 import { CodeViewDialog } from "./CodeViewDialog";
 
 /**
- * Image generation (Session 5.2).
+ * Image generation.
  *
- * Unlike chat there is no partial output, so the wait is the whole experience: a real
- * progress state, cancellable, and the price known up front (per image, not per token —
- * which is why the gate here can be exact rather than a worst case).
+ * There is no partial output, so the wait is the whole experience: a real progress state,
+ * cancellable, and the price known up front (per image, not per token — which is why the gate
+ * here can be exact rather than a worst case).
+ *
+ * ⚠️ `size` and `steps` are gone. Neither exists on `ImageGenerationRequest`; the panel used
+ * to collect both and send them, and the backend would have ignored them while the UI
+ * captioned every result with a resolution it never requested.
  */
 
 type Generation = {
   id: string;
-  /** `data:` URL built from the response's base64 payload. */
+  /** The URL the node returned. Nodes return references to stored artefacts, never bytes. */
   src: string;
   prompt: string;
-  size: string;
   seed: number | null;
-  costMicro: number;
+  costBase: bigint;
 };
 
 type Props = {
-  model: InferenceModel | undefined;
+  model: ModelInfo | undefined;
   params: ImageParams;
   /** Available balance in base units (6dp), or null when it can't be read. */
   availableBase: bigint | null;
@@ -35,14 +40,17 @@ type Props = {
 
 let seq = 0;
 
-function buildRequest(model: InferenceModel, prompt: string, params: ImageParams): ImageRequest {
+function buildRequest(
+  model: ModelInfo,
+  prompt: string,
+  params: ImageParams,
+): ImageGenerationRequest {
   return {
     model: model.id,
     prompt,
-    size: params.size,
-    steps: params.steps,
     seed: params.seed,
     n: 1,
+    data_tier: "public",
   };
 }
 
@@ -57,9 +65,10 @@ export function ImagePanel({ model, params, availableBase }: Props) {
   useEffect(() => () => abortRef.current?.abort(), []);
 
   // Per-image pricing: the cost is known exactly before sending, so no worst-case padding.
-  const costMicro = model?.pricePerImage ?? 0;
-  const unaffordable =
-    availableBase !== null && model !== undefined && microToBase(costMicro) > availableBase;
+  // Null means the rate card could not be parsed — the gate stays open rather than treating
+  // an unreadable price as free, and the node refuses if it truly cannot be paid.
+  const costBase = imagePriceBase(model);
+  const unaffordable = availableBase !== null && costBase !== null && costBase > availableBase;
   const blocked = !model?.available || unaffordable;
 
   const generate = useCallback(async () => {
@@ -73,18 +82,16 @@ export function ImagePanel({ model, params, availableBase }: Props) {
 
     try {
       const res = await generateImage(buildRequest(model, text, params), controller.signal);
-      const b64 = res.data[0]?.b64_json;
-      if (!b64) throw new Error("empty response");
+      const url = res.data[0]?.url;
+      if (!url) throw new Error("empty response");
       setHistory((prev) => [
         {
           id: `gen-${++seq}`,
-          // The mock returns SVG; a real model returns PNG. Both ride the same field, so
-          // sniff rather than assume — an <img> with the wrong type renders nothing.
-          src: `data:${b64.startsWith("PHN2Zy") ? "image/svg+xml" : "image/png"};base64,${b64}`,
+          src: url,
           prompt: text,
-          size: params.size,
           seed: params.seed,
-          costMicro: res.usage?.cost_micro_usdc ?? costMicro,
+          // What was actually charged, straight off the response — never the estimate.
+          costBase: toBaseUnits(res.cost_usdc),
         },
         ...prev,
       ]);
@@ -95,10 +102,10 @@ export function ImagePanel({ model, params, availableBase }: Props) {
       setBusy(false);
       abortRef.current = null;
     }
-  }, [prompt, model, params, busy, blocked, costMicro]);
+  }, [prompt, model, params, busy, blocked]);
 
   const latest = history[0];
-  const spentMicro = history.reduce((sum, g) => sum + g.costMicro, 0);
+  const spentBase = history.reduce((sum, g) => sum + g.costBase, 0n);
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -110,28 +117,23 @@ export function ImagePanel({ model, params, availableBase }: Props) {
               aria-label="Generating"
               className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-[var(--color-hairline-strong)] border-t-[var(--color-signal)]"
             />
-            <p className="text-sm text-[var(--color-ink-faint)]">
-              Generating at {params.size}, {params.steps} steps…
-            </p>
+            <p className="text-sm text-[var(--color-ink-faint)]">Generating…</p>
           </div>
         ) : latest ? (
           <figure className="space-y-3">
-            {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL from the
-                response; next/image is for URLs it can optimise, which this is not. */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- an arbitrary node-supplied
+                URL; next/image needs a configured remote host, which this has not got. */}
             <img
               src={latest.src}
               alt={latest.prompt}
               className="mx-auto max-h-[26rem] w-auto rounded-[var(--radius-sm)]"
             />
             <figcaption className="flex flex-wrap items-center justify-center gap-3 text-xs text-[var(--color-ink-faint)]">
-              <span>{latest.size}</span>
               <span>seed {latest.seed ?? "auto"}</span>
-              <USDCAmount base={microToBase(latest.costMicro)} minFractionDigits={6} />
-              <a
-                href={latest.src}
-                download={`gridix-${latest.id}.${latest.src.includes("svg") ? "svg" : "png"}`}
-                className="text-[var(--color-signal-bright)] underline"
-              >
+              <USDCAmount base={latest.costBase} minFractionDigits={6} />
+              {/* No extension guessed from the payload: the node names the artefact, and
+                  `download` without a value lets the response's own filename stand. */}
+              <a href={latest.src} download className="text-[var(--color-signal-bright)] underline">
                 Download
               </a>
             </figcaption>
@@ -149,7 +151,7 @@ export function ImagePanel({ model, params, availableBase }: Props) {
           <ul className="flex gap-2 overflow-x-auto pb-1">
             {history.slice(1).map((g) => (
               <li key={g.id} className="shrink-0">
-                {/* eslint-disable-next-line @next/next/no-img-element -- data: URL, see above */}
+                {/* eslint-disable-next-line @next/next/no-img-element -- see above */}
                 <img
                   src={g.src}
                   alt={g.prompt}
@@ -167,10 +169,10 @@ export function ImagePanel({ model, params, availableBase }: Props) {
           {error}
         </p>
       )}
-      {unaffordable && (
+      {unaffordable && costBase !== null && (
         <p role="alert" className="text-sm text-[var(--color-warning)]">
-          Each image costs <USDCAmount base={microToBase(costMicro)} minFractionDigits={6} /> — more
-          than your balance.{" "}
+          Each image costs <USDCAmount base={costBase} minFractionDigits={6} /> — more than your
+          balance.{" "}
           <a href="/billing" className="text-[var(--color-signal-bright)] underline">
             Top up
           </a>{" "}
@@ -179,7 +181,7 @@ export function ImagePanel({ model, params, availableBase }: Props) {
       )}
       {model && !model.available && (
         <p role="alert" className="text-sm text-[var(--color-warning)]">
-          No provider is serving {model.name} right now. Pick another model.
+          No provider is serving {model.id} right now. Pick another model.
         </p>
       )}
 
@@ -217,12 +219,14 @@ export function ImagePanel({ model, params, availableBase }: Props) {
           </Button>
 
           <span className="ml-auto flex items-center gap-3 text-xs text-[var(--color-ink-faint)]">
-            <span>
-              per image <USDCAmount base={microToBase(costMicro)} minFractionDigits={6} />
-            </span>
-            {spentMicro > 0 && (
+            {costBase !== null && (
               <span>
-                spent <USDCAmount base={microToBase(spentMicro)} minFractionDigits={6} />
+                per image <USDCAmount base={costBase} minFractionDigits={6} />
+              </span>
+            )}
+            {spentBase > 0n && (
+              <span>
+                spent <USDCAmount base={spentBase} minFractionDigits={6} />
               </span>
             )}
             {availableBase !== null && (

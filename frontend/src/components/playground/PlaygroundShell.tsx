@@ -9,7 +9,9 @@ import { useModels } from "@/lib/hooks/useModels";
 import { useBillingSummary } from "@/lib/hooks/useBilling";
 import { useEscrowBalance } from "@/lib/chain/hooks";
 import { toBaseUnits } from "@/lib/format/usdc";
-import type { ChatParams, ImageParams } from "@/lib/inference/types";
+import { priceToBase } from "@/lib/inference/pricing";
+import { USDCAmount } from "@/components/domain/USDCAmount";
+import type { ChatParams, ImageParams } from "@/lib/inference/params";
 import { ChatPanel } from "./ChatPanel";
 import { ImagePanel } from "./ImagePanel";
 import { SettingsPanel } from "./SettingsPanel";
@@ -25,10 +27,23 @@ import { MockBanner } from "./MockBanner";
  * balance gate a prop.
  */
 
-const DEFAULT_PARAMS: ChatParams = { temperature: 0.7, maxTokens: 512, topP: 1, seed: null };
-const DEFAULT_IMAGE_PARAMS: ImageParams = { size: "768x768", steps: 20, seed: null };
+const DEFAULT_PARAMS: ChatParams = { temperature: 0.7, maxTokens: 512, seed: null };
+const DEFAULT_IMAGE_PARAMS: ImageParams = { seed: null };
 
 type Mode = "chat" | "image";
+
+/** One rate-card line. An unparseable price shows as unknown rather than as zero. */
+function RateRow({ label, usdc }: { label: string; usdc: string }) {
+  const base = priceToBase(usdc);
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="text-[var(--color-ink-faint)]">{label}</dt>
+      <dd className="font-[var(--font-mono)] text-[var(--color-ink-soft)]">
+        {base === null ? "—" : <USDCAmount base={base} minFractionDigits={2} />}
+      </dd>
+    </div>
+  );
+}
 
 export function PlaygroundShell() {
   const [mode, setMode] = useState<Mode>("chat");
@@ -64,7 +79,7 @@ export function PlaygroundShell() {
         ? "Your balance can't be read right now, so the spend guard is off. Requests may be refused by the node."
         : null;
 
-  const forMode = useMemo(() => (models ?? []).filter((m) => m.kind === mode), [models, mode]);
+  const forMode = useMemo(() => (models ?? []).filter((m) => m.modality === mode), [models, mode]);
   const selected = forMode.find((m) => m.id === modelId) ?? forMode[0];
 
   return (
@@ -114,7 +129,7 @@ export function PlaygroundShell() {
             >
               {forMode.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name}
+                  {m.id}
                   {m.available ? "" : " — unavailable"}
                 </option>
               ))}
@@ -155,36 +170,22 @@ export function PlaygroundShell() {
                 <CardBody className="space-y-2">
                   <CardTitle className="!mt-0">Rate card</CardTitle>
                   <dl className="space-y-1.5 text-sm">
-                    {selected.kind === "chat" ? (
+                    {/* Rendered through USDCAmount, not interpolated raw: these are decimal
+                        USDC strings from the API, and the previous card printed them with a
+                        "µUSDC" suffix they never had. */}
+                    {selected.modality === "chat" ? (
                       <>
+                        <RateRow label="Input / 1M tok" usdc={selected.input_usdc_per_mtok} />
+                        <RateRow label="Output / 1M tok" usdc={selected.output_usdc_per_mtok} />
                         <div className="flex justify-between gap-3">
-                          <dt className="text-[var(--color-ink-faint)]">Input / 1K</dt>
+                          <dt className="text-[var(--color-ink-faint)]">Context</dt>
                           <dd className="font-[var(--font-mono)] text-[var(--color-ink-soft)]">
-                            {selected.pricePer1kInput} µUSDC
+                            {selected.context_window.toLocaleString()}
                           </dd>
                         </div>
-                        <div className="flex justify-between gap-3">
-                          <dt className="text-[var(--color-ink-faint)]">Output / 1K</dt>
-                          <dd className="font-[var(--font-mono)] text-[var(--color-ink-soft)]">
-                            {selected.pricePer1kOutput} µUSDC
-                          </dd>
-                        </div>
-                        {selected.contextWindow && (
-                          <div className="flex justify-between gap-3">
-                            <dt className="text-[var(--color-ink-faint)]">Context</dt>
-                            <dd className="font-[var(--font-mono)] text-[var(--color-ink-soft)]">
-                              {selected.contextWindow.toLocaleString()}
-                            </dd>
-                          </div>
-                        )}
                       </>
                     ) : (
-                      <div className="flex justify-between gap-3">
-                        <dt className="text-[var(--color-ink-faint)]">Per image</dt>
-                        <dd className="font-[var(--font-mono)] text-[var(--color-ink-soft)]">
-                          {selected.pricePerImage} µUSDC
-                        </dd>
-                      </div>
+                      <RateRow label="Per image" usdc={selected.usdc_per_image} />
                     )}
                   </dl>
                 </CardBody>

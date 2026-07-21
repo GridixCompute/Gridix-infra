@@ -2,9 +2,18 @@
 
 import { Card, CardBody, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
-import { IMAGE_SIZES, type ImageParams, type ImageSize } from "@/lib/inference/types";
+import type { ImageParams } from "@/lib/inference/params";
 
-/** Image generation knobs (Session 5.2). `seed` pins determinism, same as chat. */
+/**
+ * Image generation knobs.
+ *
+ * Only `seed`, because `seed` is the only knob `ImageGenerationRequest` carries besides the
+ * prompt, the model and `n`. A Size radio group and a Steps slider used to sit here; the API
+ * accepts neither, so both were controls that changed a request field that did not exist and
+ * a caption on a result they had not influenced. They are not "not wired up yet" — there is
+ * nothing on the backend to wire them to, and inventing UI for it is how the deleted
+ * `types.ts` grew its fictions in the first place.
+ */
 
 type Props = {
   params: ImageParams;
@@ -13,66 +22,10 @@ type Props = {
 };
 
 export function ImageSettingsPanel({ params, onChange, disabled }: Props) {
-  const set = <K extends keyof ImageParams>(key: K, value: ImageParams[K]) =>
-    onChange({ ...params, [key]: value });
-
   return (
     <Card>
       <CardBody className="space-y-5">
         <CardTitle className="!mt-0">Parameters</CardTitle>
-
-        <div className="space-y-1.5">
-          <span className="text-sm text-[var(--color-ink-soft)]">Size</span>
-          <div role="radiogroup" aria-label="Size" className="flex gap-1">
-            {IMAGE_SIZES.map((s: ImageSize) => (
-              <button
-                key={s}
-                role="radio"
-                aria-checked={params.size === s}
-                disabled={disabled}
-                onClick={() => set("size", s)}
-                className={[
-                  "flex-1 rounded-[var(--radius-sm)] px-2 py-1.5 text-xs font-[var(--font-mono)] transition-colors",
-                  "focus-visible:ring-2 focus-visible:ring-[var(--color-signal)] focus-visible:outline-none",
-                  "disabled:cursor-not-allowed disabled:opacity-50",
-                  params.size === s
-                    ? "bg-[var(--color-signal)] font-medium text-[var(--color-void)]"
-                    : "bg-[var(--color-panel-raised)] text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]",
-                ].join(" ")}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-[var(--color-ink-faint)]">
-            Bigger costs the provider more time — the price per image is flat here.
-          </p>
-        </div>
-
-        <div className="space-y-1.5">
-          <div className="flex items-baseline justify-between">
-            <label htmlFor="param-steps" className="text-sm text-[var(--color-ink-soft)]">
-              Steps
-            </label>
-            <span className="text-sm font-[var(--font-mono)] text-[var(--color-ink)]">
-              {params.steps}
-            </span>
-          </div>
-          <input
-            id="param-steps"
-            type="range"
-            min={1}
-            max={50}
-            step={1}
-            value={params.steps}
-            disabled={disabled}
-            onChange={(e) => set("steps", Number(e.target.value))}
-            className="h-1 w-full cursor-pointer appearance-none rounded-full bg-[var(--color-hairline-strong)] accent-[var(--color-signal)] focus-visible:ring-2 focus-visible:ring-[var(--color-signal)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-panel)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-          />
-          <p className="text-xs text-[var(--color-ink-faint)]">
-            More steps, more detail, longer wait.
-          </p>
-        </div>
 
         <Input
           label="Seed"
@@ -84,9 +37,14 @@ export function ImageSettingsPanel({ params, onChange, disabled }: Props) {
           value={params.seed ?? ""}
           onChange={(e) => {
             const raw = e.target.value.trim();
-            set("seed", raw === "" ? null : Number.parseInt(raw, 10) || null);
+            onChange({ ...params, seed: raw === "" ? null : Number.parseInt(raw, 10) || null });
           }}
         />
+
+        <p className="text-xs text-[var(--color-ink-faint)]">
+          Size and step count aren&apos;t part of the image API — the node decides both, and the
+          price is flat per image.
+        </p>
       </CardBody>
     </Card>
   );

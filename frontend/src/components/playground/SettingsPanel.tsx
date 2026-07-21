@@ -1,6 +1,6 @@
 "use client";
 
-import type { ChatParams } from "@/lib/inference/types";
+import type { ChatParams } from "@/lib/inference/params";
 import { Card, CardBody, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 
@@ -78,16 +78,8 @@ export function SettingsPanel({ params, onChange, disabled }: Props) {
           disabled={disabled}
           onChange={(v) => set("temperature", v)}
         />
-        <Slider
-          label="Top P"
-          hint="Nucleus sampling: consider tokens within this probability mass."
-          value={params.topP}
-          min={0.1}
-          max={1}
-          step={0.05}
-          disabled={disabled}
-          onChange={(v) => set("topP", v)}
-        />
+        {/* No Top P control: `ChatCompletionRequest` has no `top_p`. The slider that used to
+            sit here sent a field the API does not accept. */}
         <Slider
           label="Max tokens"
           hint="Caps the reply — and the price the estimate assumes."

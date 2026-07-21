@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ImagePanel } from "./ImagePanel";
 import { MOCK_MODELS } from "@/lib/inference/mock";
-import type { ImageParams } from "@/lib/inference/types";
+import { toBaseUnits } from "@/lib/format/usdc";
+import type { ImageParams } from "@/lib/inference/params";
 
 /**
  * The image balance gate (Session 5.2), covered here for the same reason as ChatPanel's: the
@@ -15,14 +16,15 @@ import type { ImageParams } from "@/lib/inference/types";
  * for an unrelated reason.
  */
 
-const IMAGE_MODEL = MOCK_MODELS.find((m) => m.kind === "image")!;
-const PARAMS: ImageParams = { size: "768x768", steps: 20, seed: null };
+const IMAGE_MODEL = MOCK_MODELS.find((m) => m.modality === "image")!;
+const PARAMS: ImageParams = { seed: null };
+/** The rate card is a decimal-USDC string; the gate compares base units. */
+const PRICE_BASE = toBaseUnits(IMAGE_MODEL.usdc_per_image);
 
 describe("ImagePanel — balance gate", () => {
   it("blocks when one image costs more than the balance", () => {
-    // One micro-USDC short of the per-image price.
-    const justShort = BigInt(IMAGE_MODEL.pricePerImage! - 1);
-    render(<ImagePanel model={IMAGE_MODEL} params={PARAMS} availableBase={justShort} />);
+    // One base unit short of the per-image price.
+    render(<ImagePanel model={IMAGE_MODEL} params={PARAMS} availableBase={PRICE_BASE - 1n} />);
 
     expect(screen.getByRole("alert")).toHaveTextContent(/more than your balance/i);
     expect(screen.getByRole("link", { name: /top up/i })).toHaveAttribute("href", "/billing");
@@ -32,8 +34,7 @@ describe("ImagePanel — balance gate", () => {
 
   it("allows when the balance covers exactly one image", () => {
     // Exactly the price: affordable. An off-by-one here would block a user who can pay.
-    const exact = BigInt(IMAGE_MODEL.pricePerImage!);
-    render(<ImagePanel model={IMAGE_MODEL} params={PARAMS} availableBase={exact} />);
+    render(<ImagePanel model={IMAGE_MODEL} params={PARAMS} availableBase={PRICE_BASE} />);
 
     expect(screen.queryByText(/more than your balance/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText("Image prompt")).toBeEnabled();
@@ -53,23 +54,10 @@ describe("ImagePanel — balance gate", () => {
     expect(screen.getByLabelText("Image prompt")).toBeDisabled();
   });
 
-  it("shows the flat per-image price, which size does not change", () => {
-    const { rerender } = render(
-      <ImagePanel
-        model={IMAGE_MODEL}
-        params={{ ...PARAMS, size: "512x512" }}
-        availableBase={null}
-      />,
-    );
-    const small = screen.getByText(/per image/i).textContent;
-
-    rerender(
-      <ImagePanel
-        model={IMAGE_MODEL}
-        params={{ ...PARAMS, size: "1024x1024" }}
-        availableBase={null}
-      />,
-    );
-    expect(screen.getByText(/per image/i).textContent).toEqual(small);
+  it("shows the price from the rate card, not an invented one", () => {
+    // `usdc_per_image` is "0.01" on the wire. The panel must render that, in USDC — the
+    // predecessor read a per-image price as integer micro-USDC and would have shown 0.000010.
+    render(<ImagePanel model={IMAGE_MODEL} params={PARAMS} availableBase={null} />);
+    expect(screen.getByText(/per image/i).textContent).toContain("0.01");
   });
 });
