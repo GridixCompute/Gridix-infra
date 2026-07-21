@@ -13,9 +13,13 @@ export async function loginAs(
   context: BrowserContext,
   role: "developer" | "provider" = "developer",
 ): Promise<void> {
+  // One identity, a set of capabilities. `role` here selects which capabilities the
+  // fixture grants, not which of two accounts is signing in — "provider" means an address
+  // that is BOTH, because every signed-in address is a developer by construction.
+  const capabilities = role === "provider" ? "developer,provider" : "developer";
   await context.addCookies([
     { name: "gridix_session", value: "grdx_e2e_key", url: ORIGIN, httpOnly: true },
-    { name: "gridix_role", value: role, url: ORIGIN },
+    { name: "gridix_caps", value: capabilities, url: ORIGIN },
     { name: "gridix_dev", value: role === "provider" ? "Aurora GPU Farm" : "Acme AI", url: ORIGIN },
   ]);
 }

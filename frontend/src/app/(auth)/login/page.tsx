@@ -100,15 +100,15 @@ function LoginForm() {
           </p>
         )}
 
+        {/* One way in. Node operators used to have their own sign-in page and their own
+            account; now the same wallet carries both capabilities, so there is nothing to
+            choose between here — running a node is something you add after signing in. */}
         <p className="text-center text-sm text-[var(--color-ink-faint)]">
-          Running a node?{" "}
-          <Link href="/provider-login" className="text-[var(--color-signal-bright)] underline">
-            Provider sign-in
-          </Link>{" "}
-          ·{" "}
-          <Link href="/provider-register" className="text-[var(--color-signal-bright)] underline">
-            Run a node
+          Running a node? Sign in with the same wallet, then{" "}
+          <Link href="/provider/onboarding" className="text-[var(--color-signal-bright)] underline">
+            register it
           </Link>
+          .
         </p>
       </CardBody>
     </Card>
