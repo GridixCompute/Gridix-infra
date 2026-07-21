@@ -121,3 +121,156 @@ describe("error mapping", () => {
     await expect(listModels()).rejects.toBeInstanceOf(InferenceError);
   });
 });
+
+describe("streamChatCompletion", () => {
+  const encoder = new TextEncoder();
+  const frame = (payload: unknown) => `data: ${JSON.stringify(payload)}\n\n`;
+
+  const chunk = (text: string) => ({
+    id: "c",
+    object: "chat.completion.chunk",
+    created: 0,
+    model: "llama-3.1-8b",
+    choices: [{ index: 0, delta: { content: text }, finish_reason: null }],
+  });
+  const usageFrame = {
+    id: "c",
+    object: "chat.completion.chunk",
+    created: 0,
+    model: "llama-3.1-8b",
+    choices: [],
+    usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 },
+    cost_usdc: "0.000105",
+    provider_id: "00000000-0000-0000-0000-000000000000",
+  };
+
+  const REQUEST = {
+    model: "llama-3.1-8b",
+    messages: [{ role: "user" as const, content: "hi" }],
+    temperature: 1,
+    stream: true,
+    data_tier: "public" as const,
+  };
+
+  /** A streaming Response whose body emits `parts`, then optionally never ends. */
+  function streamingResponse(parts: string[], opts: { endless?: boolean } = {}) {
+    const body = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        for (const part of parts) controller.enqueue(encoder.encode(part));
+        if (!opts.endless) controller.close();
+      },
+    });
+    return new Response(body, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }
+
+  it("asks the backend to stream, whatever the caller passed", async () => {
+    fetchMock.mockResolvedValue(streamingResponse([frame(chunk("a")), "data: [DONE]\n\n"]));
+    const { streamChatCompletion } = await import("./client");
+
+    const seen = [];
+    for await (const e of streamChatCompletion({ ...REQUEST, stream: false })) seen.push(e);
+
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(JSON.parse(init.body).stream).toBe(true);
+    expect(init.headers.Accept).toBe("text/event-stream");
+    expect(seen).toEqual([{ kind: "delta", content: "a" }]);
+  });
+
+  it("yields deltas then usage, with cost as a string", async () => {
+    fetchMock.mockResolvedValue(
+      streamingResponse([
+        frame(chunk("Hel")),
+        frame(chunk("lo")),
+        frame(usageFrame),
+        "data: [DONE]\n\n",
+      ]),
+    );
+    const { streamChatCompletion } = await import("./client");
+
+    const seen = [];
+    for await (const e of streamChatCompletion(REQUEST)) seen.push(e);
+
+    expect(seen.filter((e) => e.kind === "delta").map((e) => e.content)).toEqual(["Hel", "lo"]);
+    const usage = seen.find((e) => e.kind === "usage");
+    expect(usage).toBeDefined();
+    expect(usage?.costUsdc).toBe("0.000105");
+    expect(usage?.usage.completion_tokens).toBe(2);
+  });
+
+  it("maps a pre-stream failure to a status error", async () => {
+    // Before the first byte the backend still answers with a normal JSON error, so the
+    // status mapping applies. After bytes flow it reports failure in-band instead.
+    fetchMock.mockResolvedValue(new Response("{}", { status: 402 }));
+    const { streamChatCompletion } = await import("./client");
+
+    await expect(
+      (async () => {
+        for await (const _ of streamChatCompletion(REQUEST)) void _;
+      })(),
+    ).rejects.toMatchObject({ kind: "insufficient_balance" });
+  });
+
+  it("PASSES THE ABORT SIGNAL TO FETCH — the whole cancel chain hangs off this", async () => {
+    // The coordinator learns a client is gone by the connection closing. If the signal
+    // never reaches fetch, Cancel becomes a UI illusion: the node keeps generating and the
+    // hold is settled for tokens nobody was shown.
+    fetchMock.mockResolvedValue(streamingResponse([frame(chunk("a"))], { endless: true }));
+    const { streamChatCompletion } = await import("./client");
+
+    const controller = new AbortController();
+    const gen = streamChatCompletion(REQUEST, controller.signal);
+    await gen.next();
+
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(init.signal).toBeDefined();
+    expect(init.signal).toBe(controller.signal);
+
+    expect(init.signal.aborted).toBe(false);
+    controller.abort();
+    expect(init.signal.aborted).toBe(true);
+
+    await gen.return(undefined);
+  });
+
+  it("stops reading once the signal aborts", async () => {
+    fetchMock.mockResolvedValue(
+      streamingResponse([frame(chunk("a")), frame(chunk("b"))], { endless: true }),
+    );
+    const { streamChatCompletion } = await import("./client");
+
+    const controller = new AbortController();
+    const gen = streamChatCompletion(REQUEST, controller.signal);
+    const first = await gen.next();
+    expect(first.value).toEqual({ kind: "delta", content: "a" });
+
+    controller.abort();
+    // The generator must end rather than sit on a connection nobody is listening to.
+    expect((await gen.next()).done).toBe(true);
+  });
+
+  it("closes the response body when the consumer stops early", async () => {
+    // Abandoning the stream must close the connection, not just stop reading it.
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(frame(chunk("a"))));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    fetchMock.mockResolvedValue(
+      new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
+    );
+    const { streamChatCompletion } = await import("./client");
+
+    const gen = streamChatCompletion(REQUEST);
+    await gen.next();
+    await gen.return(undefined);
+
+    expect(cancelled).toBe(true);
+  });
+});

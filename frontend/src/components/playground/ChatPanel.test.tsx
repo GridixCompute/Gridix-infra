@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ChatPanel } from "./ChatPanel";
 import { MOCK_MODELS } from "@/lib/inference/mock";
 import type { ChatParams } from "@/lib/inference/params";
@@ -69,5 +70,148 @@ describe("ChatPanel — balance gate", () => {
     const dear = screen.getByTitle(/worst case/i).textContent;
 
     expect(cheap).not.toEqual(dear);
+  });
+});
+
+// ── Streaming: the typewriter, and Cancel actually severing the connection ────────────────
+
+const streamMock = vi.fn();
+vi.mock("@/lib/inference/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/inference/client")>();
+  return { ...actual, streamChatCompletion: (...args: unknown[]) => streamMock(...args) };
+});
+
+/** Hand control of a stream to the test: push events, end it, or leave it hanging. */
+function controllableStream() {
+  const queue: unknown[] = [];
+  let notify: (() => void) | null = null;
+  let ended = false;
+
+  return {
+    push(event: unknown) {
+      queue.push(event);
+      notify?.();
+    },
+    end() {
+      ended = true;
+      notify?.();
+    },
+    generator: async function* () {
+      while (true) {
+        while (queue.length) yield queue.shift();
+        if (ended) return;
+        await new Promise<void>((resolve) => {
+          notify = resolve;
+        });
+      }
+    },
+  };
+}
+
+/** The conversation live-region. Scoped because CodeViewDialog renders the same text
+ * inside the request JSON it displays. */
+const log = () => screen.getByRole("log", { name: "Conversation" });
+
+describe("ChatPanel — streaming", () => {
+  beforeEach(() => streamMock.mockReset());
+
+  async function send(model = CHAT_MODEL) {
+    const user = userEvent.setup();
+    render(<ChatPanel model={model} params={PARAMS} availableBase={1_000_000n} />);
+    await user.type(screen.getByLabelText("Prompt"), "hi");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    return user;
+  }
+
+  it("renders tokens progressively, not in one dump at the end", async () => {
+    // The whole point of streaming. A client that buffered and rendered once at the end
+    // would satisfy a final-text assertion while being, precisely, not streaming.
+    const stream = controllableStream();
+    streamMock.mockImplementation(() => stream.generator());
+
+    await send();
+
+    stream.push({ kind: "delta", content: "Hel" });
+    await within(log()).findByText(/Hel/);
+    // Still mid-generation: the caret is up and nothing has finished.
+    expect(screen.getByLabelText("Generating")).toBeInTheDocument();
+
+    stream.push({ kind: "delta", content: "lo" });
+    await within(log()).findByText(/Hello/);
+
+    stream.end();
+    await waitFor(() => expect(screen.queryByLabelText("Generating")).not.toBeInTheDocument());
+  });
+
+  it("shows the cost the final usage event reports", async () => {
+    const stream = controllableStream();
+    streamMock.mockImplementation(() => stream.generator());
+
+    await send();
+    stream.push({ kind: "delta", content: "hi" });
+    stream.push({
+      kind: "usage",
+      usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 },
+      costUsdc: "0.000105",
+      providerId: "p",
+    });
+    stream.end();
+
+    // 0.000105 USDC, rendered by the app's single USDC formatter.
+    await within(log()).findByText(/0\.000105/);
+  });
+
+  it("CANCEL ABORTS THE REQUEST — not merely the rendering", async () => {
+    // The coordinator stops the node only when the connection closes. A Cancel that just
+    // hid output would leave a GPU generating and settle a hold for tokens never shown.
+    const stream = controllableStream();
+    let captured: AbortSignal | undefined;
+    streamMock.mockImplementation((_req: unknown, signal?: AbortSignal) => {
+      captured = signal;
+      return stream.generator();
+    });
+
+    const user = await send();
+    stream.push({ kind: "delta", content: "partial" });
+    await within(log()).findByText(/partial/);
+
+    expect(captured).toBeDefined();
+    expect(captured!.aborted).toBe(false);
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(captured!.aborted).toBe(true);
+  });
+
+  it("keeps the partial reply after a cancel, because it was billed", async () => {
+    // The coordinator settles the hold for the tokens actually produced, so hiding them
+    // would mean charging for output the developer was never shown.
+    const stream = controllableStream();
+    streamMock.mockImplementation(() => stream.generator());
+
+    const user = await send();
+    stream.push({ kind: "delta", content: "partial answer" });
+    await within(log()).findByText(/partial answer/);
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    stream.end();
+
+    await within(log()).findByText(/stopped/);
+    expect(within(log()).getByText(/partial answer/)).toBeInTheDocument();
+  });
+
+  it("surfaces an in-band error event", async () => {
+    // After bytes have flowed the backend reports failure as an event, not a status.
+    const stream = controllableStream();
+    streamMock.mockImplementation(() => stream.generator());
+
+    await send();
+    stream.push({ kind: "delta", content: "a" });
+    stream.push({ kind: "error", message: "The node failed to complete the request." });
+    stream.end();
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/node failed to complete/i),
+    );
   });
 });

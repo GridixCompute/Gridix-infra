@@ -23,6 +23,7 @@ import type {
   ModelInfo,
 } from "./contract";
 import { priceToBase } from "./pricing";
+import type { ChatStreamEvent } from "./sse";
 import { estimateTokens } from "./tokens";
 
 /** Mock is ON unless someone explicitly points the app at a real inference backend. */
@@ -155,6 +156,55 @@ export async function mockChatCompletion(
     },
     cost_usdc: costUsdc(micro),
     provider_id: "00000000-0000-0000-0000-000000000000",
+  };
+}
+
+/**
+ * Mirrors the real streamed client: deltas as they are "produced", then finish, then usage.
+ *
+ * Typed against the same `ChatStreamEvent` the SSE parser produces, so the mock cannot drift
+ * from what the real path yields without the compiler saying so. That is the discipline #34
+ * was about: the previous mock agreed with a hand-written guess instead of with the API, and
+ * hid a broken client for months.
+ *
+ * The abort check is inside the loop rather than only at the top, because cancelling
+ * mid-generation is the case the panel has to get right. When mock mode is off, the same
+ * abort tears down a real TCP connection and stops a real GPU.
+ */
+export async function* mockChatStream(
+  req: ChatCompletionRequest,
+  signal?: AbortSignal,
+): AsyncGenerator<ChatStreamEvent> {
+  await wait(220, signal); // time-to-first-token
+
+  const model = priceOf(MOCK_MODELS, req.model);
+  const words = LOREM.split(" ");
+  let emitted = "";
+
+  for (const word of words) {
+    if (signal?.aborted) throw aborted();
+    const piece = `${word} `;
+    emitted += piece;
+    yield { kind: "delta", content: piece };
+    await wait(45, signal);
+  }
+
+  const promptTokens = estimateTokens(req.messages.map((m) => m.content).join(" "));
+  const completionTokens = estimateTokens(emitted);
+  const inRate = priceToBase(model?.input_usdc_per_mtok ?? "0") ?? 0n;
+  const outRate = priceToBase(model?.output_usdc_per_mtok ?? "0") ?? 0n;
+  const micro = (BigInt(promptTokens) * inRate + BigInt(completionTokens) * outRate) / 1_000_000n;
+
+  yield { kind: "finish", reason: "stop" };
+  yield {
+    kind: "usage",
+    usage: {
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens: promptTokens + completionTokens,
+    },
+    costUsdc: costUsdc(micro),
+    providerId: "00000000-0000-0000-0000-000000000000",
   };
 }
 
