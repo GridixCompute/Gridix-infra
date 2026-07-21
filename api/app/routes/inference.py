@@ -21,6 +21,7 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import StreamingResponse
 from loguru import logger
 
 from app.catalog import CATALOG, Modality, chat_cost, chat_worst_case, get_model, image_cost
@@ -34,6 +35,7 @@ from app.dispatch import (
     select_node,
 )
 from app.models import DataTier
+from app.node_usage import usage_from
 from app.schemas import (
     ChatChoice,
     ChatCompletionMessage,
@@ -47,6 +49,7 @@ from app.schemas import (
     ModelsResponse,
 )
 from app.siwe import utcnow
+from app.streaming_chat import chat_stream_body
 from app.usage_billing import (
     InsufficientBalanceError,
     release_reservation,
@@ -140,15 +143,26 @@ async def list_models(
 @router.post(
     "/chat/completions",
     response_model=ChatCompletionResponse,
-    # The route really can return 501 (stream=true, below), so the contract has to say so.
-    # Without this the spec advertises `stream?: boolean` and stays silent about half of it
-    # being unimplemented: a client generates types, wires up a stream toggle, and finds out
-    # at runtime. A schema that omits a response it actually returns is the same class of bug
-    # as one that declares an event the contract never emits (5e26dc1) — just from the other
-    # side. Both let generated code be confidently wrong.
+    # `stream=true` answers with text/event-stream, not this model, and FastAPI can only
+    # infer one. Declaring the other content type here is the same discipline that made the
+    # old 501 visible: a client generates types from this spec, so a response the route
+    # really returns has to appear in it, or the generated code is confidently wrong.
     responses={
+        status.HTTP_200_OK: {
+            "description": (
+                "A completed chat completion. With `stream=true` the response is instead an "
+                "OpenAI-compatible SSE stream of `chat.completion.chunk` events terminated "
+                "by `data: [DONE]`, with usage and `cost_usdc` on the final event."
+            ),
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/ChatCompletionResponse"}
+                },
+                "text/event-stream": {"schema": {"type": "string"}},
+            },
+        },
         status.HTTP_501_NOT_IMPLEMENTED: {
-            "description": "stream=true: the network cannot forward partial results yet.",
+            "description": "data_tier=confidential_tee is not supported on the chat path.",
         },
     },
 )
@@ -157,19 +171,15 @@ async def chat_completions(
     session: SessionDep,
     settings: SettingsDep,
     developer: DeveloperDep,
-) -> ChatCompletionResponse:
-    """Run a chat completion on the network and bill the tokens it used."""
-    if body.stream:
-        # Refused before the gate and before a node: nothing is charged for a request the
-        # network cannot serve. Streaming needs the relay to forward frames as the node
-        # produces them; returning one blocking body to a caller who asked for a stream
-        # would answer the request with something that is not what it asked for, and no
-        # client could tell.
-        raise HTTPException(
-            status.HTTP_501_NOT_IMPLEMENTED,
-            "stream=true is not implemented: the network cannot forward partial results "
-            "yet. Send stream=false for a single complete response.",
-        )
+):
+    """Run a chat completion on the network and bill the tokens it used.
+
+    With `stream=true` the reply is an SSE stream of OpenAI `chat.completion.chunk` events.
+    The billing invariants do not change with the shape: the worst case is still reserved
+    before a node is touched, and the hold is still resolved exactly once — see
+    `app.streaming_chat` for what "exactly once" has to survive when the client hangs up
+    mid-generation.
+    """
     if body.data_tier is DataTier.confidential_tee:
         # Refused before the gate and before a node, for the same reason streaming is: the
         # request asks for something the network cannot deliver on this path. On the chat
@@ -209,6 +219,34 @@ async def chat_completions(
         )
         payload = body.model_dump(mode="json", exclude={"data_tier"})
         payload["max_tokens"] = max_output
+
+        if body.stream:
+            # Hand the hold to the stream body, which owns it from here: it settles on a
+            # session of its own, long after this handler has returned and this one is
+            # closed. `settled` is set so the `finally` below does NOT also release it —
+            # a double resolution would credit the developer the hold twice.
+            settled = True
+            return StreamingResponse(
+                chat_stream_body(
+                    spec=spec,
+                    model=body.model,
+                    payload=payload,
+                    developer_id=developer.id,
+                    provider_id=provider_id,
+                    held=held,
+                    worst_case=worst_case,
+                    prompt_tokens=prompt_tokens,
+                    max_output=max_output,
+                    created=int(utcnow().timestamp()),
+                    settings=settings,
+                ),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache, no-transform",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",  # disable proxy buffering (nginx)
+                },
+            )
 
         try:
             reply = await dispatch(
@@ -388,56 +426,7 @@ def _prompt_token_bound(body: ChatCompletionRequest) -> int:
     return max(1, total_bytes)
 
 
-def _reported_tokens(raw: dict, field: str, *, default: int) -> int:
-    """One token count out of a node's reply, or ``default`` if it gave nothing usable.
-
-    Every value here arrives from a counterparty that is paid from it, so nothing may be
-    assumed about its type. `int("abc")`, `int(None)` and `int([1, 2])` all raise, and an
-    exception this deep becomes a 500 — a node could return one string and break every
-    request routed to it. A count we cannot read is not a count, so it falls back exactly
-    like an omitted one.
-
-    Negative values are floored at zero rather than rejected: ChatUsage requires ge=0, so
-    passing one through would raise ValidationError and 500 for the same reason.
-    """
-    value = raw.get(field)
-    if value is None:
-        return default
-    # bool is an int subclass; True would silently mean 1 token.
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        logger.warning(
-            "node reported {}={!r}, which is not a number; using {}", field, value, default
-        )
-        return default
-    return max(0, int(value))
-
-
-def _usage_from(reply: dict, *, prompt_tokens: int, max_output_tokens: int) -> ChatUsage:
-    """Token usage as the node reported it — bounded by what it was allowed to do.
-
-    A node that omits its counts gets billed on the estimate rather than for free.
-
-    The counts are a claim, not a measurement: only the node saw the generation, and the
-    node is paid from the number it reports. `max_output_tokens` is the ceiling we sent it
-    and priced the balance gate on, so a larger count is either a broken node or a lying
-    one. Either way the developer does not fund it.
-
-    Nothing in here may raise on a hostile reply. The node chooses this payload; if a
-    malformed one could reach an unhandled exception, any node could 500 every request it
-    was given, for free, and never be billed for the privilege.
-    """
-    raw = reply.get("usage")
-    if not isinstance(raw, dict):
-        # `usage: "x"` used to reach .get() and raise AttributeError.
-        raw = {}
-    claimed = _reported_tokens(raw, "completion_tokens", default=0)
-    if claimed > max_output_tokens:
-        logger.warning(
-            "node claimed {} completion tokens against a ceiling of {}; billing the ceiling",
-            claimed,
-            max_output_tokens,
-        )
-    return ChatUsage(
-        prompt_tokens=_reported_tokens(raw, "prompt_tokens", default=prompt_tokens),
-        completion_tokens=min(claimed, max_output_tokens),
-    )
+# Reading a node's token report lives in `app.node_usage`, shared with the streamed path so
+# both clamp the same way. Re-exported under the old name because the unary path reads
+# better with it, and `_usage_from` is what the surrounding comments have always called.
+_usage_from = usage_from

@@ -141,47 +141,25 @@ class TestChat:
         session.expire_all()
         assert await developer_balance(session, dev) == Decimal("9.999895")
 
-    async def test_streaming_is_refused_rather_than_faked(
-        self, client: AsyncClient, session
-    ) -> None:
-        """501, and before the node is touched.
+    def test_the_spec_declares_the_stream_it_can_return(self) -> None:
+        """`stream=true` answers with SSE, and the contract has to say so.
 
-        The field is in the schema, so an OpenAI-compatible client will send it. Real
-        streaming needs the relay to forward frames as they arrive — a protocol change,
-        not a flag. Until then the only honest answer is 'not implemented': answering a
-        stream request with one blocking body is a lie the client cannot detect, and it
-        would let the schema promise something the network cannot do.
-        """
-        dev_id, key = await register(client, "developer", "Acme")
-        await fund(session, uuid.UUID(dev_id), "10")
-        await make_node(session)
-
-        call = AsyncMock()
-        with patch("app.dispatch.call_provider", new=call):
-            res = await chat(client, key, stream=True)
-
-        assert res.status_code == 501
-        assert "stream" in res.text.lower()
-        call.assert_not_awaited()
-
-    def test_the_spec_declares_the_501_it_can_return(self) -> None:
-        """The behaviour above is worth nothing to a client that cannot see it coming.
-
-        `stream` is in the schema, so generated clients offer it — and FastAPI only
-        documents the responses it is told about, so a route that raises 501 advertises
-        nothing but 200. A developer wires up a stream toggle against types that look fine
-        and learns the truth at runtime.
+        Previously this asserted the 501 the route returned instead of streaming. That was
+        right for the world where streaming did not exist; now it does, and the same
+        reasoning points the other way. `stream` is in the request schema, so generated
+        clients offer it — and FastAPI infers ONE response model, so a route that can also
+        answer `text/event-stream` advertises only the JSON body unless told otherwise.
 
         This is the mirror of 5e26dc1, where an ABI declared events the contract never
-        emitted: there the schema promised what did not happen, here it hides what does.
-        Either way the generated code is confidently wrong, and neither is caught by tests
-        of behaviour — only by testing the contract itself.
+        emitted: there the schema promised what did not happen, here it would hide what
+        does. Either way the generated code is confidently wrong, and neither is caught by
+        tests of behaviour — only by testing the contract itself.
         """
         from app.main import app
 
-        responses = app.openapi()["paths"]["/v1/chat/completions"]["post"]["responses"]
-        assert "501" in responses, (
-            "the route can return 501 (stream=true) but the OpenAPI spec does not say so, "
+        ok = app.openapi()["paths"]["/v1/chat/completions"]["post"]["responses"]["200"]
+        assert "text/event-stream" in ok["content"], (
+            "stream=true returns SSE but the OpenAPI spec advertises only JSON, "
             "so generated clients cannot know"
         )
 
