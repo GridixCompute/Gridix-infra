@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { USDCAmount } from "@/components/domain/USDCAmount";
-import { createChatCompletion, inferenceErrorMessage } from "@/lib/inference/client";
+import { inferenceErrorMessage, streamChatCompletion } from "@/lib/inference/client";
 import { estimateChatCost } from "@/lib/inference/pricing";
 import { toBaseUnits } from "@/lib/format/usdc";
 import type { ChatCompletionRequest, ChatMessage, ModelInfo } from "@/lib/inference/contract";
@@ -16,21 +16,30 @@ import { CodeViewDialog } from "./CodeViewDialog";
  * Turns carry their own cost: the ESTIMATE before sending, replaced by the `cost_usdc` the
  * backend reports on the response. Never show one as the other — see pricing.ts.
  *
- * ⚠️ NOT STREAMED. The backend answers `stream=true` with 501, so a reply arrives whole. The
- * panel previously rendered a token-by-token typewriter fed by the mock alone; against the
- * real API it would have shown a caret that never moved and then the entire reply at once.
- * Cancel therefore discards the turn rather than keeping a partial one — there is no partial
- * one to keep, and nothing is billed for a request whose response was never read.
+ * STREAMED. Tokens land as the node produces them, and `cost_usdc` arrives on the final
+ * event, so a turn shows its estimate, then its text, then what it actually cost.
+ *
+ * ⚠️ Cancel ABORTS THE REQUEST — it does not merely stop rendering. The coordinator learns a
+ * client is gone by the connection closing, and only then tells the node to stop generating
+ * and settles the hold for the tokens actually produced. A Cancel that hid the output while
+ * the fetch ran on would leave a GPU burning and settle a larger hold than the developer
+ * ever saw the benefit of. `abortRef` is that connection's only handle.
+ *
+ * A cancelled turn KEEPS its partial text, unlike the unary path which discarded it. The
+ * difference is that a partial stream really was generated and really is billed, so hiding
+ * it would mean charging for output the developer was never shown.
  */
 
 type Turn = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  /** USDC base units actually charged, once the response reports it. */
+  /** USDC base units actually charged, once the final event reports it. */
   costBase?: bigint;
-  /** True while the request is in flight. */
-  pending?: boolean;
+  /** True while tokens are still arriving. */
+  streaming?: boolean;
+  /** Set when the user cancelled: the partial reply stands, and was billed. */
+  stopped?: boolean;
 };
 
 type Props = {
@@ -55,9 +64,9 @@ function buildRequest(
   return {
     model: model.id,
     messages,
-    // False, not a toggle: `stream=true` is a 501. `top_p` is absent because
-    // ChatCompletionRequest has no such field — the panel used to send one.
-    stream: false,
+    // The panel streams. `top_p` is absent because ChatCompletionRequest has no such field —
+    // the panel used to send one.
+    stream: true,
     temperature: params.temperature,
     max_tokens: params.maxTokens,
     seed: params.seed,
@@ -100,7 +109,7 @@ export function ChatPanel({ model, params, availableBase }: Props) {
     if (!text || !model || busy || blocked) return;
 
     const userTurn: Turn = { id: nextId(), role: "user", content: text };
-    const replyTurn: Turn = { id: nextId(), role: "assistant", content: "", pending: true };
+    const replyTurn: Turn = { id: nextId(), role: "assistant", content: "", streaming: true };
     setTurns((prev) => [...prev, userTurn, replyTurn]);
     setDraft("");
     setError(null);
@@ -109,29 +118,64 @@ export function ChatPanel({ model, params, availableBase }: Props) {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    const patch = (change: Partial<Turn>) =>
+      setTurns((prev) => prev.map((t) => (t.id === replyTurn.id ? { ...t, ...change } : t)));
+
+    let streamError: string | null = null;
     try {
-      const res = await createChatCompletion(
+      const events = streamChatCompletion(
         buildRequest(model, [...history, { role: "user", content: text }], params),
         controller.signal,
       );
-      const reply = res.choices[0]?.message.content ?? "";
-      setTurns((prev) =>
-        prev.map((t) =>
-          t.id === replyTurn.id
-            ? { ...t, content: reply, pending: false, costBase: toBaseUnits(res.cost_usdc) }
-            : t,
-        ),
-      );
+
+      for await (const event of events) {
+        if (event.kind === "delta") {
+          // Append rather than replace: this is the typewriter, one node-produced slice at
+          // a time.
+          setTurns((prev) =>
+            prev.map((t) =>
+              t.id === replyTurn.id ? { ...t, content: t.content + event.content } : t,
+            ),
+          );
+        } else if (event.kind === "usage") {
+          patch({ costBase: toBaseUnits(event.costUsdc) });
+        } else if (event.kind === "error") {
+          // A failure after bytes have flowed: the backend reports it in-band, because the
+          // status line was committed when the first chunk went out.
+          streamError = event.message;
+        }
+      }
+      patch({ streaming: false, stopped: controller.signal.aborted });
     } catch (e) {
-      // A cancel is not a failure: drop the placeholder and say nothing.
-      if ((e as Error)?.name !== "AbortError") setError(inferenceErrorMessage(e));
-      setTurns((prev) => prev.filter((t) => t.id !== replyTurn.id));
+      // A cancel is not a failure. The partial text stays: it was generated, and the
+      // coordinator settles the hold for exactly those tokens.
+      if ((e as Error)?.name === "AbortError") {
+        patch({ streaming: false, stopped: true });
+      } else {
+        setError(inferenceErrorMessage(e));
+        // Drop the bubble only if nothing arrived; a partial reply is real output.
+        setTurns((prev) =>
+          prev.flatMap((t) =>
+            t.id === replyTurn.id
+              ? t.content === ""
+                ? []
+                : [{ ...t, streaming: false, stopped: true }]
+              : [t],
+          ),
+        );
+      }
     } finally {
+      if (streamError) setError(streamError);
       setBusy(false);
       abortRef.current = null;
     }
   }, [draft, model, busy, blocked, history, params]);
 
+  /**
+   * Cancel. This aborts the in-flight request, which closes the connection — the signal the
+   * coordinator uses to stop the node. Anything that only changed local state here would
+   * leave the generation running and still be billed for it.
+   */
   const stop = () => abortRef.current?.abort();
 
   const regenerate = () => {
@@ -149,8 +193,14 @@ export function ChatPanel({ model, params, availableBase }: Props) {
 
   return (
     <div className="flex h-full flex-col gap-4">
+      {/* A log live-region: tokens arrive after first paint, so a screen reader needs to be
+          told the conversation updates. `polite` because announcing every token as it lands
+          would be unusable — the reader catches up at natural pauses. */}
       <div
         ref={scrollRef}
+        role="log"
+        aria-label="Conversation"
+        aria-live="polite"
         className="min-h-[22rem] flex-1 space-y-4 overflow-y-auto rounded-[var(--radius-md)] border border-[var(--color-hairline)] bg-[var(--color-panel)] p-4"
       >
         {turns.length === 0 ? (
@@ -172,18 +222,24 @@ export function ChatPanel({ model, params, availableBase }: Props) {
                 ].join(" ")}
               >
                 {turn.content}
-                {/* A whole reply arrives at once, so this is a wait indicator, not a
-                    typewriter caret pretending tokens are trickling in. */}
-                {turn.pending && (
+                {/* A real caret now: tokens genuinely arrive one slice at a time, so this
+                    tracks the generation instead of standing in for it. */}
+                {turn.streaming && (
                   <span
                     role="status"
                     aria-label="Generating"
-                    className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--color-hairline-strong)] border-t-[var(--color-signal)]"
+                    className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse bg-[var(--color-signal)]"
                   />
                 )}
-                {turn.costBase !== undefined && (
+                {(turn.costBase !== undefined || turn.stopped) && (
                   <span className="mt-1.5 flex items-center gap-2 text-xs text-[var(--color-ink-faint)]">
-                    <USDCAmount base={turn.costBase} minFractionDigits={6} />
+                    {turn.costBase !== undefined && (
+                      <USDCAmount base={turn.costBase} minFractionDigits={6} />
+                    )}
+                    {/* Cancelling severs the connection before the usage event, so the exact
+                        charge is genuinely unknown here — saying "stopped" is honest where
+                        showing the estimate as a charge would not be. */}
+                    {turn.stopped && <span>· stopped — partial output was billed</span>}
                   </span>
                 )}
               </div>

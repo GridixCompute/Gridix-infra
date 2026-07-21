@@ -4,15 +4,22 @@
  * Types come from `./contract`, which aliases the generated schema. Nothing here restates a
  * wire shape.
  *
- * ⚠️ CHAT IS UNARY. The backend answers `stream=true` with **501 Not Implemented** — it cannot
- * forward partial results yet — so this module does not stream, does not parse SSE, and does
- * not offer a streaming entry point. The SSE parser that used to live here decoded an event
- * shape (`chat.completion.chunk`) the backend has never emitted. Streaming arrives when the
- * relay can forward frames; until then the honest surface is one request, one complete reply.
+ * Chat comes in two shapes, matching the backend: `createChatCompletion` for one complete
+ * reply, and `streamChatCompletion` for SSE. The streamed one is real now — the relay
+ * forwards frames as the node produces them — where the parser deleted in #34 decoded a
+ * `chat.completion.chunk` the backend had never emitted. Frame parsing lives in `./sse`,
+ * which explains why it narrows at runtime instead of casting.
  */
 
 import { env } from "@/lib/config/env";
-import { isMockInference, mockChatCompletion, mockGenerateImage, mockListModels } from "./mock";
+import {
+  isMockInference,
+  mockChatCompletion,
+  mockChatStream,
+  mockGenerateImage,
+  mockListModels,
+} from "./mock";
+import { chatStreamEvents, type ChatStreamEvent } from "./sse";
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
@@ -21,6 +28,8 @@ import type {
   ModelInfo,
   ModelsResponse,
 } from "./contract";
+
+export type { ChatStreamEvent } from "./sse";
 
 /**
  * Errors the playground must react to differently.
@@ -125,11 +134,53 @@ export async function listModels(signal?: AbortSignal): Promise<ModelInfo[]> {
 }
 
 /**
+ * Stream one chat completion, yielding events as the node produces tokens.
+ *
+ * ⚠️ `signal` MUST reach `fetch`, and the caller aborting it is the only thing that stops
+ * the work. The coordinator settles the hold and tells the node to stop generating when its
+ * client disconnects — a UI that merely hid the output would leave a GPU running to the end
+ * of its token budget and settle the hold for tokens nobody ever saw. Aborting the fetch is
+ * what closes the TCP connection, which is what the whole cancel chain hangs off:
+ *
+ *   abort() -> connection closes -> coordinator's stream body is cancelled
+ *           -> relay sends {"type":"cancel"} -> node cancels -> Ollama stops
+ *
+ * The `finally` matters for the same reason: a caller that stops iterating without aborting
+ * would otherwise leave the response body open. Cancelling the reader closes it.
+ */
+export async function* streamChatCompletion(
+  req: ChatCompletionRequest,
+  signal?: AbortSignal,
+): AsyncGenerator<ChatStreamEvent> {
+  if (isMockInference) {
+    yield* mockChatStream(req, signal);
+    return;
+  }
+
+  const res = await send(`${env.apiUrl}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    body: JSON.stringify({ ...req, stream: true }),
+    credentials: "include",
+    signal,
+  });
+
+  // A failure before the stream opens is still a normal JSON error response, so the status
+  // mapping applies unchanged. Once bytes are flowing the backend reports failure as an
+  // `error` event instead, because the status line is long committed by then.
+  if (!res.ok) throw failed(res.status);
+  if (!res.body) throw new InferenceError("network", MESSAGES.network);
+
+  yield* chatStreamEvents(res.body, signal);
+}
+
+/**
  * Run one chat completion and return the whole reply.
  *
- * `stream` is forced false rather than taken from the caller: the only other value the
- * backend accepts is a 501, and letting a caller ask for streaming would mean shipping a
- * request we know is refused. See the module header.
+ * Kept beside the streamed path rather than replaced by it: `stream=false` is what the code
+ * snippets show and what a developer integrating server-side will send, so it stays a
+ * first-class path. `stream` is forced false here for the same reason it is forced true
+ * above — the shape of the reply this function returns depends on it.
  */
 export async function createChatCompletion(
   req: ChatCompletionRequest,
