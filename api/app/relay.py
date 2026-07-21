@@ -13,11 +13,29 @@ Wire protocol (JSON frames):
                                                                      first frame
   relay → agent:  {"type": "auth_ok", "provider_id": "..."}          on success
   agent → relay:  {"type": "ping"}  /  relay → agent: {"type":"pong"} keepalive
-  relay → agent:  {"type": "request", "request_id", "job_id", "method", "payload"}
-  agent → relay:  {"type": "response", "request_id", "status", "payload"}
+  relay → agent:  {"type": "request", "request_id", "job_id", "method", "payload",
+                   "stream": bool}
+  agent → relay:  {"type": "response", "request_id", "status", "payload"}   terminal, always
+  agent → relay:  {"type": "chunk", "request_id", "delta", "tokens"}        streaming only
+  relay → agent:  {"type": "cancel", "request_id"}                          stop generating
 
-Coordinator → relay is plain HTTP (``POST /relay/providers/{id}/request``), authenticated
-with the shared internal secret; the relay bridges it onto the target tunnel.
+Coordinator → relay is plain HTTP, authenticated with the shared internal secret:
+
+  POST /relay/providers/{id}/request   one reply, JSON            (unary)
+  POST /relay/providers/{id}/stream    many frames, NDJSON        (streaming)
+
+Streaming is the reason ``Tunnel`` holds two correlation maps rather than one. The unary
+path resolves a single future per ``request_id``; a streamed request cannot, because the
+node emits an unbounded number of frames before its terminal one, and forwarding them only
+after the last has arrived is not streaming — it is a slow unary call. So a streamed
+request registers a QUEUE instead, the receive loop pushes each frame onto it, and the
+bridge drains it as frames arrive.
+
+``cancel`` is the half that makes disconnects safe. A streamed generation is the one
+request that keeps costing a provider money after the caller has stopped listening, so
+when the coordinator stops reading, the relay tells the node to stop generating. Without
+it a closed browser tab would leave a GPU running to the end of its token budget with
+nobody to send the result to.
 """
 
 import asyncio
@@ -25,11 +43,12 @@ import hmac
 import json
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import aclosing, asynccontextmanager, suppress
 from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
@@ -66,6 +85,16 @@ _AUTH_TIMEOUT_SECONDS = 10.0
 # authenticated tunnels, which is precisely the population that isn't the problem.
 _MAX_CONNECTIONS = 512
 
+# Frames a streamed request may have buffered in the relay before the coordinator has read
+# them. The queue exists because the tunnel's receive loop must never block: awaiting a slow
+# consumer there would stall every other request sharing the socket. Bounding it is what
+# stops a node that generates faster than the coordinator reads (or one that floods
+# deliberately) from growing the relay's memory without limit — the same reasoning as the
+# 1 MiB frame cap, applied to frame COUNT rather than frame size, which that cap does not
+# bound at all. On overflow the stream is terminated rather than silently trimmed: dropping
+# chunks would under-report the tokens the request is billed on.
+_MAX_STREAM_QUEUE_FRAMES = 1024
+
 # Live sockets, authenticated or not. Guards the accept path, so it has to be counted
 # where sockets are accepted rather than where tunnels are registered.
 _connections = 0
@@ -100,6 +129,7 @@ class Tunnel:
     def __init__(self, ws: WebSocket) -> None:
         self._ws = ws
         self._pending: dict[str, asyncio.Future] = {}
+        self._streams: dict[str, asyncio.Queue] = {}
 
     async def call(self, *, job_id: str | None, method: str, payload: dict, timeout: float) -> dict:
         """Send a request through the tunnel and await the provider's response frame."""
@@ -113,6 +143,7 @@ class Tunnel:
                 "job_id": job_id,
                 "method": method,
                 "payload": payload,
+                "stream": False,
             }
         )
         try:
@@ -120,23 +151,116 @@ class Tunnel:
         finally:
             self._pending.pop(request_id, None)
 
+    async def stream(
+        self, *, job_id: str | None, method: str, payload: dict, timeout: float
+    ) -> AsyncIterator[dict]:
+        """Send a streamed request and yield each frame the node sends back, as it arrives.
+
+        Yields ``chunk`` frames until a terminal ``response`` frame, which is yielded last.
+        ``timeout`` bounds the gap BETWEEN frames rather than the whole generation: a stream
+        may legitimately run far longer than a unary call, but a node that has gone silent
+        for the timeout is gone, and the caller must not wait on it forever.
+
+        The ``finally`` is the load-bearing part. Whatever ends the iteration early — the
+        consumer disconnecting, a timeout, the tunnel dropping — the node is told to stop.
+        A generation nobody is reading is pure cost to the provider, and the node cannot see
+        that the far end went away; only the relay can.
+        """
+        request_id = uuid.uuid4().hex
+        queue: asyncio.Queue = asyncio.Queue(maxsize=_MAX_STREAM_QUEUE_FRAMES)
+        self._streams[request_id] = queue
+        await self._ws.send_json(
+            {
+                "type": "request",
+                "request_id": request_id,
+                "job_id": job_id,
+                "method": method,
+                "payload": payload,
+                "stream": True,
+            }
+        )
+        finished = False
+        try:
+            while True:
+                frame = await asyncio.wait_for(queue.get(), timeout)
+                if frame.get("type") == "chunk":
+                    yield frame
+                    continue
+                # Anything that is not a chunk ends the stream: the node's terminal
+                # `response`, or an `error` the relay itself synthesised.
+                finished = True
+                yield frame
+                return
+        finally:
+            self._streams.pop(request_id, None)
+            if not finished:
+                await self._cancel(request_id)
+
+    async def _cancel(self, request_id: str) -> None:
+        """Best-effort 'stop generating' for a stream that ended before the node finished.
+
+        Never raises. This runs in a ``finally`` on paths where the tunnel may already be
+        dead or the surrounding task already cancelled, and an exception here would mask the
+        real reason the stream ended — or, worse, escape into the billing ``finally`` that
+        has to run next.
+        """
+        try:
+            await self._ws.send_json({"type": "cancel", "request_id": request_id})
+        except Exception as exc:  # noqa: BLE001 - best-effort on a possibly-dead socket
+            logger.debug("cancel for {} not delivered: {}", request_id, exc)
+
     async def handle_incoming(self, msg: Any) -> None:
-        """Dispatch an inbound frame from the agent (keepalive or a response)."""
+        """Dispatch an inbound frame from the agent (keepalive, chunk, or response)."""
         if not isinstance(msg, dict):
             return
         kind = msg.get("type")
         if kind == "ping":
             await self._ws.send_json({"type": "pong"})
-        elif kind == "response":
-            fut = self._pending.get(msg.get("request_id"))
+            return
+        if kind not in ("chunk", "response"):
+            return
+
+        request_id = msg.get("request_id")
+        queue = self._streams.get(request_id)
+        if queue is not None:
+            self._offer(request_id, queue, msg)
+            return
+        # Not a stream: the unary path, unchanged. A `chunk` for an unknown request_id
+        # falls through to nothing, which is what a late frame from a cancelled stream is.
+        if kind == "response":
+            fut = self._pending.get(request_id)
             if fut is not None and not fut.done():
                 fut.set_result(msg)
 
+    def _offer(self, request_id: str, queue: asyncio.Queue, frame: dict) -> None:
+        """Hand a frame to a waiting stream without ever blocking the receive loop.
+
+        On overflow the stream is ended with an error instead of dropping the frame. A
+        dropped chunk is not a cosmetic loss: the coordinator bills on the tokens it saw, so
+        silently discarding them would under-charge for work the provider really did.
+        """
+        try:
+            queue.put_nowait(frame)
+        except asyncio.QueueFull:
+            logger.warning("stream {} exceeded {} buffered frames", request_id, queue.maxsize)
+            self._streams.pop(request_id, None)
+            with suppress(asyncio.QueueEmpty):
+                queue.get_nowait()  # make room for the terminal frame
+            with suppress(asyncio.QueueFull):
+                queue.put_nowait({"type": "error", "error": "stream exceeded the relay's buffer"})
+
     def fail_all(self, exc: Exception) -> None:
-        """Fail every in-flight call (called when the tunnel drops)."""
+        """Fail every in-flight call and stream (called when the tunnel drops)."""
         for fut in self._pending.values():
             if not fut.done():
                 fut.set_exception(exc)
+        # A stream cannot take an exception the way a future can — it is being drained by a
+        # `queue.get()`. Push a terminal error instead, so the consumer stops promptly rather
+        # than waiting out the inter-frame timeout on a socket that is already gone.
+        for request_id, queue in list(self._streams.items()):
+            self._streams.pop(request_id, None)
+            with suppress(asyncio.QueueFull):
+                queue.put_nowait({"type": "error", "error": str(exc) or "tunnel closed"})
 
     async def close(self) -> None:
         try:
@@ -333,6 +457,57 @@ def create_relay_app(authenticate: Authenticator | None = None) -> FastAPI:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="tunnel closed"
             ) from exc
         return RelayResponse(status=frame.get("status", 200), payload=frame.get("payload"))
+
+    @app.post("/relay/providers/{provider_id}/stream")
+    async def relay_stream(
+        provider_id: uuid.UUID, body: RelayRequest, _: None = Depends(require_internal)
+    ) -> StreamingResponse:
+        """Bridge a STREAMED request onto a provider's tunnel, forwarding frames as they come.
+
+        NDJSON (one JSON frame per line) rather than SSE: this hop is relay → coordinator,
+        and the coordinator re-shapes what it reads into OpenAI SSE for the developer.
+        Emitting SSE here would mean parsing and re-emitting the same envelope twice, and
+        would tempt a future caller into forwarding these bytes to a client verbatim —
+        which would leak the internal frame shape into the public contract.
+
+        Errors are frames, not status codes. The status line is committed the moment the
+        first byte is sent, so a node that dies mid-generation cannot be reported as an HTTP
+        error; the coordinator has to be able to tell "the node failed" from "the node
+        finished", and after streaming has begun the only channel left is the body.
+        """
+        tunnel = await registry.get(provider_id)
+        if tunnel is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="provider not connected",
+            )
+
+        async def frames() -> AsyncIterator[str]:
+            timeout = get_settings().relay_request_timeout
+            # `aclosing` is what makes disconnect propagate. Without it, abandoning this
+            # generator leaves the inner one for the garbage collector, and the node keeps
+            # generating until it finishes — the exact cost this endpoint exists to stop.
+            try:
+                async with aclosing(
+                    tunnel.stream(
+                        job_id=body.job_id,
+                        method=body.method,
+                        payload=body.payload,
+                        timeout=timeout,
+                    )
+                ) as stream:
+                    async for frame in stream:
+                        yield json.dumps(frame) + "\n"
+            except TimeoutError:
+                yield json.dumps({"type": "error", "error": "provider did not respond"}) + "\n"
+            except TunnelClosedError:
+                yield json.dumps({"type": "error", "error": "tunnel closed"}) + "\n"
+
+        return StreamingResponse(
+            frames(),
+            media_type="application/x-ndjson",
+            headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+        )
 
     @app.websocket("/relay/agent")
     async def relay_agent(ws: WebSocket) -> None:

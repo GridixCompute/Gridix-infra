@@ -8,9 +8,21 @@ The wire protocol this implements, taken from ``relay.py`` (not from prose):
   relay → node:  {"type": "auth_ok", "provider_id": "..."}                              (on success)
                  {"type": "auth_error", "reason": "..."}                                (on failure)
   node → relay:  {"type": "ping"}   relay → node: {"type": "pong"}                       (keepalive)
-  relay → node:  {"type": "request", "request_id", "job_id", "method", "payload"}
+  relay → node:  {"type": "request", "request_id", "job_id", "method", "payload", "stream"}
   node → relay:  {"type": "response", "request_id": <echoed>, "status": 200,
                   "payload": {"content": "...", "usage": {"prompt_tokens", "completion_tokens"}}}
+  node → relay:  {"type": "chunk", "request_id", "delta": "...", "tokens": <cumulative>}
+  relay → node:  {"type": "cancel", "request_id"}
+
+When ``stream`` is true the node emits ``chunk`` frames as Ollama produces tokens and then
+one terminal ``response`` frame carrying the usage totals — the same terminal frame the
+unary path sends, so the coordinator has one shape to bill from either way.
+
+``cancel`` is honoured because the node is the only place that can actually stop the work.
+The coordinator learns a client hung up and the relay forwards that down the tunnel, but
+until this loop cancels the task, Ollama keeps generating to the end of its token budget on
+a request whose output nobody will ever read. ``tokens`` rides each chunk so the coordinator
+can bill a cancelled stream for what was really produced rather than guessing.
 
 The node advertises the *catalogue* model ids it serves (``api/app/catalog.py``) and maps each
 to the Ollama tag it actually runs. It answers ``chat.completions`` only; anything else — an
@@ -29,6 +41,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 import httpx
@@ -88,6 +101,31 @@ def _response(request_id: object, status: int, payload: dict) -> dict:
     return {"type": "response", "request_id": request_id, "status": status, "payload": payload}
 
 
+def _chunk(request_id: object, delta: str, tokens: int) -> dict:
+    """A relay ``chunk`` frame — one slice of a streamed completion.
+
+    ``tokens`` is CUMULATIVE, not per-chunk: a coordinator that misses or drops a frame
+    still bills the right total, and a cancelled stream is billed on the last count that
+    actually arrived rather than on a running sum the two ends could disagree about.
+    """
+    return {"type": "chunk", "request_id": request_id, "delta": delta, "tokens": tokens}
+
+
+def _ollama_body(payload: dict, *, stream: bool) -> tuple[str, dict]:
+    """The Ollama request for a chat payload. Raises ``_UnknownModelError`` for an unmapped id."""
+    catalogue_id = payload.get("model")
+    ollama_model = MODEL_MAP.get(catalogue_id) if isinstance(catalogue_id, str) else None
+    if ollama_model is None:
+        raise _UnknownModelError(catalogue_id)
+
+    body: dict = {"model": ollama_model, "messages": payload.get("messages", []), "stream": stream}
+    # Forward the tuning knobs the coordinator passed through, when present.
+    for key in ("max_tokens", "temperature", "seed"):
+        if payload.get(key) is not None:
+            body[key] = payload[key]
+    return ollama_model, body
+
+
 async def _run_chat(payload: dict, ollama_url: str, http: httpx.AsyncClient) -> dict:
     """Serve one chat.completions payload via Ollama; return the coordinator's payload dict.
 
@@ -96,17 +134,7 @@ async def _run_chat(payload: dict, ollama_url: str, http: httpx.AsyncClient) -> 
     Raises ``_UnknownModelError`` for an unmapped id and httpx/parse errors for a bad backend;
     the caller turns both into a ``status >= 400`` response.
     """
-    catalogue_id = payload.get("model")
-    ollama_model = MODEL_MAP.get(catalogue_id) if isinstance(catalogue_id, str) else None
-    if ollama_model is None:
-        raise _UnknownModelError(catalogue_id)
-
-    body: dict = {"model": ollama_model, "messages": payload.get("messages", [])}
-    # Forward the tuning knobs the coordinator passed through, when present.
-    for key in ("max_tokens", "temperature", "seed"):
-        if payload.get(key) is not None:
-            body[key] = payload[key]
-
+    _, body = _ollama_body(payload, stream=False)
     resp = await http.post(ollama_url, json=body)
     resp.raise_for_status()
     data = resp.json()
@@ -118,6 +146,106 @@ async def _run_chat(payload: dict, ollama_url: str, http: httpx.AsyncClient) -> 
             "completion_tokens": usage.get("completion_tokens", 0),
         },
     }
+
+
+def _delta_of(event: dict) -> str:
+    """The text carried by one Ollama stream event, or "" if it carries none.
+
+    Defensive about every level: a backend that returns a malformed event must not kill a
+    stream that has already delivered tokens the coordinator will bill for.
+    """
+    choices = event.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return ""
+    first = choices[0]
+    if not isinstance(first, dict):
+        return ""
+    delta = first.get("delta")
+    if not isinstance(delta, dict):
+        return ""
+    content = delta.get("content")
+    return content if isinstance(content, str) else ""
+
+
+async def _stream_chat(
+    payload: dict,
+    ollama_url: str,
+    http: httpx.AsyncClient,
+    send: Callable[[dict], Awaitable[None]],
+    request_id: object,
+) -> dict:
+    """Stream one chat.completions payload from Ollama, emitting chunk frames as it goes.
+
+    Returns the terminal payload (content + usage) for the caller to send as ``response``.
+    Cancellation propagates out of the ``async for``: the ``async with`` closes the HTTP
+    response, which drops the connection to Ollama and stops the generation. That is the
+    whole point of streaming from the backend rather than buffering — a cancelled request
+    stops costing the GPU immediately instead of running to its token limit.
+    """
+    _, body = _ollama_body(payload, stream=True)
+
+    pieces: list[str] = []
+    tokens = 0
+    usage: dict = {}
+
+    async with http.stream("POST", ollama_url, json=body) as resp:
+        resp.raise_for_status()
+        async for line in resp.aiter_lines():
+            line = line.strip()
+            if not line.startswith("data:"):
+                continue
+            data = line[len("data:") :].strip()
+            if data == "[DONE]":
+                break
+            try:
+                event = json.loads(data)
+            except ValueError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            # Ollama reports usage on a final event when it reports it at all.
+            if isinstance(event.get("usage"), dict):
+                usage = event["usage"]
+            delta = _delta_of(event)
+            if not delta:
+                continue
+            pieces.append(delta)
+            # One event is one token from a llama.cpp-family backend. Where the backend
+            # reports real counts they win on the terminal frame below; this keeps a
+            # cancelled stream billable with no backend cooperation at all.
+            tokens += 1
+            await send(_chunk(request_id, delta, tokens))
+
+    return {
+        "content": "".join(pieces),
+        "usage": {
+            "prompt_tokens": usage.get("prompt_tokens", 0),
+            "completion_tokens": usage.get("completion_tokens", tokens),
+        },
+    }
+
+
+async def handle_stream_request(
+    frame: dict,
+    ollama_url: str,
+    http: httpx.AsyncClient,
+    send: Callable[[dict], Awaitable[None]],
+) -> dict:
+    """Serve one streamed request, returning the terminal ``response`` frame to send.
+
+    Never raises for a backend failure — the coordinator has to be able to tell "the node
+    failed" from "the node finished", and after chunks have been sent the only way to say so
+    is a terminal frame carrying a failure status.
+    """
+    request_id = frame.get("request_id")
+    payload = frame.get("payload") or {}
+    try:
+        result = await _stream_chat(payload, ollama_url, http, send, request_id)
+    except _UnknownModelError as exc:
+        return _response(request_id, 400, {"error": f"model {exc.model!r} not served by this node"})
+    except (httpx.HTTPError, KeyError, ValueError, TypeError) as exc:
+        return _response(request_id, 502, {"error": f"ollama backend error: {exc}"})
+    return _response(request_id, 200, result)
 
 
 async def handle_request(frame: dict, ollama_url: str, http: httpx.AsyncClient) -> dict:
@@ -165,25 +293,71 @@ async def _serve(ws, config: Config, http: httpx.AsyncClient, stop_after: int | 
     """Pump frames: reply to each request, ignore pongs, until the relay closes (or stop_after)."""
     ping = asyncio.create_task(_ping_forever(ws, config.ping_interval))
     inflight: set[asyncio.Task] = set()
+    # Streamed requests are tracked by id so `cancel` can reach the right one. A unary
+    # request is not cancellable — it is one call that either lands or doesn't — so only
+    # streams go in here.
+    streams: dict[object, asyncio.Task] = {}
     served = 0
+
+    # One writer at a time: chunk frames race the terminal frame and the keepalive on a
+    # single socket, and websockets does not promise interleaved sends stay whole.
+    send_lock = asyncio.Lock()
+
+    async def send(payload: dict) -> None:
+        async with send_lock:
+            await ws.send(json.dumps(payload))
+
     try:
         async for raw in ws:
             frame = json.loads(raw)
-            if not isinstance(frame, dict) or frame.get("type") != "request":
+            if not isinstance(frame, dict):
+                continue
+
+            kind = frame.get("type")
+            if kind == "cancel":
+                # The client that asked for this generation is gone. Stop burning GPU on it.
+                task = streams.get(frame.get("request_id"))
+                if task is not None and not task.done():
+                    task.cancel()
+                continue
+            if kind != "request":
                 continue  # pong, or anything the relay doesn't promise — nothing to do
 
-            async def _reply(frame: dict = frame) -> None:
-                reply = await handle_request(frame, config.ollama_url, http)
-                await ws.send(json.dumps(reply))
+            request_id = frame.get("request_id")
 
-            task = asyncio.create_task(_reply())
+            if frame.get("stream"):
+
+                async def _stream(frame: dict = frame, request_id: object = request_id) -> None:
+                    try:
+                        reply = await handle_stream_request(frame, config.ollama_url, http, send)
+                        await send(reply)
+                    except asyncio.CancelledError:
+                        # Cancelled by the relay: the coordinator already knows why and has
+                        # billed for the chunks it received. Sending a terminal frame now
+                        # would be answering a request nobody is listening to.
+                        raise
+                    finally:
+                        streams.pop(request_id, None)
+
+                task = asyncio.create_task(_stream())
+                streams[request_id] = task
+            else:
+
+                async def _reply(frame: dict = frame) -> None:
+                    reply = await handle_request(frame, config.ollama_url, http)
+                    await send(reply)
+
+                task = asyncio.create_task(_reply())
+
             inflight.add(task)
             task.add_done_callback(inflight.discard)
 
             served += 1
             if stop_after is not None and served >= stop_after:
                 if inflight:
-                    await asyncio.gather(*inflight)  # let the reply reach the relay before we stop
+                    # let replies reach the relay before we stop; a cancelled stream is an
+                    # expected outcome here, not a failure to report
+                    await asyncio.gather(*inflight, return_exceptions=True)
                 break
     except websockets.ConnectionClosed:
         pass

@@ -150,6 +150,12 @@ export interface paths {
         /**
          * Chat Completions
          * @description Run a chat completion on the network and bill the tokens it used.
+         *
+         *     With `stream=true` the reply is an SSE stream of OpenAI `chat.completion.chunk` events.
+         *     The billing invariants do not change with the shape: the worst case is still reserved
+         *     before a node is touched, and the hold is still resolved exactly once — see
+         *     `app.streaming_chat` for what "exactly once" has to survive when the client hangs up
+         *     mid-generation.
          */
         post: operations["chat_completions_v1_chat_completions_post"];
         delete?: never;
@@ -2547,13 +2553,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description A completed chat completion. With `stream=true` the response is instead an OpenAI-compatible SSE stream of `chat.completion.chunk` events terminated by `data: [DONE]`, with usage and `cost_usdc` on the final event. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ChatCompletionResponse"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Validation Error */
@@ -2565,7 +2572,7 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description stream=true: the network cannot forward partial results yet. */
+            /** @description data_tier=confidential_tee is not supported on the chat path. */
             501: {
                 headers: {
                     [name: string]: unknown;

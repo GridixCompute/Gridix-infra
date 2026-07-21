@@ -23,7 +23,8 @@ quietly take them along. `tests/test_dispatch.py` proves each one from this side
 
 import uuid
 from collections import Counter
-from contextlib import contextmanager
+from collections.abc import AsyncIterator
+from contextlib import aclosing, contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -37,7 +38,7 @@ from app.config import Settings
 from app.ledger import provider_stake
 from app.models import DataTier, Provider, ProviderModel
 from app.presence import is_connected
-from app.relay_client import RelayUnavailableError, call_provider
+from app.relay_client import RelayUnavailableError, call_provider, stream_provider
 
 
 class NoNodeAvailableError(RuntimeError):
@@ -200,3 +201,43 @@ async def dispatch(
         logger.warning("node {} returned status {} for {}", provider_id, node_status, method)
         raise DispatchError(f"node returned status {node_status}")
     return reply.get("payload") or {}
+
+
+async def dispatch_stream(
+    provider_id: uuid.UUID,
+    *,
+    method: str,
+    payload: dict,
+    settings: Settings,
+    job_id: str | None = None,
+) -> AsyncIterator[dict]:
+    """Stream a request to a node, yielding ``chunk`` frames then one terminal frame.
+
+    The terminal frame is either ``{"type": "response", ...}`` (the node finished) or
+    ``{"type": "error", ...}`` (the node or the tunnel failed). Both are yielded rather than
+    raised, because by the time they arrive the caller has already sent bytes to its own
+    client and has partial work to account for — an exception would discard the very context
+    the billing decision needs. Failures BEFORE the first frame still raise, since nothing
+    has been produced and the unary error mapping applies unchanged.
+
+    Ending iteration early closes the underlying HTTP stream, which is how a client
+    disconnect reaches the node as a cancel. Callers should therefore drain or close this
+    promptly rather than abandoning it to the garbage collector.
+    """
+    with track_inflight(provider_id):
+        try:
+            async with aclosing(
+                stream_provider(
+                    provider_id, method=method, payload=payload, settings=settings, job_id=job_id
+                )
+            ) as frames:
+                async for frame in frames:
+                    yield frame
+        except RelayUnavailableError as exc:
+            raise DispatchError(str(exc)) from exc
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == status.HTTP_504_GATEWAY_TIMEOUT:
+                raise DispatchTimeoutError(f"node {provider_id} did not respond") from exc
+            raise DispatchError(f"relay returned {exc.response.status_code}") from exc
+        except TimeoutError as exc:
+            raise DispatchTimeoutError(f"node {provider_id} did not respond") from exc
