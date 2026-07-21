@@ -52,6 +52,19 @@ import websockets
 # to the relay in the auth frame, so the coordinator only ever routes ids the node can map.
 MODEL_MAP: dict[str, str] = {
     "llama-3.1-8b": "llama3.1:8b",
+    # The public free tier's model, served ALONGSIDE the paid one rather than instead of it.
+    # A 3B model is ~2GB, so several copies fit beside the 8B on a 20GB card — which is the
+    # point: one visitor running an 8B generation would monopolise the GPU, where the 3B
+    # lets many be served at once.
+    #
+    # Requires, on the node host:
+    #   ollama pull llama3.2:3b
+    #   OLLAMA_NUM_PARALLEL=4   (and OLLAMA_MAX_LOADED_MODELS=2 to keep both resident)
+    #
+    # OLLAMA_NUM_PARALLEL should match the coordinator's `free_chat_concurrency`. More slots
+    # on the coordinator than the node has parallelism just moves the queue to where nobody
+    # can measure it; fewer wastes the headroom this small model was chosen for.
+    "llama3.2-3b": "llama3.2:3b",
 }
 
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434/v1/chat/completions"

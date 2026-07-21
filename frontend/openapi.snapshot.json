@@ -458,6 +458,138 @@
         }
       }
     },
+    "/public/models": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Public Models",
+        "description": "What the free tier serves. Deliberately not the paid catalogue.",
+        "operationId": "public_models_public_models_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Public Models Public Models Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/chat": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Public Chat",
+        "description": "Stream a free chat completion. No account, no balance, no ledger entry.\n\nStreamed rather than unary because it is what makes the queue tolerable: a caller who\nwaited for a slot starts seeing tokens the moment they get one.",
+        "operationId": "public_chat_public_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/images/quota": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Image Quota",
+        "description": "How much of today's image allowance this visitor has left.\n\nReadable even though generation is closed, because the counter is what the UI shows and\nthe reset boundary is what a visitor asks about. Issues the visitor cookie if absent, so\nthe anchor exists before the first generation rather than being minted mid-request.",
+        "operationId": "image_quota_public_images_quota_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Image Quota Public Images Quota Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/images": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Public Image",
+        "description": "Generate a free image \u2014 CLOSED, and closed by the safety system rather than a flag.\n\nTwo independent reasons this cannot serve anything today, and the check order matters:\n\n1. NO MODERATION IS CONFIGURED. `image_generation_available()` is false whenever the\n   moderator cannot make decisions, and the default moderator cannot. Public,\n   unauthenticated image generation without CSAM and NCII screening is not something to\n   ship behind a TODO, so the door is shut by the absence of the control rather than by\n   a boolean someone could flip without noticing what it guards.\n2. NOTHING CAN GENERATE AN IMAGE. The node package serves chat only and answers\n   `images.generations` with 501; no node advertises an image model.\n\nThe quota below it is real and tested regardless, so that enabling this route later is\nsupplying a moderator \u2014 not also discovering that the limit was never written.",
+        "operationId": "public_image_public_images_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicImageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Public Image Public Images Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/developers": {
       "post": {
         "tags": [
@@ -5330,6 +5462,65 @@
         ],
         "title": "ProviderResponse",
         "description": "A provider's own view of itself."
+      },
+      "PublicChatRequest": {
+        "properties": {
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Messages"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "maximum": 2048.0,
+            "minimum": 1.0,
+            "title": "Max Tokens",
+            "default": 512
+          },
+          "temperature": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Temperature",
+            "default": 0.7
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "title": "PublicChatRequest",
+        "description": "A free chat turn.\n\n``model`` is accepted but not trusted: whatever arrives, the served model is the free\none. Taking the caller's value would make the allowlist a suggestion."
+      },
+      "PublicImageRequest": {
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Prompt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "prompt"
+        ],
+        "title": "PublicImageRequest"
       },
       "RegisterDeveloperRequest": {
         "properties": {

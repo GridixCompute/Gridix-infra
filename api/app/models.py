@@ -796,3 +796,36 @@ class ChainCursor(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
     )
+
+
+class FreeTierUsage(Base):
+    """Daily counters for the public, unauthenticated free tier.
+
+    In the database rather than Redis or process memory, because the counter IS the limit.
+    Process memory resets on every deploy, and Redis resets on every Redis restart unless
+    persistence happens to be configured — either way the quota silently reopens, which for
+    a limit that exists to bound GPU spend is the failure that costs money. A table survives
+    both, and the reset is a pure function of the UTC date, so nothing has to be scheduled.
+
+    ``anchor`` is an opaque, already-hashed identity string (see ``free_tier.py``) — never a
+    raw IP address. The row is a rate-limiting artefact, not a visitor log, and storing raw
+    addresses would turn a counter into personal data with a retention question attached.
+    """
+
+    __tablename__ = "free_tier_usage"
+    __table_args__ = (
+        # One row per anchor per day; the upsert depends on this being unique.
+        UniqueConstraint("anchor", "day", name="uq_free_tier_usage_anchor_day"),
+        Index("ix_free_tier_usage_day", "day"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    anchor: Mapped[str] = mapped_column(String(64), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="image")
+    # A UTC calendar date. Stored as text so "which day is it" cannot drift with the
+    # database's timezone setting — the boundary is 00:00 UTC by definition, not by config.
+    day: Mapped[str] = mapped_column(String(10), nullable=False)
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
+    )

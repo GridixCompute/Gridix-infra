@@ -15,11 +15,18 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse
 
 
-def _error(type_: str, message: str, detail: Any = None, *, status_code: int) -> JSONResponse:
+def _error(
+    type_: str,
+    message: str,
+    detail: Any = None,
+    *,
+    status_code: int,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
     body: dict[str, Any] = {"error": {"type": type_, "message": message}}
     if detail is not None:
         body["error"]["detail"] = detail
-    return JSONResponse(status_code=status_code, content=body)
+    return JSONResponse(status_code=status_code, content=body, headers=headers)
 
 
 def install_error_handlers(app: FastAPI) -> None:
@@ -27,7 +34,17 @@ def install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_exc(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-        return _error("http_error", str(exc.detail), status_code=exc.status_code)
+        # `exc.headers` has to survive. This handler rebuilds the response from scratch, so
+        # anything a route attached to the exception was being silently discarded — and for
+        # some statuses the header IS the protocol: 429 without Retry-After tells a client
+        # nothing about when to come back, and 401 without WWW-Authenticate is not a valid
+        # challenge. The bug was invisible while nothing set them.
+        return _error(
+            "http_error",
+            str(exc.detail),
+            status_code=exc.status_code,
+            headers=getattr(exc, "headers", None),
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _validation_exc(request: Request, exc: RequestValidationError) -> JSONResponse:

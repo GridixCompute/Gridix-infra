@@ -272,6 +272,34 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = Field(default=120, ge=1)
     max_request_bytes: int = Field(default=512 * 1024 * 1024, ge=1024)
 
+    # ── Public free tier ───────────────────────────────────────────────────────────────
+    # Chat is "unlimited" in the product sense — no quota, no sign-in — which makes the
+    # per-IP rate the only thing standing between one script and everybody else's GPU.
+    #
+    # 30/minute is one message every two seconds, sustained, forever. No human writing
+    # prompts approaches that; a shared office or campus NAT plausibly does in aggregate,
+    # which is why it is not tighter. A scripted flood is stopped dead: 30/min is nowhere
+    # near enough to saturate the node, and the concurrency cap below bounds what those 30
+    # can occupy anyway.
+    free_chat_rate_per_minute: int = Field(default=30, ge=1)
+
+    # Generations in flight at once, per API process. Sized for the free model: a 3B model
+    # is ~2GB, so several fit beside the paid model on one 20GB card. Should track the
+    # node's OLLAMA_NUM_PARALLEL — more slots here than the node has parallelism just moves
+    # the queue somewhere it cannot be measured.
+    free_chat_concurrency: int = Field(default=4, ge=1)
+
+    # How many may WAIT for a slot before the honest answer becomes "come back later".
+    # 32 at ~4 concurrent is a worst case of a few seconds' wait; past that a caller is
+    # better served by a fast refusal than by a queue they will abandon.
+    free_chat_queue_depth: int = Field(default=32, ge=0)
+
+    # Daily image allowance, per visitor cookie and (much higher) per IP. The IP ceiling is
+    # what a cookie wipe runs into; it is well above the per-visitor number so that a shared
+    # address is not spent by one person. See free_tier.anchor_for.
+    free_images_per_day: int = Field(default=5, ge=0)
+    free_images_per_ip_per_day: int = Field(default=20, ge=0)
+
     @property
     def is_prod(self) -> bool:
         """Whether the process is running in the production environment."""
