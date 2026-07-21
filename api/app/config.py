@@ -294,11 +294,11 @@ class Settings(BaseSettings):
     # better served by a fast refusal than by a queue they will abandon.
     free_chat_queue_depth: int = Field(default=32, ge=0)
 
-    # Daily image allowance, per visitor cookie and (much higher) per IP. The IP ceiling is
-    # what a cookie wipe runs into; it is well above the per-visitor number so that a shared
-    # address is not spent by one person. See free_tier.anchor_for.
+    # Daily image allowance, counted against the signed-in WALLET. There is no second
+    # per-IP ceiling any more: image generation requires a wallet session, so the caller has
+    # an identity and the limit is counted against it directly. The cookie+IP pair it
+    # replaced existed only to approximate an identity that did not exist yet.
     free_images_per_day: int = Field(default=5, ge=0)
-    free_images_per_ip_per_day: int = Field(default=20, ge=0)
 
     @property
     def is_prod(self) -> bool:

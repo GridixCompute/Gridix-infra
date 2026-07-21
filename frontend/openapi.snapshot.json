@@ -528,17 +528,45 @@
           "public"
         ],
         "summary": "Image Quota",
-        "description": "How much of today's image allowance this visitor has left.\n\nReadable even though generation is closed, because the counter is what the UI shows and\nthe reset boundary is what a visitor asks about. Issues the visitor cookie if absent, so\nthe anchor exists before the first generation rather than being minted mid-request.",
+        "description": "How much of today's image allowance this WALLET has left.\n\nGated on the same wallet session as generation itself: the allowance belongs to an\naddress, so there is no answer to give a caller who has not proved they hold one. It\nalso means the number the UI shows is the number that will actually be enforced, rather\nthan a guess made against a different anchor.",
         "operationId": "image_quota_public_images_quota_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Image Quota Public Images Quota Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -552,17 +580,35 @@
           "public"
         ],
         "summary": "Public Image",
-        "description": "Generate a free image \u2014 CLOSED, and closed by the safety system rather than a flag.\n\nTwo independent reasons this cannot serve anything today, and the check order matters:\n\n1. NO MODERATION IS CONFIGURED. `image_generation_available()` is false whenever the\n   moderator cannot make decisions, and the default moderator cannot. Public,\n   unauthenticated image generation without CSAM and NCII screening is not something to\n   ship behind a TODO, so the door is shut by the absence of the control rather than by\n   a boolean someone could flip without noticing what it guards.\n2. NOTHING CAN GENERATE AN IMAGE. The node package serves chat only and answers\n   `images.generations` with 501; no node advertises an image model.\n\nThe quota below it is real and tested regardless, so that enabling this route later is\nsupplying a moderator \u2014 not also discovering that the limit was never written.",
+        "description": "Generate an image. Requires a WALLET SESSION \u2014 unlike chat, which stays anonymous.\n\nThe asymmetry is the point. Chat is cheap to serve and cheap to get wrong, so it is\nopen. Image generation is neither: it is the surface where a prompt filter has to hold,\nand a filter is worth far more when the request belongs to an identity than when it\ncomes from an address behind a NAT. Requiring a session is what makes the quota\ncountable, the refusals attributable, and repeat abuse something that can be acted on.\n\nOrder of checks, each refusing before the next costs anything:\n  1. a wallet session at all (the dependency),\n  2. prompt screening \u2014 before a node, before the quota is spent,\n  3. the daily allowance for this wallet.\n\nScreening runs BEFORE the quota so a refused prompt does not consume an allowance. A\ncaller whose prompt is rejected has not had an image, and charging them for one would\nturn the filter into a way to burn someone else's day.",
         "operationId": "public_image_public_images_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PublicImageRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -570,8 +616,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Public Image Public Images Post"
                 }
               }
