@@ -17,7 +17,7 @@ docker build -q -t "$AGENT_IMG" ./agent >/dev/null && echo ok
 
 echo "== start $AGENTS agents (containerized, host-net) =="
 for i in $(seq 1 "$AGENTS"); do
-  PJ=$(curl -s -XPOST "$API/providers" -H 'content-type: application/json' -d "{\"name\":\"chaos-p$i\"}")
+  PJ=$($COMPOSE exec -T -e SMOKE_PROVIDER_NAME="chaos-p$i" api python < smoke/onboard_provider.py)
   PID=$(echo "$PJ"|get id); PKEY=$(echo "$PJ"|get api_key)
   curl -s -XPATCH "$API/providers/me" -H "authorization: Bearer $PKEY" -H 'content-type: application/json' \
     -d '{"cpu_cores":4,"memory_mb":4000,"max_concurrent":2}' >/dev/null

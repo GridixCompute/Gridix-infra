@@ -307,26 +307,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/providers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Register Provider
-         * @description Create a provider and return its API key exactly once.
-         */
-        post: operations["register_provider_providers_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/billing/ledger": {
         parameters: {
             query?: never;
@@ -2882,39 +2862,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RegisterDeveloperRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RegisteredPrincipal"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    register_provider_providers_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RegisterProviderRequest"];
             };
         };
         responses: {

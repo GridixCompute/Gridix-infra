@@ -43,6 +43,7 @@ from app.usage_billing import (
     reserve_balance,
     settle_reservation,
 )
+from conftest import wallet_address
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 POSTGRES_URL = os.getenv("GRIDIX_TEST_POSTGRES_URL")
@@ -101,7 +102,7 @@ async def funded(pg):
     async with maker() as s:
         s.add(Developer(id=dev_id, name="Acme"))
         for pid in provider_ids:
-            s.add(Provider(id=pid, name=f"node-{pid.hex[:4]}"))
+            s.add(Provider(id=pid, name=f"node-{pid.hex[:4]}", wallet_address=wallet_address()))
         await s.flush()
         await credit_deposit(s, developer_id=dev_id, amount=Decimal("1.00"))
         await s.commit()

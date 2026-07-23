@@ -19,7 +19,7 @@ echo ok
 
 echo "== provider + agent =="
 DEV_KEY=$(curl -s -XPOST "$API/developers" -H 'content-type: application/json' -d '{"name":"hard-dev"}' | get api_key)
-PJ=$(curl -s -XPOST "$API/providers" -H 'content-type: application/json' -d '{"name":"hard-prov"}')
+PJ=$($COMPOSE exec -T -e SMOKE_PROVIDER_NAME=hard-prov api python < smoke/onboard_provider.py)
 PROV_ID=$(echo "$PJ" | get id); PROV_KEY=$(echo "$PJ" | get api_key)
 curl -s -XPATCH "$API/providers/me" -H "authorization: Bearer $PROV_KEY" -H 'content-type: application/json' \
   -d '{"cpu_cores":2,"memory_mb":2000,"max_concurrent":2}' >/dev/null

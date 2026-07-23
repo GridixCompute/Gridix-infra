@@ -211,7 +211,9 @@ class Provider(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # On-chain wallet (GridixStaking staker / settlement payee) for Session 13. Lowercase 0x-hex.
-    wallet_address: Mapped[str | None] = mapped_column(String(42), unique=True, index=True)
+    # NOT NULL (migration 0025): a provider only exists as a capability of a wallet address
+    # (POST /providers/onboard), so a wallet-less row would be unreachable by every session.
+    wallet_address: Mapped[str] = mapped_column(String(42), unique=True, index=True, nullable=False)
 
     # Confidential compute (Session 9.4-9.5): whether the provider has a currently-valid
     # TEE attestation. Set by the attestation flow; only these run confidential-tee jobs.

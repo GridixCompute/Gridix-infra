@@ -8,7 +8,8 @@ is assumed hostile; the isolation is the point.
 ## Requirements
 
 - A Linux host with **Docker** installed and running (the agent shells out to it).
-- A **provider key** from registration: `POST /providers` on the coordinator returns it once.
+- A **node agent key** from onboarding: sign in with your wallet and call
+  `POST /providers/onboard` on the coordinator — it returns the key once.
 
 ## Install (recommended)
 

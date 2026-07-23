@@ -8,6 +8,7 @@ import atexit
 import os
 import shutil
 import tempfile
+import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -44,6 +45,8 @@ os.environ["GRIDIX_ATTESTATION_SECRET"] = "test-attestation-root-of-trust"
 from app.config import get_settings  # noqa: E402
 from app.db import Base, get_engine, get_sessionmaker  # noqa: E402
 from app.main import create_app  # noqa: E402
+from eth_account import Account  # noqa: E402
+from eth_account.messages import encode_defunct  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 
 
@@ -90,12 +93,55 @@ async def make_provider(client: AsyncClient, name: str, **caps) -> tuple[str, st
     return pid, key
 
 
+async def wallet_sign_in(client: AsyncClient, account=None) -> tuple[str, str]:
+    """Real SIWE sign-in with a fresh wallet unless given one: ``(developer_id, session_key)``."""
+    account = account or Account.create()
+    challenge = (await client.get("/auth/nonce", params={"address": account.address})).json()
+    res = await client.post(
+        "/auth/verify",
+        json={
+            "address": account.address,
+            "signature": account.sign_message(
+                encode_defunct(text=challenge["message"])
+            ).signature.hex(),
+            "nonce": challenge["nonce"],
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    return body["developer_id"], body["api_key"]
+
+
 async def register(client: AsyncClient, role: str, name: str) -> tuple[str, str]:
-    """Register a developer/provider; return ``(id, api_key)``."""
+    """Register a developer/provider; return ``(id, api_key)``.
+
+    Developers register with a plain ``POST /developers``. Providers only exist through
+    the real onboarding path: SIWE sign-in with a fresh wallet, then
+    ``POST /providers/onboard``, which binds the provider to that address and mints the
+    node's agent key. The returned key is that agent key — valid on the machine surface
+    and the console alike, so tests drive both exactly as a real node would.
+    """
+    if role == "provider":
+        _, session_key = await wallet_sign_in(client)
+        resp = await client.post(
+            "/providers/onboard", headers=auth(session_key), json={"name": name}
+        )
+        assert resp.status_code == 201, resp.text
+        body = resp.json()
+        return body["id"], body["api_key"]
     resp = await client.post(f"/{role}s", json={"name": name})
     assert resp.status_code == 201, resp.text
     body = resp.json()
     return body["id"], body["api_key"]
+
+
+def wallet_address() -> str:
+    """A unique, well-formed 0x address for tests that construct Provider rows directly.
+
+    ``providers.wallet_address`` is NOT NULL and unique (migration 0025), so every
+    directly-built Provider needs its own address even when the test never touches it.
+    """
+    return "0x" + uuid.uuid4().hex + uuid.uuid4().hex[:8]
 
 
 def auth(api_key: str) -> dict[str, str]:

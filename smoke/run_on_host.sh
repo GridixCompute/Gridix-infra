@@ -13,7 +13,7 @@ docker build -q -f smoke/Dockerfile --build-arg SCRIPT=run.py -t gridix-smoke . 
 
 echo "== register developer + provider =="
 DEV_KEY=$(curl -s -XPOST "$API/developers" -H 'content-type: application/json' -d '{"name":"smoke-dev"}' | get api_key)
-PROV_JSON=$(curl -s -XPOST "$API/providers" -H 'content-type: application/json' -d '{"name":"smoke-prov"}')
+PROV_JSON=$($COMPOSE exec -T -e SMOKE_PROVIDER_NAME=smoke-prov api python < smoke/onboard_provider.py)
 PROV_ID=$(echo "$PROV_JSON" | get id)
 PROV_KEY=$(echo "$PROV_JSON" | get api_key)
 curl -s -XPATCH "$API/providers/me" -H "authorization: Bearer $PROV_KEY" -H 'content-type: application/json' \

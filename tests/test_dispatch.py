@@ -24,6 +24,7 @@ from app.dispatch import (
 from app.ledger import deposit_stake
 from app.models import DataTier, Provider, ProviderModel
 from app.relay_client import RelayUnavailableError
+from conftest import wallet_address
 
 MODEL = "llama-3-70b"
 NOW = datetime(2026, 7, 16, 12, 0, 0, tzinfo=UTC)
@@ -47,6 +48,7 @@ async def make_node(
         tee_attested=tee,
         last_seen=last_seen,
         connected_at=last_seen,
+        wallet_address=wallet_address(),
     )
     session.add(provider)
     await session.flush()

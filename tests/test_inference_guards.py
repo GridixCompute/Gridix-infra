@@ -30,7 +30,7 @@ from app.usage_billing import (
     developer_balance,
     quantize_usdc,
 )
-from conftest import auth, register
+from conftest import auth, register, wallet_address
 from httpx import AsyncClient
 
 CHAT_MODEL = "llama-3.1-8b"
@@ -45,7 +45,12 @@ def _clean_inflight():
 
 async def make_node(session, *, models=(CHAT_MODEL,), stake=1000) -> Provider:
     now = datetime.now(UTC)
-    p = Provider(name=f"node-{uuid.uuid4().hex[:6]}", last_seen=now, connected_at=now)
+    p = Provider(
+        name=f"node-{uuid.uuid4().hex[:6]}",
+        last_seen=now,
+        connected_at=now,
+        wallet_address=wallet_address(),
+    )
     session.add(p)
     await session.flush()
     session.add_all(ProviderModel(provider_id=p.id, model=m) for m in models)
