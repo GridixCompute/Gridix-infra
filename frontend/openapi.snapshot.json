@@ -636,48 +636,6 @@
         }
       }
     },
-    "/developers": {
-      "post": {
-        "tags": [
-          "registration"
-        ],
-        "summary": "Register Developer",
-        "description": "Create a developer and return its API key exactly once.",
-        "operationId": "register_developer_developers_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegisterDeveloperRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegisteredPrincipal"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/billing/ledger": {
       "get": {
         "tags": [
@@ -5525,22 +5483,6 @@
           "prompt"
         ],
         "title": "PublicImageRequest"
-      },
-      "RegisterDeveloperRequest": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Name"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "title": "RegisterDeveloperRequest",
-        "description": "Register a new developer account."
       },
       "RegisterProviderRequest": {
         "properties": {

@@ -27,7 +27,6 @@ from app.routes import (
     metrics,
     providers,
     public,
-    registration,
     uploads,
 )
 from app.secret_manager import init_secrets
@@ -75,7 +74,6 @@ def create_app() -> FastAPI:
     app.include_router(api_keys.router)
     app.include_router(inference.router)
     app.include_router(public.router)
-    app.include_router(registration.router)
     app.include_router(billing.router)
     app.include_router(blobs.router)
     app.include_router(uploads.router)

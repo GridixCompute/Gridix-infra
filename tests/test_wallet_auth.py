@@ -112,6 +112,21 @@ class TestAutoRegistration:
         assert key.expires_at is not None
 
 
+class TestNoUnauthenticatedRegistration:
+    """A developer exists only by signing in — there is no anonymous account factory.
+
+    The legacy ``POST /developers`` minted a Developer and a programmatic key with no
+    authentication at all: anyone could curl it and walk away with a key. That contradicts
+    the auth model (wallet-only sign-in; keys are post-login credentials from
+    ``/developers/me/keys``), so the route is gone. SIWE find-or-create in ``/auth/verify``
+    is the only path by which a developer comes to exist.
+    """
+
+    async def test_the_anonymous_registration_route_is_gone(self, client: AsyncClient) -> None:
+        res = await client.post("/developers", json={"name": "Acme"})
+        assert res.status_code == 404
+
+
 class TestReplay:
     async def test_a_spent_nonce_cannot_be_reused(self, client: AsyncClient) -> None:
         """The DoD case: capture a valid signature, present it twice, second is refused."""

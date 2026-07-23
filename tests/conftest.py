@@ -113,13 +113,19 @@ async def wallet_sign_in(client: AsyncClient, account=None) -> tuple[str, str]:
 
 
 async def register(client: AsyncClient, role: str, name: str) -> tuple[str, str]:
-    """Register a developer/provider; return ``(id, api_key)``.
+    """Register a developer/provider through the real wallet flow; return ``(id, api_key)``.
 
-    Developers register with a plain ``POST /developers``. Providers only exist through
-    the real onboarding path: SIWE sign-in with a fresh wallet, then
-    ``POST /providers/onboard``, which binds the provider to that address and mints the
-    node's agent key. The returned key is that agent key — valid on the machine surface
-    and the console alike, so tests drive both exactly as a real node would.
+    Neither principal has an unauthenticated factory anymore — both come to exist only via
+    SIWE sign-in with a fresh wallet:
+
+    - **developer**: sign in (which find-or-creates the account), then mint a long-lived
+      *programmatic* key via ``POST /developers/me/keys``. That is the exact credential the
+      deleted ``POST /developers`` returned (``ApiKeyKind.programmatic``, no expiry) — a CI
+      runner's key, valid on every developer route and correctly *unable* to mint keys.
+      The ``name`` argument is now cosmetic (the account is named from its address); it is
+      kept so call sites read unchanged.
+    - **provider**: sign in, then ``POST /providers/onboard``, which binds the provider to
+      the address and mints the node's agent key.
     """
     if role == "provider":
         _, session_key = await wallet_sign_in(client)
@@ -129,10 +135,14 @@ async def register(client: AsyncClient, role: str, name: str) -> tuple[str, str]
         assert resp.status_code == 201, resp.text
         body = resp.json()
         return body["id"], body["api_key"]
-    resp = await client.post(f"/{role}s", json={"name": name})
-    assert resp.status_code == 201, resp.text
-    body = resp.json()
-    return body["id"], body["api_key"]
+    if role == "developer":
+        dev_id, session_key = await wallet_sign_in(client)
+        resp = await client.post(
+            "/developers/me/keys", headers=auth(session_key), json={"label": name}
+        )
+        assert resp.status_code == 201, resp.text
+        return dev_id, resp.json()["api_key"]
+    raise ValueError(f"unknown role: {role!r}")
 
 
 def wallet_address() -> str:

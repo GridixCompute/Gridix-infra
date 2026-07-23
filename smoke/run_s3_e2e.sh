@@ -11,7 +11,7 @@ echo "== build job image (runs locally on the agent; unrelated to coordinator st
 docker build -q -f smoke/Dockerfile --build-arg SCRIPT=run.py -t gridix-smoke . >/dev/null && echo ok
 
 echo "== register + stake + agent =="
-DEV_KEY=$(curl -s -XPOST "$API/developers" -H 'content-type: application/json' -d '{"name":"s3-dev"}' | get api_key)
+DEV_KEY=$($COMPOSE exec -T -e SMOKE_DEVELOPER_LABEL=s3-dev api python < smoke/register_developer.py | get api_key)
 PJ=$($COMPOSE exec -T -e SMOKE_PROVIDER_NAME=s3-prov api python < smoke/onboard_provider.py)
 PID=$(echo "$PJ" | get id); PKEY=$(echo "$PJ" | get api_key)
 curl -s -XPATCH "$API/providers/me" -H "authorization: Bearer $PKEY" -H 'content-type: application/json' \

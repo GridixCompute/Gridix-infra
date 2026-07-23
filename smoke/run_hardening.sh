@@ -18,7 +18,7 @@ docker build -q -f smoke/Dockerfile --build-arg SCRIPT=sleeper.py  -t gridix-smo
 echo ok
 
 echo "== provider + agent =="
-DEV_KEY=$(curl -s -XPOST "$API/developers" -H 'content-type: application/json' -d '{"name":"hard-dev"}' | get api_key)
+DEV_KEY=$($COMPOSE exec -T -e SMOKE_DEVELOPER_LABEL=hard-dev api python < smoke/register_developer.py | get api_key)
 PJ=$($COMPOSE exec -T -e SMOKE_PROVIDER_NAME=hard-prov api python < smoke/onboard_provider.py)
 PROV_ID=$(echo "$PJ" | get id); PROV_KEY=$(echo "$PJ" | get api_key)
 curl -s -XPATCH "$API/providers/me" -H "authorization: Bearer $PROV_KEY" -H 'content-type: application/json' \

@@ -1,4 +1,10 @@
-"""Session 1 — foundation: health probe, registration, and API-key auth."""
+"""Session 1 — foundation: health probe and API-key auth.
+
+Registration itself is no longer here: developers come to exist through SIWE sign-in
+(``tests/test_wallet_auth.py``) and providers through ``/providers/onboard``
+(``tests/test_provider_wallet_auth.py``). What remains foundational is that the minted
+keys authenticate the right principal and are not interchangeable across roles.
+"""
 
 from unittest.mock import AsyncMock, patch
 
@@ -27,26 +33,17 @@ async def test_health_ok_when_both_up(client: AsyncClient) -> None:
     assert resp.json() == {"status": "ok", "database": True, "redis": True}
 
 
-async def test_register_developer_returns_key_once(client: AsyncClient) -> None:
-    """Registering a developer yields an id and a one-time API key."""
-    resp = await client.post("/developers", json={"name": "Acme"})
-    assert resp.status_code == 201
-    body = resp.json()
-    assert body["name"] == "Acme"
-    assert body["api_key"].startswith("grdx_")
-    assert "id" in body
+async def test_a_developer_wallet_session_yields_a_working_key(client: AsyncClient) -> None:
+    """A signed-in developer gets a programmatic key that works on a developer route."""
+    _id, key = await register(client, "developer", "Acme")
+    assert key.startswith("grdx_")
+    assert (await client.get("/jobs", headers=auth(key))).status_code == 200
 
 
-async def test_register_provider_returns_key_once(client: AsyncClient) -> None:
-    """Registering a provider yields an id and a one-time API key."""
+async def test_onboarding_a_provider_yields_a_working_key(client: AsyncClient) -> None:
+    """Onboarding a provider yields an id and a one-time node agent key."""
     _id, key = await register(client, "provider", "GPU-Farm")
     assert key.startswith("grdx_")
-
-
-async def test_registration_rejects_empty_name(client: AsyncClient) -> None:
-    """Empty name is rejected at the schema boundary."""
-    resp = await client.post("/developers", json={"name": ""})
-    assert resp.status_code == 422
 
 
 async def _probe_client() -> AsyncClient:
