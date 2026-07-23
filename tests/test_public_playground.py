@@ -21,6 +21,7 @@ from app.free_capacity import CapacityFull, FreeCapacity, reset_capacity
 from app.free_tier import FREE_CHAT_MODEL, is_free_chat_model
 from app.ledger import deposit_stake
 from app.models import LedgerEntry, Provider, ProviderModel
+from conftest import wallet_address
 from httpx import AsyncClient
 from sqlalchemy import func, select
 
@@ -46,7 +47,12 @@ def _clean():
 
 async def make_free_node(session, *, models=(FREE_CHAT_MODEL,)):
     now = datetime.now(UTC)
-    provider = Provider(name=f"free-{uuid.uuid4().hex[:6]}", last_seen=now, connected_at=now)
+    provider = Provider(
+        name=f"free-{uuid.uuid4().hex[:6]}",
+        last_seen=now,
+        connected_at=now,
+        wallet_address=wallet_address(),
+    )
     session.add(provider)
     await session.flush()
     session.add_all(ProviderModel(provider_id=provider.id, model=m) for m in models)

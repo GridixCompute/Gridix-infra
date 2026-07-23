@@ -22,6 +22,7 @@ from app.config import get_settings
 from app.db import Base
 from app.models import Developer, Provider
 from app.usage_billing import InsufficientBalanceError, charge_usage, credit_deposit
+from conftest import wallet_address
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 POSTGRES_URL = os.getenv("GRIDIX_TEST_POSTGRES_URL")
@@ -60,7 +61,7 @@ async def funded(pg):
     async with maker() as s:
         s.add(Developer(id=dev_id, name="Acme"))
         for pid in provider_ids:
-            s.add(Provider(id=pid, name=f"node-{pid.hex[:4]}"))
+            s.add(Provider(id=pid, name=f"node-{pid.hex[:4]}", wallet_address=wallet_address()))
         await s.flush()
         await credit_deposit(s, developer_id=dev_id, amount=Decimal("1.00"))
         await s.commit()
@@ -129,7 +130,7 @@ class TestConcurrentOverdraw:
         a, b, provider = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
         async with maker() as s:
             s.add_all([Developer(id=a, name="A"), Developer(id=b, name="B")])
-            s.add(Provider(id=provider, name="node"))
+            s.add(Provider(id=provider, name="node", wallet_address=wallet_address()))
             await s.flush()
             await credit_deposit(s, developer_id=a, amount=Decimal("1.00"))
             await credit_deposit(s, developer_id=b, amount=Decimal("1.00"))

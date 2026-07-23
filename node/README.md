@@ -92,7 +92,8 @@ python -m gridix_node.client
 
 Before the node can receive work, its provider must exist at the coordinator with:
 
-- a provider row and its API key (`grdx_...`), issued by `POST /providers`;
+- a provider row and its node agent key (`grdx_...`), issued once by
+  `POST /providers/onboard` from a signed-in wallet session;
 - **stake ≥ `min_provider_stake` (default 100)** — `dispatch.py` refuses under-staked
   providers, and there is **no HTTP route to fund stake**. Seed it directly against the
   coordinator's database (see `smoke/seed_stake.py`), or the coordinator will answer

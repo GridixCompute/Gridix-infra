@@ -22,6 +22,7 @@ from app.relay import (
     mark_provider_seen,
     record_models,
 )
+from conftest import wallet_address
 from sqlalchemy import select
 
 # ── The registry writes actually hit the database (async units) ──────────────────
@@ -29,7 +30,7 @@ from sqlalchemy import select
 
 @pytest.fixture
 async def provider(session) -> Provider:
-    p = Provider(name="gpu-farm")
+    p = Provider(name="gpu-farm", wallet_address=wallet_address())
     session.add(p)
     await session.commit()
     # commit() expires the instance; refresh so tests can read its columns without
@@ -68,7 +69,7 @@ class TestRegistryWrites:
         # Own the id rather than reading it back off a committed instance: commit()
         # expires the object, and touching it from sync context trips a lazy load.
         pid = uuid.uuid4()
-        session.add(Provider(id=pid, name="gpu-farm"))
+        session.add(Provider(id=pid, name="gpu-farm", wallet_address=wallet_address()))
         await session.commit()
 
         # No read between the commit and this call: an open read transaction here blocks

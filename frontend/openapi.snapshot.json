@@ -678,48 +678,6 @@
         }
       }
     },
-    "/providers": {
-      "post": {
-        "tags": [
-          "registration"
-        ],
-        "summary": "Register Provider",
-        "description": "Create a provider and return its API key exactly once.",
-        "operationId": "register_provider_providers_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegisterProviderRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegisteredPrincipal"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/billing/ledger": {
       "get": {
         "tags": [

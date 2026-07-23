@@ -31,7 +31,7 @@ from app.reputation import REP_MAX, record_reputation
 from app.results import record_result
 from app.schemas import AgentResultRequest
 from app.verification import verify
-from conftest import HASH_A, HASH_B, make_provider, register
+from conftest import HASH_A, HASH_B, make_provider, register, wallet_address
 from httpx import AsyncClient
 
 pytestmark = pytest.mark.usefixtures("_no_redis")
@@ -110,7 +110,7 @@ def test_quorum_single_vote() -> None:
 
 # ── reputation ──────────────────────────────────────────────────────────────────
 async def test_reputation_moves_and_clamps(session) -> None:
-    provider = Provider(name="p", reputation=REP_MAX - 0.5)
+    provider = Provider(name="p", reputation=REP_MAX - 0.5, wallet_address=wallet_address())
     session.add(provider)
     await session.flush()
     await record_reputation(session, provider, ReputationKind.job_success)

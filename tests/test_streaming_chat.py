@@ -31,7 +31,7 @@ from app.ledger import account_balance, deposit_stake
 from app.models import LedgerAccount, Provider, ProviderModel
 from app.streaming_chat import chat_stream_body
 from app.usage_billing import credit_deposit, developer_balance, reserve_balance
-from conftest import register
+from conftest import register, wallet_address
 from httpx import AsyncClient
 
 CHAT_MODEL = "llama-3.1-8b"
@@ -48,7 +48,12 @@ async def make_node(session, *, models=(CHAT_MODEL,), stake=1000):
     from datetime import UTC, datetime
 
     now = datetime.now(UTC)
-    provider = Provider(name=f"node-{uuid.uuid4().hex[:6]}", last_seen=now, connected_at=now)
+    provider = Provider(
+        name=f"node-{uuid.uuid4().hex[:6]}",
+        last_seen=now,
+        connected_at=now,
+        wallet_address=wallet_address(),
+    )
     session.add(provider)
     await session.flush()
     session.add_all(ProviderModel(provider_id=provider.id, model=m) for m in models)

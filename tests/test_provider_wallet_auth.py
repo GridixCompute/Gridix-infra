@@ -18,10 +18,11 @@ import uuid
 import pytest
 from app.models import ApiKey, ApiKeyKind, OwnerType, Provider
 from conftest import auth, register
+from conftest import wallet_sign_in as siwe_sign_in
 from eth_account import Account
-from eth_account.messages import encode_defunct
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 WALLET = Account.from_key("0x" + "e5" * 32)
 OTHER_WALLET = Account.from_key("0x" + "f6" * 32)
@@ -30,21 +31,8 @@ ONBOARD = "/providers/onboard"
 
 
 async def wallet_sign_in(client: AsyncClient, account=WALLET) -> tuple[str, str]:
-    """Real SIWE sign-in — recover the signature, don't fake the session."""
-    challenge = (await client.get("/auth/nonce", params={"address": account.address})).json()
-    res = await client.post(
-        "/auth/verify",
-        json={
-            "address": account.address,
-            "signature": account.sign_message(
-                encode_defunct(text=challenge["message"])
-            ).signature.hex(),
-            "nonce": challenge["nonce"],
-        },
-    )
-    assert res.status_code == 200, res.text
-    body = res.json()
-    return body["developer_id"], body["api_key"]
+    """SIWE sign-in as a fixed, known wallet — this file asserts on its address."""
+    return await siwe_sign_in(client, account)
 
 
 async def onboard(client: AsyncClient, session_key: str, name: str = "Aurora GPU Farm"):
@@ -197,12 +185,6 @@ class TestTheNodeKeepsWorking:
 
         assert (await client.get("/providers/me", headers=auth(node_key))).status_code == 200
 
-    async def test_a_provider_registered_the_old_way_still_works(self, client: AsyncClient) -> None:
-        """POST /providers is untouched in this change; existing nodes must not notice."""
-        _, node_key = await register(client, "provider", "Legacy Farm")
-        assert (await client.get("/providers/me", headers=auth(node_key))).status_code == 200
-        assert (await client.post("/agent/ping", headers=auth(node_key))).status_code == 200
-
     async def test_a_wallet_session_cannot_drive_the_machine_surface(
         self, client: AsyncClient
     ) -> None:
@@ -251,24 +233,24 @@ class TestIsolation:
         ] == wallet_provider["id"]
 
 
-class TestLegacyProvidersWithoutAWallet:
-    async def test_a_provider_with_no_wallet_is_unreachable_by_any_session(
-        self, client: AsyncClient
-    ) -> None:
-        """The migration hazard, pinned as a test so it is not discovered in production.
+class TestWalletLessProvidersCannotExist:
+    """The hazard TestLegacyProvidersWithoutAWallet used to pin, now closed at both layers.
 
-        POST /providers still creates providers with wallet_address NULL. They keep working
-        through their agent key, but NO wallet session can ever reach them — so the day the
-        key-based console login goes away, they are locked out of the UI. See the PR
-        description: either they get a claim path or POST /providers goes too.
-        """
-        _, legacy_key = await register(client, "provider", "Legacy Farm")
-        _, session_key = await wallet_sign_in(client)
+    POST /providers minted providers with wallet_address NULL — records no wallet session
+    could ever reach. The route is gone, and providers.wallet_address is NOT NULL
+    (migration 0025), so the database itself rejects any construction path someone
+    re-introduces. Deleted before any deploy: zero such rows ever existed.
+    """
 
-        # The node still works...
-        assert (await client.get("/providers/me", headers=auth(legacy_key))).status_code == 200
-        # ...but no human session resolves to it.
-        assert (await client.get("/providers/me", headers=auth(session_key))).status_code == 403
+    async def test_the_legacy_registration_route_is_gone(self, client: AsyncClient) -> None:
+        res = await client.post("/providers", json={"name": "Legacy Farm"})
+        assert res.status_code == 404
+
+    async def test_a_provider_cannot_be_persisted_without_a_wallet_address(self, session) -> None:
+        """The mutation check: re-adding a wallet-less factory fails at the schema."""
+        session.add(Provider(name="orphan"))
+        with pytest.raises(IntegrityError):
+            await session.flush()
 
 
 @pytest.mark.parametrize("path", ["/providers/me", "/disputes/me"])

@@ -12,7 +12,7 @@ docker build -q -f smoke/Dockerfile --build-arg SCRIPT=run.py -t gridix-smoke . 
 
 echo "== register + stake + agent =="
 DEV_KEY=$(curl -s -XPOST "$API/developers" -H 'content-type: application/json' -d '{"name":"s3-dev"}' | get api_key)
-PJ=$(curl -s -XPOST "$API/providers" -H 'content-type: application/json' -d '{"name":"s3-prov"}')
+PJ=$($COMPOSE exec -T -e SMOKE_PROVIDER_NAME=s3-prov api python < smoke/onboard_provider.py)
 PID=$(echo "$PJ" | get id); PKEY=$(echo "$PJ" | get api_key)
 curl -s -XPATCH "$API/providers/me" -H "authorization: Bearer $PKEY" -H 'content-type: application/json' \
   -d '{"cpu_cores":2,"memory_mb":2000,"max_concurrent":2}' >/dev/null

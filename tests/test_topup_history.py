@@ -18,7 +18,7 @@ from app.config import get_settings
 from app.db import get_sessionmaker
 from app.models import Developer, LedgerEntry
 from app.payments import get_payment_provider, set_payment_provider
-from conftest import auth, register
+from conftest import auth, register, wallet_address
 from httpx import AsyncClient
 from sqlalchemy import select
 
@@ -119,7 +119,7 @@ class TestWatcherRecordsTheTransaction:
         dev_id, _key, addr, fc = funded_developer
         await _deposit(fc, addr, 50)
 
-        provider = Provider(name="node")
+        provider = Provider(name="node", wallet_address=wallet_address())
         session.add(provider)
         await session.flush()
         await charge_usage(

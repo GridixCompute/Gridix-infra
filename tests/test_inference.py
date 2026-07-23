@@ -14,7 +14,7 @@ from app.dispatch import reset_inflight
 from app.ledger import deposit_stake
 from app.models import Provider, ProviderModel
 from app.usage_billing import credit_deposit, developer_balance
-from conftest import auth, register
+from conftest import auth, register, wallet_address
 from httpx import AsyncClient
 
 CHAT_MODEL = "llama-3.1-8b"
@@ -34,7 +34,11 @@ async def make_node(session, *, models=(CHAT_MODEL,), stake=1000, tee=False, las
 
     now = last_seen or datetime.now(UTC)
     provider = Provider(
-        name=f"node-{uuid.uuid4().hex[:6]}", tee_attested=tee, last_seen=now, connected_at=now
+        name=f"node-{uuid.uuid4().hex[:6]}",
+        tee_attested=tee,
+        last_seen=now,
+        connected_at=now,
+        wallet_address=wallet_address(),
     )
     session.add(provider)
     await session.flush()

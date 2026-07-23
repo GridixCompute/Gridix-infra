@@ -1,15 +1,20 @@
-"""Registration endpoints: create a developer or provider and mint a one-time API key."""
+"""Registration endpoint: create a developer and mint a one-time API key.
+
+Providers are NOT registered here. A provider is a capability of a wallet address
+(see ``require_provider_principal``), so the only way to create one is
+``POST /providers/onboard`` (providers.py) from an authenticated wallet session —
+which binds the record to that address and mints the node's agent key. The old
+``POST /providers`` factory minted providers with no wallet_address, records no
+wallet session could ever reach; it is gone, and ``providers.wallet_address`` is
+NOT NULL (migration 0025) so nothing can recreate them.
+"""
 
 from fastapi import APIRouter, status
 from loguru import logger
 
 from app.deps import SessionDep, SettingsDep
-from app.models import ApiKey, Developer, OwnerType, Provider
-from app.schemas import (
-    RegisterDeveloperRequest,
-    RegisteredPrincipal,
-    RegisterProviderRequest,
-)
+from app.models import ApiKey, Developer, OwnerType
+from app.schemas import RegisterDeveloperRequest, RegisteredPrincipal
 from app.security import generate_api_key, hash_api_key, key_prefix
 
 router = APIRouter(tags=["registration"])
@@ -35,25 +40,3 @@ async def register_developer(
     )
     logger.info("registered developer {} ({})", developer.id, developer.name)
     return RegisteredPrincipal(id=developer.id, name=developer.name, api_key=plaintext)
-
-
-@router.post("/providers", response_model=RegisteredPrincipal, status_code=status.HTTP_201_CREATED)
-async def register_provider(
-    body: RegisterProviderRequest, session: SessionDep, settings: SettingsDep
-) -> RegisteredPrincipal:
-    """Create a provider and return its API key exactly once."""
-    provider = Provider(name=body.name, region=body.region)
-    session.add(provider)
-    await session.flush()  # assign provider.id
-
-    plaintext = generate_api_key()
-    session.add(
-        ApiKey(
-            owner_type=OwnerType.provider,
-            provider_id=provider.id,
-            key_hash=hash_api_key(plaintext, settings.api_hmac_key),
-            prefix=key_prefix(plaintext),
-        )
-    )
-    logger.info("registered provider {} ({})", provider.id, provider.name)
-    return RegisteredPrincipal(id=provider.id, name=provider.name, api_key=plaintext)
