@@ -11,7 +11,7 @@ echo "== build slowwork image =="
 docker build -q -f smoke/Dockerfile --build-arg SCRIPT=slowwork.py -t gridix-smoke-slow . >/dev/null && echo ok
 
 echo "== provider + agent =="
-DEV_KEY=$(curl -s -XPOST "$API/developers" -H 'content-type: application/json' -d '{"name":"reassign-dev"}' | get api_key)
+DEV_KEY=$($COMPOSE exec -T -e SMOKE_DEVELOPER_LABEL=reassign-dev api python < smoke/register_developer.py | get api_key)
 PJ=$($COMPOSE exec -T -e SMOKE_PROVIDER_NAME=provA api python < smoke/onboard_provider.py)
 PID=$(echo "$PJ" | get id); PKEY=$(echo "$PJ" | get api_key)
 curl -s -XPATCH "$API/providers/me" -H "authorization: Bearer $PKEY" -H 'content-type: application/json' \

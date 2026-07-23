@@ -29,10 +29,12 @@ class HealthResponse(BaseModel):
     redis: bool
 
 
-# ── Registration (Session 1) ────────────────────────────────────────────────────
+# ── Provider onboarding (Session 2) ─────────────────────────────────────────────
 # The ``__gridix_`` prefix is reserved for internal principals (e.g. the canary-owning
-# system developer). Refusing it at registration means no attacker can register a
-# look-alike name to hijack canaries (security wave 0 / H12).
+# system developer). Refusing it here means no attacker can onboard a provider under a
+# look-alike name to hijack canaries (security wave 0 / H12). Developers no longer take
+# a caller-supplied name at all — sign-in names the account from its wallet address — so
+# a provider onboard is the only name-taking creation path left to guard.
 _RESERVED_NAME_PREFIX = "__gridix_"
 
 
@@ -40,14 +42,6 @@ def _reject_reserved_name(name: str) -> str:
     if name.strip().lower().startswith(_RESERVED_NAME_PREFIX):
         raise ValueError("name uses a reserved system prefix")
     return name
-
-
-class RegisterDeveloperRequest(BaseModel):
-    """Register a new developer account."""
-
-    name: str = Field(min_length=1, max_length=200)
-
-    _no_reserved = field_validator("name")(_reject_reserved_name)
 
 
 class RegisterProviderRequest(BaseModel):

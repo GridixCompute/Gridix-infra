@@ -32,7 +32,7 @@ done
 sleep 4
 
 echo "== pre-upload input + register developer =="
-DJ=$(curl -s -XPOST "$API/developers" -H 'content-type: application/json' -d '{"name":"chaos-dev"}')
+DJ=$($COMPOSE exec -T -e SMOKE_DEVELOPER_LABEL=chaos-dev api python < smoke/register_developer.py)
 DEV_ID=$(echo "$DJ"|get id); DEV_KEY=$(echo "$DJ"|get api_key)
 printf chaos-load-input > /tmp/ci
 IREF=$(curl -s -XPOST "$API/blobs" -H "authorization: Bearer $DEV_KEY" -F 'file=@/tmp/ci;filename=input' | get ref)

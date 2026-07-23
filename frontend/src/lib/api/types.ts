@@ -20,7 +20,6 @@ export type Provider = S["ProviderResponse"];
 export type ProviderCapabilities = S["ProviderCapabilities"];
 export type ProviderJobAttempt = S["ProviderJobAttempt"];
 export type ReputationEvent = S["ReputationEventResponse"];
-export type RegisterDeveloperRequest = S["RegisterDeveloperRequest"];
 export type RegisterProviderRequest = S["RegisterProviderRequest"];
 export type RegisteredPrincipal = S["RegisteredPrincipal"];
 export type NonceResponse = S["NonceResponse"];

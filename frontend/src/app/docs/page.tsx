@@ -178,8 +178,9 @@ ENTRYPOINT ["python", "train.py"]`}
           {/* API reference */}
           <Section id="api" title="API reference">
             <p>
-              Base URL <Code>{API}</Code>. Authenticate every request with your key as a bearer
-              token:
+              Base URL <Code>{API}</Code>. Sign in with your wallet, then create an API key from
+              your dashboard — it is shown once. Authenticate every request with that key as a
+              bearer token:
             </p>
             <CodeBlock code={`Authorization: Bearer grdx_your_key`} />
             <div className="overflow-x-auto">
@@ -193,7 +194,6 @@ ENTRYPOINT ["python", "train.py"]`}
                 </thead>
                 <tbody className="align-top">
                   {[
-                    ["POST", "/developers", "Create an account, get an API key (once)"],
                     ["POST", "/jobs", "Submit a job; escrows worst-case cost"],
                     ["GET", "/jobs", "List your jobs"],
                     ["GET", "/jobs/{id}", "Fetch one job's status and cost"],

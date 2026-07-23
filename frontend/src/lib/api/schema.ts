@@ -287,26 +287,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/developers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Register Developer
-         * @description Create a developer and return its API key exactly once.
-         */
-        post: operations["register_developer_developers_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/billing/ledger": {
         parameters: {
             query?: never;
@@ -2224,14 +2204,6 @@ export interface components {
             prompt: string;
         };
         /**
-         * RegisterDeveloperRequest
-         * @description Register a new developer account.
-         */
-        RegisterDeveloperRequest: {
-            /** Name */
-            name: string;
-        };
-        /**
          * RegisterProviderRequest
          * @description Register a new provider account.
          */
@@ -2839,39 +2811,6 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    register_developer_developers_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RegisterDeveloperRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RegisteredPrincipal"];
                 };
             };
             /** @description Validation Error */

@@ -12,7 +12,7 @@ echo "== build smoke image =="
 docker build -q -f smoke/Dockerfile --build-arg SCRIPT=run.py -t gridix-smoke . >/dev/null && echo ok
 
 echo "== register developer + provider =="
-DEV_KEY=$(curl -s -XPOST "$API/developers" -H 'content-type: application/json' -d '{"name":"smoke-dev"}' | get api_key)
+DEV_KEY=$($COMPOSE exec -T -e SMOKE_DEVELOPER_LABEL=smoke-dev api python < smoke/register_developer.py | get api_key)
 PROV_JSON=$($COMPOSE exec -T -e SMOKE_PROVIDER_NAME=smoke-prov api python < smoke/onboard_provider.py)
 PROV_ID=$(echo "$PROV_JSON" | get id)
 PROV_KEY=$(echo "$PROV_JSON" | get api_key)

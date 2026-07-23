@@ -4,7 +4,7 @@ set -uo pipefail
 API=${GRIDIX_API_URL:-http://127.0.0.1:8080}
 get() { python3 -c "import sys,json;print(json.load(sys.stdin)['$1'])"; }
 
-DEV_KEY=$(curl -s -XPOST "$API/developers" -H 'content-type: application/json' -d '{"name":"insp-dev"}' | get api_key)
+DEV_KEY=$(docker compose -f smoke/docker-compose.smoke.yml exec -T -e SMOKE_DEVELOPER_LABEL=insp-dev api python < smoke/register_developer.py | get api_key)
 PJ=$(docker compose -f smoke/docker-compose.smoke.yml exec -T -e SMOKE_PROVIDER_NAME=insp-prov api python < smoke/onboard_provider.py)
 PID=$(echo "$PJ" | get id); PKEY=$(echo "$PJ" | get api_key)
 curl -s -XPATCH "$API/providers/me" -H "authorization: Bearer $PKEY" -H 'content-type: application/json' \
