@@ -5,6 +5,7 @@ request that succeeds is billed on what it actually used — not on the estimate
 sized the gate. Both are mutation-tested in test_inference_guards.py.
 """
 
+import base64
 import uuid
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
@@ -255,7 +256,11 @@ class TestImages:
         await fund(session, dev, "10")
         await make_node(session, models=(IMAGE_MODEL,))
 
-        reply = {"status": 200, "payload": {"images": ["blob://a", "blob://b"]}}
+        # By-value transport: the node returns the PNG inline as base64; the coordinator
+        # decodes, stores it, and returns a reachable URL. Two images back → billed for two.
+        img_a = base64.b64encode(b"\x89PNG\r\n-image-a-").decode("ascii")
+        img_b = base64.b64encode(b"\x89PNG\r\n-image-b-").decode("ascii")
+        reply = {"status": 200, "payload": {"images": [img_a, img_b]}}
         with patch("app.dispatch.call_provider", new=AsyncMock(return_value=reply)):
             res = await client.post(
                 "/v1/images/generations",
@@ -266,6 +271,11 @@ class TestImages:
         assert res.status_code == 200, res.text
         # Asked for three, got two → billed for two. 2 × 0.01.
         assert Decimal(res.json()["cost_usdc"]) == Decimal("0.02")
+        # The URLs are coordinator-stored and reachable, never the node's own address.
+        data = res.json()["data"]
+        assert len(data) == 2
+        assert all("/public/image/" in d["url"] for d in data)
+        assert all("127.0.0.1:8500" not in d["url"] for d in data)
         session.expire_all()
         assert await developer_balance(session, dev) == Decimal("9.98")
 

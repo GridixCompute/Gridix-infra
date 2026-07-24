@@ -10,6 +10,7 @@ library, so a break names the field that moved instead of surfacing as a parse e
 inside somebody else's package.
 """
 
+import base64
 import uuid
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
@@ -107,7 +108,9 @@ class TestImageEnvelope:
         await fund(session, uuid.UUID(dev_id), "10")
         await make_node(session, models=(IMAGE_MODEL,))
 
-        reply = {"status": 200, "payload": {"images": ["blob://a", "blob://b"]}}
+        img_a = base64.b64encode(b"\x89PNG\r\n-a-").decode("ascii")
+        img_b = base64.b64encode(b"\x89PNG\r\n-b-").decode("ascii")
+        reply = {"status": 200, "payload": {"images": [img_a, img_b]}}
         with patch("app.dispatch.call_provider", new=AsyncMock(return_value=reply)):
             res = await client.post(
                 "/v1/images/generations",
@@ -118,7 +121,10 @@ class TestImageEnvelope:
         assert res.status_code == 200, res.text
         body = res.json()
         assert isinstance(body["created"], int) and body["created"] > 0
-        assert body["data"] == [{"url": "blob://a"}, {"url": "blob://b"}]
+        # OpenAI's images envelope: data[].url. The URLs are coordinator-stored and reachable.
+        assert len(body["data"]) == 2
+        assert all(set(item) == {"url"} for item in body["data"])
+        assert all("/public/image/" in item["url"] for item in body["data"])
         # Extras, same as chat.
         assert body["model"] == IMAGE_MODEL
         assert Decimal(body["cost_usdc"]) > 0

@@ -51,6 +51,18 @@ def is_free_chat_model(model: str | None) -> bool:
     return model == FREE_CHAT_MODEL
 
 
+# The free image tier's model. Unlike the chat model, this id IS also a paid catalogue entry
+# (catalog.py: "sdxl-turbo", $0.01/image): one node serves both, and the difference is the
+# route, not the model. The paid path bills per image; the free path bills nothing and spends
+# a per-wallet daily quota instead. The wallet gate + prompt filter make that safe to give away.
+FREE_IMAGE_MODEL = "sdxl-turbo"
+
+
+def is_free_image_model(model: str | None) -> bool:
+    """True only for the exact free image model. An allowlist, same reasoning as chat."""
+    return model == FREE_IMAGE_MODEL
+
+
 def utc_day(now: datetime | None = None) -> str:
     """The current UTC calendar day, as the quota's reset boundary defines it.
 

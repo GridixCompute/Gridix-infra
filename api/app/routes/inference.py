@@ -34,6 +34,7 @@ from app.dispatch import (
     eligible_nodes,
     select_node,
 )
+from app.image_artifacts import store_node_images
 from app.models import DataTier
 from app.node_usage import usage_from
 from app.schemas import (
@@ -347,37 +348,31 @@ async def image_generations(
         except DispatchError as exc:
             raise _node_failed(exc, provider_id, "image") from exc
 
-        # Billed on what came back, not what was asked for: a node returning two of three
-        # images is paid for two. Capped at what was asked for, because the count is the
-        # node's to choose and `n` is what the gate priced — nobody agreed to buy a sixth
-        # image on a request for one.
+        # The node returns images by value (base64). The coordinator decodes and stores each
+        # in the blob store and hands back a reachable URL — a node cannot upload, and its
+        # own url would be unreachable and die with it (see app.image_artifacts). The store
+        # step is also where the "is it a list" guard lives: strings are iterable, so a bare
+        # `images: "abc"` would otherwise be billed as three pictures — store_node_images
+        # returns [] for anything that is not a list, so a malformed reply pays nothing.
         #
-        # The list check is load-bearing, not defensive habit: strings are iterable, so
-        # `images: "abc"` iterated into three "images" and was billed as three. A node could
-        # return three bytes and be paid for three pictures. Anything that is not a list is
-        # not a set of images, so it counts as none and pays nothing.
-        raw_images = reply.get("images")
-        if raw_images is not None and not isinstance(raw_images, list):
-            logger.warning(
-                "node returned {} for images, not a list; treating as no images returned",
-                type(raw_images).__name__,
-            )
-            raw_images = None
-        returned = [str(u) for u in (raw_images or [])]
-        if len(returned) > body.n:
+        # Billed on what came back and stored, not what was asked for: a node returning two
+        # of three is paid for two. Capped at `n`, the count the gate priced — nobody agreed
+        # to buy a sixth image on a request for one.
+        urls = await store_node_images(reply.get("images"), settings=settings)
+        if len(urls) > body.n:
             logger.warning(
                 "node returned {} images for a request of {}; keeping {}",
-                len(returned),
+                len(urls),
                 body.n,
                 body.n,
             )
-        images = returned[: body.n]
+        urls = urls[: body.n]
         cost = await settle_reservation(
             session,
             developer_id=developer.id,
             provider_id=provider_id,
             held=held,
-            actual=image_cost(spec, images=len(images)),
+            actual=image_cost(spec, images=len(urls)),
             settings=settings,
         )
         settled = True
@@ -387,7 +382,7 @@ async def image_generations(
 
     return ImageGenerationResponse(
         created=int(utcnow().timestamp()),
-        data=[GeneratedImage(url=u) for u in images],
+        data=[GeneratedImage(url=u) for u in urls],
         model=body.model,
         cost_usdc=cost,
         provider_id=provider_id,

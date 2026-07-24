@@ -636,6 +636,47 @@
         }
       }
     },
+    "/public/image/{ref}": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Public Image File",
+        "description": "Serve a generated image by its content-addressed ref \u2014 the URL /public/images hands back.\n\nUnauthenticated on purpose: a browser ``<img>`` loads it with no credentials, and the ref\nis a sha256 nobody can guess, so there is nothing to gate. ``get_storage().get`` verifies\nthe bytes hash to the ref before returning them (storage integrity, Session 8.2).",
+        "operationId": "public_image_file_public_image__ref__get",
+        "parameters": [
+          {
+            "name": "ref",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ref"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/billing/ledger": {
       "get": {
         "tags": [

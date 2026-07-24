@@ -12,6 +12,7 @@ All are mutation-tested: the guard is removed and the test must go red. A guard 
 test passes without it is decoration.
 """
 
+import base64
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -381,7 +382,8 @@ class TestTheCeilingIsReal:
         await fund(session, dev, "10")
         await make_node(session, models=("sdxl-turbo",))
 
-        reply = {"status": 200, "payload": {"images": [f"blob://{i}" for i in range(5)]}}
+        images = [base64.b64encode(b"\x89PNG\r\n" + bytes([i])).decode("ascii") for i in range(5)]
+        reply = {"status": 200, "payload": {"images": images}}
         with patch("app.dispatch.call_provider", new=AsyncMock(return_value=reply)):
             res = await client.post(
                 "/v1/images/generations",

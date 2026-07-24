@@ -1,10 +1,13 @@
 """A node is paid per image it returns, so "an image" must mean an image.
 
-`[str(u) for u in reply.get("images")]` iterates whatever it is handed, and strings are
-iterable — so a node returning the string "abc" produced three "images" and was billed as
-having done three pictures' work. Three bytes for three images' pay.
+The store step (``app.image_artifacts.store_node_images``) iterates ``reply["images"]``, and
+strings are iterable — so a node returning the string ``"abc"`` could have produced three
+"images" and been billed for three pictures' work. The guard: anything that is not a *list* is
+treated as no images, and each list element must be a valid base64 image or it is skipped. A
+malformed reply is billed nothing, never garbage.
 """
 
+import base64
 import uuid
 from unittest.mock import AsyncMock, patch
 
@@ -17,6 +20,10 @@ from test_inference import fund, make_node
 pytestmark = pytest.mark.anyio
 
 IMAGE_MODEL = "sdxl-turbo"
+
+
+def _b64(tag: bytes) -> str:
+    return base64.b64encode(b"\x89PNG\r\n" + tag).decode("ascii")
 
 
 async def _setup(client: AsyncClient, session):
@@ -41,9 +48,12 @@ async def test_real_images_are_still_billed(client: AsyncClient, session):
     dev, key = await _setup(client, session)
     before = await developer_balance(session, dev)
 
-    res = await _generate(client, key, {"images": ["u1", "u2", "u3"]})
+    res = await _generate(client, key, {"images": [_b64(b"a"), _b64(b"b"), _b64(b"c")]})
     assert res.status_code == 200, res.text
-    assert [i["url"] for i in res.json()["data"]] == ["u1", "u2", "u3"]
+    # Three real images back → three reachable, coordinator-stored URLs (not the node's own).
+    urls = [i["url"] for i in res.json()["data"]]
+    assert len(urls) == 3
+    assert all("/public/image/" in u for u in urls)
 
     session.expire_all()
     assert before - await developer_balance(session, dev) > 0, "a real generation was free"
@@ -70,3 +80,17 @@ async def test_a_reply_that_is_not_a_list_of_images_pays_nothing(
     session.expire_all()
     charged = before - await developer_balance(session, dev)
     assert charged == 0, f"node returned {images!r} — no images — and was paid {charged}"
+
+
+async def test_list_of_non_base64_junk_pays_nothing(client: AsyncClient, session):
+    """A list, but of things that are not images: each element fails to decode and is skipped."""
+    dev, key = await _setup(client, session)
+    before = await developer_balance(session, dev)
+
+    # 2-char strings are not valid base64 (length not a multiple of 4) → all skipped.
+    res = await _generate(client, key, {"images": ["u1", "u2", "u3"]})
+    assert res.status_code == 200, res.text
+    assert res.json()["data"] == []
+
+    session.expire_all()
+    assert before - await developer_balance(session, dev) == 0, "junk strings were paid for"
