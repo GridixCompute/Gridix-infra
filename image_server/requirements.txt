@@ -1,0 +1,15 @@
+# GRIDIX image server — install on a CUDA GPU host, NOT in CI. The tests mock the renderer
+# and need none of this; only fastapi + a WSGI/ASGI test client, which come from the repo's
+# dev extra.
+#
+# torch: install the CUDA build that matches the host driver, e.g. for CUDA 12.x drivers:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+# (cu124 wheels run on newer drivers too; Ada sm_89 is supported.) Install torch FIRST, then:
+torch
+diffusers>=0.30
+transformers>=4.40
+accelerate>=0.30
+safetensors>=0.4
+pillow>=10
+fastapi>=0.110
+uvicorn>=0.29

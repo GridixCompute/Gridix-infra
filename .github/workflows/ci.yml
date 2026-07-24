@@ -91,6 +91,12 @@ jobs:
       - name: Node package tests
         run: pytest node/tests -q
 
+      # The image server, likewise off testpaths. Its tests inject a fake renderer, so they
+      # need only fastapi + a test client (from the dev extra) — never torch/diffusers, which
+      # install only on a GPU host. A green run here proves the ML stack stays lazily imported.
+      - name: Image server tests
+        run: pytest image_server/tests -q
+
       - name: Packaging build
         run: pip install -e .
 
