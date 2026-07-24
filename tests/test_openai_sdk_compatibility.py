@@ -16,6 +16,7 @@ No network and no server: httpx's ASGITransport hands the SDK's requests straigh
 FastAPI app, so this runs in CI with nothing listening on a port.
 """
 
+import base64
 import uuid
 from unittest.mock import AsyncMock, patch
 
@@ -169,13 +170,15 @@ class TestImagesThroughTheRealSdk:
         await make_node(session, models=(IMAGE_MODEL,))
 
         openai_client = sdk(api_key)
-        reply = {"status": 200, "payload": {"images": ["blob://a"]}}
+        img = base64.b64encode(b"\x89PNG\r\n-sdk-").decode("ascii")
+        reply = {"status": 200, "payload": {"images": [img]}}
         with patch("app.dispatch.call_provider", new=AsyncMock(return_value=reply)):
             images = await openai_client.images.generate(model=IMAGE_MODEL, prompt="a cat", n=1)
 
         assert images.created > 0
         assert images.data is not None
-        assert images.data[0].url == "blob://a"
+        # The SDK parses data[].url; the coordinator stored the image and returned a real URL.
+        assert "/public/image/" in images.data[0].url
 
 
 async def _fresh_signature(client: AsyncClient) -> dict:

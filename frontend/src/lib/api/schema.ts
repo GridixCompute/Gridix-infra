@@ -287,6 +287,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/image/{ref}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Image File
+         * @description Serve a generated image by its content-addressed ref — the URL /public/images hands back.
+         *
+         *     Unauthenticated on purpose: a browser ``<img>`` loads it with no credentials, and the ref
+         *     is a sha256 nobody can guess, so there is nothing to gate. ``get_storage().get`` verifies
+         *     the bytes hash to the ref before returning them (storage integrity, Session 8.2).
+         */
+        get: operations["public_image_file_public_image__ref__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/billing/ledger": {
         parameters: {
             query?: never;
@@ -2811,6 +2835,37 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_image_file_public_image__ref__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

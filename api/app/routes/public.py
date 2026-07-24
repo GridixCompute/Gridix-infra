@@ -24,25 +24,34 @@ What bounds it instead:
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 
 from app.deps import SessionDep, SettingsDep, WalletSessionDep
-from app.dispatch import DispatchError, NoNodeAvailableError, dispatch_stream, select_node
+from app.dispatch import (
+    DispatchError,
+    NoNodeAvailableError,
+    dispatch,
+    dispatch_stream,
+    select_node,
+)
 from app.free_capacity import CapacityFull, get_capacity
 from app.free_tier import (
     FREE_CHAT_MODEL,
+    FREE_IMAGE_MODEL,
     consume_daily,
     is_free_chat_model,
     used_today,
     wallet_anchor,
 )
+from app.image_artifacts import store_node_images
 from app.models import DataTier
 from app.moderation import get_moderator, image_generation_available
 from app.ratelimit import check_rate_limit
 from app.schemas import ChatMessage
 from app.siwe import utcnow
+from app.storage import get_storage
 from app.streaming_chat import sse
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -293,11 +302,62 @@ async def public_image(
             ),
         )
 
-    # Everything above is real and enforced. This is where generation would go, and there is
-    # nothing to dispatch to: the node package serves chat only and answers
-    # `images.generations` with 501, and no node advertises an image model. Reported as 503
-    # rather than pretended around.
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail="No node can generate images yet.",
-    )
+    # Dispatch to a node serving the free image model, exactly as the paid path does — same
+    # model, same node, same by-value reply. The difference is only what surrounds it: no
+    # balance, no ledger, the wallet quota above instead. The node returns the image inline
+    # as base64; the coordinator stores it and returns a reachable URL (never the node's own,
+    # which a browser cannot reach and which dies with the node).
+    try:
+        provider_id = await select_node(
+            session,
+            model=FREE_IMAGE_MODEL,
+            now=utcnow(),
+            settings=settings,
+            data_tier=DataTier.public,
+        )
+    except NoNodeAvailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No node can generate images right now. Try again shortly.",
+        ) from exc
+
+    try:
+        reply = await dispatch(
+            provider_id,
+            method="images.generations",
+            payload={"model": FREE_IMAGE_MODEL, "prompt": body.prompt, "n": 1},
+            settings=settings,
+        )
+    except DispatchError as exc:
+        logger.warning("public image dispatch to {} failed: {}", provider_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The image model failed to answer.",
+        ) from exc
+
+    urls = await store_node_images(reply.get("images"), settings=settings)
+    if not urls:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The image model returned no image.",
+        )
+    return {
+        "created": int(utcnow().timestamp()),
+        "data": [{"url": urls[0]}],
+        "model": FREE_IMAGE_MODEL,
+    }
+
+
+@router.get("/image/{ref}")
+async def public_image_file(ref: str) -> Response:
+    """Serve a generated image by its content-addressed ref — the URL /public/images hands back.
+
+    Unauthenticated on purpose: a browser ``<img>`` loads it with no credentials, and the ref
+    is a sha256 nobody can guess, so there is nothing to gate. ``get_storage().get`` verifies
+    the bytes hash to the ref before returning them (storage integrity, Session 8.2).
+    """
+    try:
+        data = await get_storage().get(ref)
+    except (FileNotFoundError, ValueError, KeyError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such image.") from exc
+    return Response(content=data, media_type="image/png")
