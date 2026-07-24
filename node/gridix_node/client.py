@@ -70,6 +70,20 @@ MODEL_MAP: dict[str, str] = {
 
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434/v1/chat/completions"
 
+# Image models this node serves (catalogue ids the coordinator dispatches, see
+# api/app/catalog.py). Advertised alongside MODEL_MAP's chat ids, and served by a SEPARATE
+# backend — a diffusers server reached over HTTP — because image generation needs torch and a
+# GPU where chat needs neither. Empty unless an image server is actually reachable.
+IMAGE_MODELS: list[str] = ["sdxl-turbo"]
+IMAGE_SERVER_URL = os.environ.get("IMAGE_SERVER_URL", "http://127.0.0.1:8500/generate")
+
+# The node returns the generated image INLINE as base64 (by-value): it has no credential to
+# upload to the coordinator's blob store, so the coordinator decodes and stores it. The whole
+# response frame must stay under the relay's cap, so the encoded image is bounded well below
+# MAX_FRAME_BYTES to leave room for the JSON envelope. A 512x512 PNG is ~0.5 MiB encoded — the
+# image server is what keeps generation at that size; this is the node's backstop.
+MAX_IMAGE_B64_BYTES = 1_000_000
+
 # The relay closes a silent tunnel after ``max(30, heartbeat*3)`` seconds (relay.py
 # ``_idle_timeout``); ping well inside that so a node serving no traffic stays connected.
 PING_INTERVAL_SECONDS = 10.0
@@ -96,7 +110,7 @@ class Config:
     relay_url: str
     node_key: str
     ollama_url: str = DEFAULT_OLLAMA_URL
-    models: list[str] = field(default_factory=lambda: list(MODEL_MAP))
+    models: list[str] = field(default_factory=lambda: list(MODEL_MAP) + IMAGE_MODELS)
     ping_interval: float = PING_INTERVAL_SECONDS
 
 
@@ -106,7 +120,7 @@ def load_config() -> Config:
         relay_url=os.environ["GRIDIX_RELAY_URL"],
         node_key=os.environ["GRIDIX_NODE_KEY"],
         ollama_url=os.environ.get("OLLAMA_URL", DEFAULT_OLLAMA_URL),
-        models=list(MODEL_MAP),
+        models=list(MODEL_MAP) + IMAGE_MODELS,
     )
 
 
@@ -262,6 +276,41 @@ async def handle_stream_request(
     return _response(request_id, 200, result)
 
 
+async def _run_image(payload: dict, http: httpx.AsyncClient) -> dict:
+    """Generate an image via the local image server; return ``{"images": [<base64 PNG>]}``.
+
+    By-value transport: the image is returned INLINE as base64, not a URL. A node has no
+    credential to upload to the coordinator's blob store, and a node-hosted URL would be
+    unreachable by a browser and would die with the node — so the coordinator decodes and
+    stores the bytes instead. The encoded image is bounded (``MAX_IMAGE_B64_BYTES``) so the
+    response frame stays under the relay cap; an oversized image is refused, not truncated.
+
+    Raises ``_UnknownModelError`` for an image id this node does not serve (the coordinator
+    should never route one, but a node must not answer for a model it didn't advertise).
+    """
+    model = payload.get("model")
+    if model not in IMAGE_MODELS:
+        raise _UnknownModelError(model)
+    prompt = payload.get("prompt")
+    if not isinstance(prompt, str) or not prompt:
+        raise ValueError("image payload missing prompt")
+
+    resp = await http.post(
+        IMAGE_SERVER_URL, json={"prompt": prompt}, timeout=OLLAMA_TIMEOUT_SECONDS
+    )
+    resp.raise_for_status()
+    image_b64 = resp.json()["image_b64"]
+    if not isinstance(image_b64, str) or not image_b64:
+        raise ValueError("image server returned no image")
+    if len(image_b64) > MAX_IMAGE_B64_BYTES:
+        # Would overflow the relay frame. The image server bounds size at 512x512; this is the
+        # node's backstop so a misconfigured server can't wedge the tunnel with a dropped frame.
+        raise ValueError(
+            f"image too large for relay frame: {len(image_b64)} > {MAX_IMAGE_B64_BYTES}"
+        )
+    return {"images": [image_b64]}
+
+
 async def handle_request(frame: dict, ollama_url: str, http: httpx.AsyncClient) -> dict:
     """Turn one relay ``request`` frame into the ``response`` frame to send back.
 
@@ -272,10 +321,17 @@ async def handle_request(frame: dict, ollama_url: str, http: httpx.AsyncClient) 
     method = frame.get("method")
     payload = frame.get("payload") or {}
 
+    if method == "images.generations":
+        try:
+            result = await _run_image(payload, http)
+        except _UnknownModelError as exc:
+            return _response(request_id, 400, {"error": f"model {exc.model!r} not served"})
+        except (httpx.HTTPError, KeyError, ValueError, TypeError) as exc:
+            return _response(request_id, 502, {"error": f"image backend error: {exc}"})
+        return _response(request_id, 200, result)
+
     if method != "chat.completions":
-        # Ollama serves chat only; the node registers no image models, so the coordinator
-        # never routes images.generations here — but refuse it explicitly if one arrives.
-        return _response(request_id, 501, {"error": f"method {method!r} not served (chat only)"})
+        return _response(request_id, 501, {"error": f"method {method!r} not served"})
 
     try:
         result = await _run_chat(payload, ollama_url, http)

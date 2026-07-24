@@ -7,13 +7,14 @@ a real local WebSocket, and Ollama is a mocked httpx transport.
 """
 
 import asyncio
+import base64
 import contextlib
 import json
 
 import httpx
 import pytest
 import websockets
-from gridix_node.client import Config, handle_request, run
+from gridix_node.client import MAX_IMAGE_B64_BYTES, Config, handle_request, run
 
 # ── Ollama mock: an httpx transport that returns the OpenAI-compatible shape ──────────────
 
@@ -80,7 +81,7 @@ async def test_full_flow_auth_dispatch_reply() -> None:
     # must contain exactly the models this node's Ollama runs — today just the free tier's.
     assert captured["auth"]["type"] == "auth"
     assert captured["auth"]["key"] == "grdx_test_key"
-    assert set(captured["auth"]["models"]) == {"llama3.2-3b"}
+    assert set(captured["auth"]["models"]) == {"llama3.2-3b", "sdxl-turbo"}
     # The node mapped the catalogue id to the Ollama tag before calling the backend.
     assert ollama_seen["body"]["model"] == "llama3.2:3b"
     assert ollama_seen["body"]["messages"] == [{"role": "user", "content": "hi"}]
@@ -150,10 +151,63 @@ async def test_non_chat_method_is_refused() -> None:
         transport=httpx.MockTransport(lambda r: httpx.Response(200))
     ) as http:
         reply = await handle_request(
-            _request("images.generations", "sdxl-turbo"), "http://ollama.test/x", http
+            _request("audio.transcriptions", "whisper"), "http://ollama.test/x", http
         )
     assert reply["status"] == 501
-    assert "chat only" in reply["payload"]["error"]
+    assert "not served" in reply["payload"]["error"]
+
+
+# ── Image dispatch: bridged to the image server, returned by value (base64) ────────────────
+
+
+def _image_server(seen: dict, image_b64: str):
+    """An httpx transport standing in for the diffusers image server on IMAGE_SERVER_URL."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"image_b64": image_b64, "bytes": 42})
+
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+def _image_request(model: str, prompt: str = "a red bicycle on a beach") -> dict:
+    return {
+        "type": "request",
+        "request_id": "img-1",
+        "method": "images.generations",
+        "payload": {"model": model, "prompt": prompt, "n": 1},
+    }
+
+
+async def test_image_dispatch_returns_base64_by_value() -> None:
+    b64 = base64.b64encode(b"\x89PNG\r\n-fake-").decode("ascii")
+    seen: dict = {}
+    async with _image_server(seen, b64) as http:
+        reply = await handle_request(_image_request("sdxl-turbo"), "http://ollama.test/x", http)
+    # The prompt reached the image server, and the image comes back INLINE, not as a URL.
+    assert seen["body"]["prompt"] == "a red bicycle on a beach"
+    assert reply["status"] == 200
+    assert reply["payload"] == {"images": [b64]}
+
+
+async def test_oversize_image_is_refused_not_sent() -> None:
+    """An image whose base64 would overflow the relay frame must be refused, not truncated."""
+    too_big = "A" * (MAX_IMAGE_B64_BYTES + 1)
+    async with _image_server({}, too_big) as http:
+        reply = await handle_request(_image_request("sdxl-turbo"), "http://ollama.test/x", http)
+    assert reply["status"] == 502
+    assert "too large" in reply["payload"]["error"]
+
+
+async def test_unmapped_image_id_is_refused() -> None:
+    """A node must not answer for an image model it never advertised."""
+    async with _image_server({}, "unused") as http:
+        reply = await handle_request(
+            _image_request("not-an-image-model"), "http://ollama.test/x", http
+        )
+    assert reply["status"] == 400
+    assert "not-an-image-model" in reply["payload"]["error"]
 
 
 # Guard: pytest is configured with asyncio_mode=auto (repo pyproject), so these run directly.
