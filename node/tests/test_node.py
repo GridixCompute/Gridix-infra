@@ -51,7 +51,7 @@ async def test_full_flow_auth_dispatch_reply() -> None:
                     "job_id": None,
                     "method": "chat.completions",
                     "payload": {
-                        "model": "llama-3.1-8b",
+                        "model": "llama3.2-3b",
                         "messages": [{"role": "user", "content": "hi"}],
                         "max_tokens": 40,
                     },
@@ -76,15 +76,13 @@ async def test_full_flow_auth_dispatch_reply() -> None:
         await run(config, http=http, stop_after=1)
         await asyncio.wait_for(done.wait(), timeout=5)
 
-    # Auth advertises every id the node serves — now the paid model AND the free tier's,
-    # side by side. Serving the free model must not cost the paid one its listing: the
-    # coordinator routes on this list, so a node that dropped one would stop being selected
-    # for it.
+    # Auth advertises every id the node serves. The coordinator routes on this list, so it
+    # must contain exactly the models this node's Ollama runs — today just the free tier's.
     assert captured["auth"]["type"] == "auth"
     assert captured["auth"]["key"] == "grdx_test_key"
-    assert set(captured["auth"]["models"]) == {"llama-3.1-8b", "llama3.2-3b"}
+    assert set(captured["auth"]["models"]) == {"llama3.2-3b"}
     # The node mapped the catalogue id to the Ollama tag before calling the backend.
-    assert ollama_seen["body"]["model"] == "llama3.1:8b"
+    assert ollama_seen["body"]["model"] == "llama3.2:3b"
     assert ollama_seen["body"]["messages"] == [{"role": "user", "content": "hi"}]
     # The reply is exactly the frame relay.py/inference.py expect.
     assert captured["reply"] == {
@@ -111,9 +109,9 @@ async def test_maps_catalogue_id_to_ollama_tag_and_shapes_reply() -> None:
     seen: dict = {}
     async with _ollama_ok(seen) as http:
         reply = await handle_request(
-            _request("chat.completions", "llama-3.1-8b"), "http://ollama.test/x", http
+            _request("chat.completions", "llama3.2-3b"), "http://ollama.test/x", http
         )
-    assert seen["body"]["model"] == "llama3.1:8b"  # mapped, not the catalogue id
+    assert seen["body"]["model"] == "llama3.2:3b"  # mapped, not the catalogue id
     assert reply["type"] == "response"
     assert reply["request_id"] == "r-42"  # echoed
     assert reply["status"] == 200
@@ -129,7 +127,7 @@ async def test_ollama_error_becomes_error_status_without_crashing() -> None:
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(boom)) as http:
         reply = await handle_request(
-            _request("chat.completions", "llama-3.1-8b"), "http://ollama.test/x", http
+            _request("chat.completions", "llama3.2-3b"), "http://ollama.test/x", http
         )
     assert reply["request_id"] == "r-42"
     assert reply["status"] == 502  # >= 400 → coordinator raises DispatchError, charges nothing
@@ -222,7 +220,7 @@ async def test_a_streamed_request_emits_chunks_then_a_terminal_response() -> Non
         "request_id": "req-s",
         "method": "chat.completions",
         "stream": True,
-        "payload": {"model": "llama-3.1-8b", "messages": [{"role": "user", "content": "hi"}]},
+        "payload": {"model": "llama3.2-3b", "messages": [{"role": "user", "content": "hi"}]},
     }
     async with http:
         terminal = await handle_stream_request(
@@ -261,7 +259,7 @@ async def test_a_backend_failure_mid_stream_becomes_a_terminal_error_not_a_crash
         "request_id": "req-e",
         "method": "chat.completions",
         "stream": True,
-        "payload": {"model": "llama-3.1-8b", "messages": []},
+        "payload": {"model": "llama3.2-3b", "messages": []},
     }
     async with http:
         terminal = await handle_stream_request(frame, "http://ollama/v1", http, lambda f: _noop())
@@ -320,7 +318,7 @@ async def test_a_cancel_frame_stops_the_generation() -> None:
                     "request_id": "req-c",
                     "method": "chat.completions",
                     "stream": True,
-                    "payload": {"model": "llama-3.1-8b", "messages": []},
+                    "payload": {"model": "llama3.2-3b", "messages": []},
                 }
             )
         )

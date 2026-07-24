@@ -18,7 +18,7 @@ Taken verbatim from `api/app/relay.py` (JSON text frames over one WebSocket to
 
 | Step | Direction | Frame |
 |------|-----------|-------|
-| auth (first frame, ≤10 s) | node → relay | `{"type":"auth","key":"grdx_...","models":["llama-3.1-8b"]}` |
+| auth (first frame, ≤10 s) | node → relay | `{"type":"auth","key":"grdx_...","models":["llama3.2-3b"]}` |
 | auth ok | relay → node | `{"type":"auth_ok","provider_id":"..."}` |
 | auth failed | relay → node | `{"type":"auth_error","reason":"..."}` then close |
 | keepalive | node → relay / relay → node | `{"type":"ping"}` / `{"type":"pong"}` |
@@ -40,7 +40,7 @@ The node advertises **catalogue ids** (what the coordinator dispatches, `api/app
 and maps each to the Ollama tag it actually runs. Start point in `gridix_node/client.py`:
 
 ```python
-MODEL_MAP = {"llama-3.1-8b": "llama3.1:8b"}
+MODEL_MAP = {"llama3.2-3b": "llama3.2:3b"}
 ```
 
 Every key is sent in the auth `models` list, so the coordinator only ever routes ids the node
@@ -65,7 +65,7 @@ export OLLAMA_NUM_PARALLEL=4
 
 # 4. Start the server (OpenAI-compatible API on :11434) and pull the chat model:
 ollama serve &
-ollama pull llama3.1:8b
+ollama pull llama3.2:3b
 ```
 
 Ollama's `/v1/chat/completions` returns `usage` with `prompt_tokens`/`completion_tokens`,
