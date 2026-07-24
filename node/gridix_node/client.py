@@ -50,20 +50,21 @@ import websockets
 # Catalogue id (what the coordinator dispatches, see api/app/catalog.py) → Ollama model tag.
 # Extend this as the node is taught to serve more chat models; every key here is advertised
 # to the relay in the auth frame, so the coordinator only ever routes ids the node can map.
+# Maps a coordinator catalogue id to the Ollama tag this node actually runs. The node
+# advertises every key here to the relay (record_models writes one ProviderModel row per
+# key), and select_node routes on those ids — so a key for a model this node's Ollama has
+# NOT pulled makes the node falsely claim to serve it and 404 when dispatched one. Map only
+# what is pulled.
+#
+# Just the public free tier's model for now: FREE_CHAT_MODEL = "llama3.2-3b" (see
+# api/app/free_tier.py) is the id select_node matches on, "llama3.2:3b" the Ollama tag. The
+# paid 8B (catalogue id "llama-3.1-8b") is intentionally absent — re-add it the day a node
+# actually runs `ollama pull llama3.1:8b`, not before.
+#
+# On the node host: `ollama pull llama3.2:3b`, and set OLLAMA_NUM_PARALLEL to the
+# coordinator's `free_chat_concurrency` — more slots there than the node has parallelism just
+# moves the queue to where nobody can measure it; fewer wastes the small model's headroom.
 MODEL_MAP: dict[str, str] = {
-    "llama-3.1-8b": "llama3.1:8b",
-    # The public free tier's model, served ALONGSIDE the paid one rather than instead of it.
-    # A 3B model is ~2GB, so several copies fit beside the 8B on a 20GB card — which is the
-    # point: one visitor running an 8B generation would monopolise the GPU, where the 3B
-    # lets many be served at once.
-    #
-    # Requires, on the node host:
-    #   ollama pull llama3.2:3b
-    #   OLLAMA_NUM_PARALLEL=4   (and OLLAMA_MAX_LOADED_MODELS=2 to keep both resident)
-    #
-    # OLLAMA_NUM_PARALLEL should match the coordinator's `free_chat_concurrency`. More slots
-    # on the coordinator than the node has parallelism just moves the queue to where nobody
-    # can measure it; fewer wastes the headroom this small model was chosen for.
     "llama3.2-3b": "llama3.2:3b",
 }
 
